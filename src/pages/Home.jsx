@@ -3,7 +3,7 @@ import { Search, Star, ChevronLeft, ChevronRight, X, Play, Plus, ThumbsUp } from
 import { platforms, getMoviesByCategory, getMoviesByPlatform } from '../data/mockData';
 
 const MovieCard = ({ movie, onClick, index, showNumber }) => (
-  <div className="movie-card cursor-pointer relative pl-12" onClick={() => onClick(movie)}>
+  <div className="movie-card cursor-pointer relative pl-0" onClick={() => onClick(movie)}>
     {showNumber && (
       <div className="trending-number">
         <span className="number">{index + 1}</span>
