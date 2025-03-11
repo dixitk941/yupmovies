@@ -1,129 +1,165 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Star, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Star, ChevronLeft, ChevronRight, X, Play, Plus, ThumbsUp } from 'lucide-react';
 import { platforms, getMoviesByCategory, getMoviesByPlatform } from '../data/mockData';
 
-const MovieCard = ({ movie }) => (
-  <Link to={`/movie/${movie.id}`} className="flex-none basis-[14rem] bg-gray-800 rounded-xl overflow-hidden hover:transform hover:scale-105 transition-transform duration-300">
-    <img src={movie.image} alt={movie.title} className="w-full h-36 object-cover" />
-    <div className="p-3">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="text-base font-semibold line-clamp-1">{movie.title}</h3>
-        <div className="flex items-center">
-          <Star className="text-yellow-400 fill-current" size={14} />
-          <span className="ml-1 text-xs">{movie.rating}</span>
-        </div>
+const MovieCard = ({ movie, onClick, index, showNumber }) => (
+  <div className="movie-card cursor-pointer relative pl-12" onClick={() => onClick(movie)}>
+    {showNumber && (
+      <div className="trending-number">
+        <span className="number">{index + 1}</span>
       </div>
-      <div className="text-xs text-gray-400 mb-2">{movie.platform}</div>
-      <div className="flex flex-wrap gap-2">
-        {movie.genre.map((g, index) => (
-          <span key={index} className="bg-gray-700 px-2 py-1 rounded-full text-xxs">
+    )}
+    <img 
+      src={movie.image} 
+      alt={movie.title} 
+      className="w-full h-[150px] object-cover rounded-sm"
+    />
+    <div className="opacity-0 hover:opacity-100 absolute inset-0 left-12 bg-black bg-opacity-75 p-4 transition-opacity rounded-sm">
+      <h3 className="text-sm font-semibold mb-1">{movie.title}</h3>
+      <div className="flex items-center text-xs mb-2">
+        <Star className="text-yellow-400 fill-current" size={12} />
+        <span className="ml-1">{movie.rating}</span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {movie.genre.slice(0, 2).map((g, index) => (
+          <span key={index} className="text-xs bg-red-600 px-2 py-0.5 rounded">
             {g}
           </span>
         ))}
       </div>
     </div>
-  </Link>
+  </div>
 );
 
-const MovieSection = ({ title, movies }) => {
-  const [currentBatch, setCurrentBatch] = useState(0);
-  const batchSize = 6;
-
-  const handleNextBatch = () => {
-    if ((currentBatch + 1) * batchSize < movies.length) {
-      setCurrentBatch(currentBatch + 1);
-    }
-  };
-
-  const handlePrevBatch = () => {
-    if (currentBatch > 0) {
-      setCurrentBatch(currentBatch - 1);
-    }
-  };
-
-  const startIndex = currentBatch * batchSize;
-  const endIndex = startIndex + batchSize;
-  const currentMovies = movies.slice(startIndex, endIndex);
-
-  return (
-    <div className="mb-8">
-      <h2 className="text-xl font-bold mb-4">{title}</h2>
-      <div className="flex items-center">
-        {currentBatch > 0 && (
-          <button
-            className="bg-gray-700 p-2 rounded-full hover:bg-gray-600 transition-colors"
-            onClick={handlePrevBatch}
-          >
-            <ChevronLeft size={20} />
-          </button>
-        )}
-        <div className="flex overflow-x-auto gap-3 pb-4 movie-scroll scrollbar-hide">
-          {currentMovies.map(movie => (
-            <MovieCard key={movie.id} movie={movie} />
-          ))}
+const MovieDetails = ({ movie, onClose }) => (
+  <div className="movie-details-overlay" onClick={onClose}>
+    <div 
+      className="relative w-[90%] max-w-4xl bg-[#181818] rounded-lg overflow-hidden"
+      onClick={e => e.stopPropagation()}
+    >
+      <button 
+        className="absolute top-4 right-4 z-10 bg-black rounded-full p-1"
+        onClick={onClose}
+      >
+        <X size={24} />
+      </button>
+      
+      <div className="relative">
+        <img 
+          src={movie.image} 
+          alt={movie.title} 
+          className="w-full h-[400px] object-cover"
+        />
+        <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-[#181818]">
+          <h2 className="text-4xl font-bold mb-4">{movie.title}</h2>
+          <div className="flex gap-4 mb-6">
+            <button className="flex items-center gap-2 bg-white text-black px-6 py-2 rounded">
+              <Play size={20} />
+              Play
+            </button>
+            <button className="flex items-center gap-2 bg-gray-500 bg-opacity-50 px-6 py-2 rounded">
+              <Plus size={20} />
+              My List
+            </button>
+            <button className="flex items-center gap-2 bg-gray-500 bg-opacity-50 p-2 rounded-full">
+              <ThumbsUp size={20} />
+            </button>
+          </div>
         </div>
-        {endIndex < movies.length && (
-          <button
-            className="bg-gray-700 p-2 rounded-full hover:bg-gray-600 transition-colors"
-            onClick={handleNextBatch}
-          >
-            <ChevronRight size={20} />
-          </button>
-        )}
+      </div>
+
+      <div className="p-8">
+        <div className="flex gap-4 text-sm mb-6">
+          <span className="text-green-500">98% Match</span>
+          <span>{movie.releaseYear}</span>
+          <span>{movie.duration}</span>
+          <span className="border border-gray-500 px-1">HD</span>
+        </div>
+
+        <p className="text-gray-300 mb-6">{movie.description}</p>
+
+        <div className="grid grid-cols-3 gap-8">
+          <div>
+            <span className="text-gray-400">Cast:</span>
+            <p>{movie.cast.join(', ')}</p>
+          </div>
+          <div>
+            <span className="text-gray-400">Genres:</span>
+            <p>{movie.genre.join(', ')}</p>
+          </div>
+          <div>
+            <span className="text-gray-400">Available in:</span>
+            <p>{movie.language.join(', ')}</p>
+          </div>
+        </div>
       </div>
     </div>
-  );
-};
+  </div>
+);
 
-const AllMoviesSection = ({ title, movies }) => {
-  const [currentPage, setCurrentPage] = useState(0);
-  const itemsPerPage = 12;
-  const totalPages = Math.ceil(movies.length / itemsPerPage);
+const MovieSection = ({ title, movies, showNumbers }) => {
+  const scrollRef = useRef(null);
+  const [showLeftButton, setShowLeftButton] = useState(false);
+  const [showRightButton, setShowRightButton] = useState(true);
+  const [selectedMovie, setSelectedMovie] = useState(null);
 
-  const handlePrevious = () => {
-    if (currentPage > 0) setCurrentPage(currentPage - 1);
+  const scroll = (direction) => {
+    const container = scrollRef.current;
+    const scrollAmount = container.clientWidth * 0.8;
+    container.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth'
+    });
   };
 
-  const handleNext = () => {
-    if (currentPage < totalPages - 1) setCurrentPage(currentPage + 1);
+  const handleScroll = () => {
+    const container = scrollRef.current;
+    setShowLeftButton(container.scrollLeft > 0);
+    setShowRightButton(
+      container.scrollLeft < container.scrollWidth - container.clientWidth
+    );
   };
-
-  const startIndex = currentPage * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentMovies = movies.slice(startIndex, endIndex);
 
   return (
-    <div className="mb-8">
-      <h2 className="text-xl font-bold mb-4">{title}</h2>
-      {currentMovies.length === 0 ? (
-        <div className="text-center text-gray-400 py-8">No movies found</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {currentMovies.map(movie => (
-            <MovieCard key={movie.id} movie={movie} />
+    <div className="movie-section mb-12">
+      <h2 className="text-2xl font-bold mb-6">{title}</h2>
+      <div className="relative">
+        {showLeftButton && (
+          <button 
+            className="scroll-button left"
+            onClick={() => scroll('left')}
+          >
+            <ChevronLeft size={30} />
+          </button>
+        )}
+        <div 
+          ref={scrollRef}
+          className="flex gap-4 overflow-x-auto scrollbar-hide pl-4"
+          onScroll={handleScroll}
+        >
+          {movies.map((movie, index) => (
+            <div key={movie.id} className="flex-none w-[240px]">
+              <MovieCard 
+                movie={movie} 
+                onClick={setSelectedMovie} 
+                index={index}
+                showNumber={showNumbers}
+              />
+            </div>
           ))}
         </div>
-      )}
-      <div className="flex justify-between items-center mt-4">
-        <button
-          onClick={handlePrevious}
-          disabled={currentPage === 0}
-          className="bg-gray-700 text-white px-4 py-2 rounded disabled:opacity-50"
-        >
-          Previous
-        </button>
-        <span className="text-gray-400">
-          Page {currentPage + 1} of {totalPages}
-        </span>
-        <button
-          onClick={handleNext}
-          disabled={currentPage === totalPages - 1}
-          className="bg-gray-700 text-white px-4 py-2 rounded disabled:opacity-50"
-        >
-          Next
-        </button>
+        {showRightButton && (
+          <button 
+            className="scroll-button right"
+            onClick={() => scroll('right')}
+          >
+            <ChevronRight size={30} />
+          </button>
+        )}
       </div>
+      {selectedMovie && (
+        <MovieDetails movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
+      )}
     </div>
   );
 };
@@ -131,80 +167,79 @@ const AllMoviesSection = ({ title, movies }) => {
 function Home() {
   const [selectedPlatform, setSelectedPlatform] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [displayedMovies, setDisplayedMovies] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [sections, setSections] = useState({
     featured: [],
     trending: [],
     new: [],
-    topRated: [],
-    all: []
+    topRated: []
   });
+  const [selectedMovie, setSelectedMovie] = useState(null);
+  const moviesPerPage = 20;
 
   useEffect(() => {
     setSections({
       featured: getMoviesByCategory('featured'),
       trending: getMoviesByCategory('trending'),
       new: getMoviesByCategory('new'),
-      topRated: getMoviesByCategory('topRated'),
-      all: getMoviesByCategory('all')
+      topRated: getMoviesByCategory('topRated')
     });
   }, []);
 
-  useEffect(() => {
-    let filtered = selectedPlatform
-      ? getMoviesByPlatform(selectedPlatform)
-      : getMoviesByCategory('all');
+  const allMovies = selectedPlatform
+    ? getMoviesByPlatform(selectedPlatform)
+    : getMoviesByCategory('all');
 
-    if (searchQuery) {
-      filtered = filtered.filter(movie =>
+  const filteredMovies = searchQuery
+    ? allMovies.filter(movie =>
         movie.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         movie.genre.some(g => g.toLowerCase().includes(searchQuery.toLowerCase())) ||
         movie.platform.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
+      )
+    : allMovies;
 
-    setDisplayedMovies(filtered);
-  }, [selectedPlatform, searchQuery]);
+  const totalPages = Math.ceil(filteredMovies.length / moviesPerPage);
+  const paginatedMovies = filteredMovies.slice(
+    (currentPage - 1) * moviesPerPage,
+    currentPage * moviesPerPage
+  );
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <header className="bg-gray-800 shadow-lg sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">MovieReviews</h1>
-            <div className="relative flex-1 max-w-xl mx-8">
+    <div className="min-h-screen bg-[#141414]">
+      <header className="fixed top-0 w-full bg-[#141414] bg-opacity-90 z-50">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center gap-8">
+            <h1 className="text-2xl font-bold text-red-600">MovieReviews</h1>
+            <div className="relative flex-1 max-w-xl">
               <input
                 type="text"
                 placeholder="Search movies..."
-                className="w-full bg-gray-700 rounded-full px-6 py-2 pl-12 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-[#181818] rounded px-10 py-2 focus:outline-none focus:ring-2 focus:ring-red-600"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
-              <Search className="absolute left-4 top-2.5 text-gray-400" size={20} />
+              <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
             </div>
-            <button className="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-full font-medium transition-colors">
-              Sign In
-            </button>
           </div>
         </div>
       </header>
 
-      <div className="bg-gray-800 py-4 shadow-md sticky top-20 z-40">
-        <div className="container mx-auto px-4">
-          <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="fixed top-16 w-full bg-[#141414] z-40">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide">
             <button
-              className={`bg-gray-700 px-6 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-transform hover:scale-105 ${
-                !selectedPlatform ? 'ring-2 ring-blue-500' : ''
+              className={`px-4 py-1 rounded ${
+                !selectedPlatform ? 'bg-red-600' : 'bg-[#181818]'
               }`}
               onClick={() => setSelectedPlatform(null)}
             >
-              All Platforms
+              All
             </button>
             {platforms.map((platform) => (
               <button
                 key={platform.id}
-                className={`${platform.color} px-6 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-transform hover:scale-105 ${
-                  selectedPlatform === platform.name ? 'ring-2 ring-blue-500' : ''
+                className={`px-4 py-1 rounded whitespace-nowrap ${
+                  selectedPlatform === platform.name ? 'bg-red-600' : 'bg-[#181818]'
                 }`}
                 onClick={() => setSelectedPlatform(platform.name)}
               >
@@ -215,33 +250,58 @@ function Home() {
         </div>
       </div>
 
-      <main className="container mx-auto px-4 py-8">
-        {searchQuery || selectedPlatform ? (
-          <div className="mb-8">
-            <h2 className="text-xl font-bold mb-4">
-              {searchQuery ? 'Search Results' : `Movies on ${selectedPlatform}`}
-            </h2>
-            <div className="movie-grid">
-              {displayedMovies.map(movie => (
-                <MovieCard key={movie.id} movie={movie} />
-              ))}
-            </div>
-            {displayedMovies.length === 0 && (
-              <div className="text-center text-gray-400 py-8">
-                No movies found
-              </div>
-            )}
-          </div>
-        ) : (
+      <main className="container mx-auto px-4 pt-36">
+        {!searchQuery && !selectedPlatform && (
           <>
             <MovieSection title="Featured" movies={sections.featured} />
-            <MovieSection title="Trending Now" movies={sections.trending} />
+            <MovieSection title="Trending Now" movies={sections.trending} showNumbers={true} />
             <MovieSection title="New Releases" movies={sections.new} />
             <MovieSection title="Top Rated" movies={sections.topRated} />
-            <AllMoviesSection title="All Movies" movies={sections.all} />
           </>
         )}
+
+        <div className="mt-8">
+          <h2 className="text-xl font-bold mb-4">
+            {searchQuery ? 'Search Results' : 'All Movies'}
+          </h2>
+          <div className="movie-grid">
+            {paginatedMovies.map((movie, index) => (
+              <MovieCard 
+                key={movie.id} 
+                movie={movie} 
+                onClick={setSelectedMovie}
+                index={index}
+              />
+            ))}
+          </div>
+          
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => p - 1)}
+                className={currentPage === 1 ? 'opacity-50' : ''}
+              >
+                Previous
+              </button>
+              <span className="flex items-center">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => p + 1)}
+                className={currentPage === totalPages ? 'opacity-50' : ''}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
       </main>
+
+      {selectedMovie && (
+        <MovieDetails movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
+      )}
     </div>
   );
 }
