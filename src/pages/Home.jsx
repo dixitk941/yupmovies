@@ -48,6 +48,7 @@ const MovieDetails = ({ movie, onClose }) => {
     onClose();
   };
 
+
   return (
     <div className="movie-details-overlay" onClick={onClose}>
       <div 
