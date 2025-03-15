@@ -1,6 +1,6 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getMovieById } from '../data/mockData';
+// import { getMovieById } from '../data/mockData';
 import { Download, ArrowLeft } from 'lucide-react';
 
 function DownloadPage() {

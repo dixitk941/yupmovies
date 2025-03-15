@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { getMovieById } from '../data/mockData';
+// import { getMovieById } from '../data/mockData';
 
 function VerifyDownload() {
   const { id, quality } = useParams();
