@@ -17,9 +17,10 @@ function MovieDetail() {
   ];
 
   const handleDownload = (quality) => {
-    navigate(`/verify/${id}/${quality}`);
+    window.location.href = `https://my-blog-five-amber-64.vercel.app/redirect?movieId=${movie.id}&quality=${quality}`;
+    onClose();
   };
-
+  
   if (!movie) return (
     <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
       <div className="text-center">
