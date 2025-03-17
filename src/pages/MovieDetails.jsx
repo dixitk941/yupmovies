@@ -98,33 +98,73 @@ const MovieDetails = ({ movie, onClose }) => {
       showToast("No download links available");
       return;
     }
-
+  
     // Find a link that matches the selected size
     const link = movie.final_links.find(link => {
       const linkSize = link.size || "";
       return linkSize.toLowerCase() === size.toLowerCase();
     });
-
+  
     if (link) {
-      // Create a sanitized movie name for the URL
-      const movieName = movie.title.replace(/[^\w\s]/gi, '').replace(/\s+/g, '-').toLowerCase();
-      
-      // Build the redirect URL with parameters
-      const redirectUrl = `https://my-blog-five-amber-64.vercel.app/redirect?` +
-        `title=${encodeURIComponent(movie.title)}` +
-        `&quality=${encodeURIComponent(size)}` +
-        `&id=${encodeURIComponent(movie.id || movieName)}`;
-      
-      // Open the redirect URL in a new tab
-      window.open(redirectUrl, '_blank');
-      
-      // Show toast
-      showToast(`Downloading ${movie.title} in ${size}`);
+      try {
+        // Generate a unique download token instead of exposing details in URL
+        const downloadData = {
+          id: movie.id || generateUniqueId(movie.title),
+          q: size,
+          t: Date.now(),
+          // Include a hash for verification if needed
+          hash: btoa(`${movie.id || movie.title}-${size}-${Date.now()}`).slice(0, 16)
+        };
+        
+        // Convert to base64 to avoid exposing details directly
+        const token = btoa(JSON.stringify(downloadData));
+        
+        // Use a more secure redirect URL with just the token
+        const redirectUrl = `https://my-blog-five-amber-64.vercel.app/secure-download?token=${encodeURIComponent(token)}`;
+        
+        // Open the redirect URL in a new tab
+        window.open(redirectUrl, '_blank');
+        
+        // Show toast with less specific information
+        showToast(`Starting download in ${size}`);
+        
+        // Optional: Track download for analytics
+        trackDownload(movie.id, size);
+      } catch (error) {
+        console.error("Download error:", error);
+        showToast("Download failed. Please try again.");
+      }
     } else {
       showToast(`Download link unavailable for ${size}`);
     }
   };
-
+  
+  // Helper function to generate a unique ID from the title
+  const generateUniqueId = (title) => {
+    if (!title) return Math.random().toString(36).substring(2, 15);
+    
+    // Create a slug from title and add timestamp for uniqueness
+    const slug = title
+      .toLowerCase()
+      .replace(/[^\w\s]/gi, '')
+      .replace(/\s+/g, '-');
+      
+    return `${slug}-${Date.now().toString(36)}`;
+  };
+  
+  // Optional analytics tracking
+  const trackDownload = (movieId, quality) => {
+    // You could implement analytics here
+    // But don't expose sensitive information
+    try {
+      // Example - you could use a simple pixel or API call
+      const trackingPixel = new Image();
+      trackingPixel.src = `https://my-blog-five-amber-64.vercel.app/track?event=download&id=${btoa(movieId)}&q=${btoa(quality)}&t=${Date.now()}`;
+    } catch (e) {
+      // Silent fail for tracking
+    }
+  };
+  
   // Simple toast notification function
   const showToast = (message) => {
     const toast = document.createElement('div');
