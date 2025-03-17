@@ -1,22 +1,30 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Download, Plus, ThumbsUp, Volume2, VolumeX, ChevronLeft, ChevronRight, Star, Calendar, Clock, Globe, Play, Info, Bookmark, Share2, Award } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info } from 'lucide-react';
 
 const MovieDetails = ({ movie, onClose }) => {
-  const [showQualityOptions, setShowQualityOptions] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [activeScreenshot, setActiveScreenshot] = useState(0);
-  const [isMuted, setIsMuted] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
+  const [activeScreenshot, setActiveScreenshot] = useState(0);
   const [activeTab, setActiveTab] = useState('details'); // 'details', 'cast', 'screenshots'
   const [scrollPosition, setScrollPosition] = useState(0);
+  const [hoveredQuality, setHoveredQuality] = useState(null);
+  const [expandGenres, setExpandGenres] = useState(false);
   const modalRef = useRef(null);
   const contentRef = useRef(null);
+  const screenshotTimerRef = useRef(null);
+  const backdropRef = useRef(null);
+  
+  // Extract year from title if available
+  const yearMatch = movie.title.match(/\((\d{4})\)/);
+  const year = yearMatch ? yearMatch[1] : '';
   
   // Handle screen size detection with breakpoint system
   useEffect(() => {
     const checkScreenSize = () => {
       const width = window.innerWidth;
       setIsMobile(width < 768);
+      setIsTablet(width >= 768 && width < 1024);
     };
     
     checkScreenSize();
@@ -44,19 +52,14 @@ const MovieDetails = ({ movie, onClose }) => {
     setTimeout(() => {
       setIsLoaded(true);
     }, 50);
-  }, []);
-  
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showQualityOptions && !event.target.closest('.quality-dropdown')) {
-        setShowQualityOptions(false);
-      }
-    };
     
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showQualityOptions]);
+    // Add fancy backdrop animation
+    if (backdropRef.current) {
+      setTimeout(() => {
+        backdropRef.current.classList.add('animate-ken-burns');
+      }, 200);
+    }
+  }, []);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -65,10 +68,6 @@ const MovieDetails = ({ movie, onClose }) => {
       document.body.style.overflow = 'auto';
     };
   }, []);
-
-  // Extract year from title if available
-  const yearMatch = movie.title.match(/\((\d{4})\)/);
-  const year = yearMatch ? yearMatch[1] : '';
   
   // Handle escape key to close modal
   useEffect(() => {
@@ -80,27 +79,23 @@ const MovieDetails = ({ movie, onClose }) => {
     return () => window.removeEventListener('keydown', handleEscKey);
   }, [onClose]);
 
-  // Auto-rotate screenshots every 5 seconds
+  // Auto-rotate screenshots every 5 seconds if they're visible
   useEffect(() => {
-    let interval;
+    clearTimeout(screenshotTimerRef.current);
     
-    if (movie.movie_screenshots?.length > 1 && activeTab === 'screenshots') {
-      interval = setInterval(() => {
+    if (movie.movie_screenshots?.length > 1 && 
+        ((isMobile && activeTab === 'screenshots') || !isMobile)) {
+      screenshotTimerRef.current = setTimeout(() => {
         nextScreenshot();
       }, 5000);
     }
     
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [activeTab, activeScreenshot, movie.movie_screenshots]);
-
+    return () => clearTimeout(screenshotTimerRef.current);
+  }, [activeTab, activeScreenshot, movie.movie_screenshots, isMobile]);
+  
   const handleDownload = (size) => {
-    // Check if movie has final_links
     if (!movie || !movie.final_links || !Array.isArray(movie.final_links)) {
-      console.error("No download links available for this movie");
-      // Use toast notification instead of alert for better UX
-      showToast("No download links available for this movie");
+      showToast("No download links available");
       return;
     }
 
@@ -123,18 +118,17 @@ const MovieDetails = ({ movie, onClose }) => {
       // Open the redirect URL in a new tab
       window.open(redirectUrl, '_blank');
       
-      // Close the quality options dropdown
-      setShowQualityOptions(false);
+      // Show toast
+      showToast(`Downloading ${movie.title} in ${size}`);
     } else {
-      console.error(`No download link found for size ${size}`);
-      showToast(`No download link found for size ${size}`);
+      showToast(`Download link unavailable for ${size}`);
     }
   };
-  
+
   // Simple toast notification function
   const showToast = (message) => {
     const toast = document.createElement('div');
-    toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg z-[100] animate-fadeIn';
+    toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-[100] animate-fadeIn';
     toast.textContent = message;
     document.body.appendChild(toast);
     
@@ -144,31 +138,50 @@ const MovieDetails = ({ movie, onClose }) => {
     }, 3000);
   };
   
-  const nextScreenshot = () => {
+  const nextScreenshot = useCallback(() => {
     if (movie.movie_screenshots && movie.movie_screenshots.length > 0) {
       setActiveScreenshot((prev) => (prev + 1) % movie.movie_screenshots.length);
     }
-  };
+  }, [movie.movie_screenshots]);
   
-  const prevScreenshot = () => {
+  const prevScreenshot = useCallback(() => {
     if (movie.movie_screenshots && movie.movie_screenshots.length > 0) {
       setActiveScreenshot((prev) => (prev - 1 + movie.movie_screenshots.length) % movie.movie_screenshots.length);
     }
-  };
+  }, [movie.movie_screenshots]);
 
   return (
     <div 
-      className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-0 overflow-hidden"
+      className="fixed inset-0 bg-black/85 backdrop-blur-lg z-50 flex items-center justify-center p-0 overflow-hidden"
       onClick={onClose}
       aria-modal="true"
       role="dialog"
       aria-labelledby="movie-details-title"
     >
+      {/* Subtle background animation */}
+      <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-[#100818]/30 to-black/40 animate-gradient-shift"></div>
+      
+      {/* Shimmering particles effect */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(20)].map((_, i) => (
+          <div 
+            key={i}
+            className="absolute w-1 h-1 rounded-full bg-white opacity-30 animate-float"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              animationDuration: `${Math.random() * 10 + 10}s`,
+              animationDelay: `${Math.random() * 5}s`
+            }}
+          ></div>
+        ))}
+      </div>
+      
       {/* Main modal container */}
       <div 
         ref={modalRef}
-        className={`relative w-full h-full lg:h-auto lg:w-[94%] lg:max-w-6xl bg-gradient-to-b from-[#131313] to-black rounded-none lg:rounded-xl overflow-hidden shadow-2xl border border-gray-800/30
-          ${isLoaded ? 'scale-100 opacity-100' : 'scale-95 opacity-0'} transition-all duration-300`}
+        className={`relative w-full h-full md:h-[95%] md:w-[94%] lg:h-[90%] xl:max-w-7xl bg-gradient-to-b from-[#0a0a0a] to-black rounded-none md:rounded-2xl overflow-hidden shadow-2xl border border-gray-800/30
+          ${isLoaded ? 'scale-100 opacity-100' : 'scale-95 opacity-0'} transition-all duration-500`}
         onClick={e => e.stopPropagation()}
       >
         {/* Dynamic header that changes on scroll */}
@@ -194,163 +207,166 @@ const MovieDetails = ({ movie, onClose }) => {
           </div>
         </div>
         
-        {/* Hero section with background image/video and gradient overlay */}
-        <div className="relative h-[40vh] sm:h-[45vh] md:h-[60vh] w-full overflow-hidden">
-          {/* Main backdrop image with shimmer loading effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-900 to-gray-800 animate-shimmer"></div>
-          <img 
-            src={movie.featured_image || movie.image} 
-            alt={movie.title} 
-            className="w-full h-full object-cover transition-opacity duration-500"
-            onLoad={(e) => e.target.classList.add('opacity-100')}
-            style={{opacity: 0}}
-          />
-                    
-          {/* Video layer for trailers */}
-          {movie.trailer_link && (
-            <div className="absolute inset-0 bg-black/30">
-              <div className="absolute inset-0 flex items-center justify-center">
-                <button 
-                  className="w-16 h-16 md:w-20 md:h-20 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center group transition-transform duration-300 hover:scale-110"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Play trailer logic here
-                  }}
-                >
-                  <Play size={isMobile ? 32 : 40} className="text-white ml-1 group-hover:text-red-500 transition-colors duration-200" fill="currentColor" />
-                </button>
-              </div>
-              
-              <button 
-                className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-sm rounded-full p-2 hover:bg-white/20"
-                onClick={() => setIsMuted(!isMuted)}
-              >
-                {isMuted ? (
-                  <VolumeX size={18} className="text-white" />
-                ) : (
-                  <Volume2 size={18} className="text-white" />
-                )}
-              </button>
-            </div>
-          )}
+        {/* Hero section with enhanced backdrop */}
+        <div className="relative h-[40vh] sm:h-[45vh] md:h-[55vh] lg:h-[60vh] w-full overflow-hidden">
+          {/* Background shimmer loading effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-gray-900 to-gray-800 animate-pulse"></div>
+          
+          {/* Main backdrop image with enhanced animation */}
+          <div ref={backdropRef} className="absolute inset-0 overflow-hidden">
+            <img 
+              src={movie.featured_image || movie.image} 
+              alt={movie.title} 
+              className="w-full h-full object-cover transition-opacity duration-700 opacity-0 onload-visible"
+              onLoad={(e) => {
+                e.target.classList.add('opacity-100');
+                e.target.classList.remove('onload-visible');
+              }}
+            />
+          </div>
 
-          {/* Advanced gradient overlay */}
-          <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-black via-black/80 to-transparent"></div>
-          <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 to-transparent"></div>
+          {/* Enhanced gradient overlay */}
+          <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-black via-black/90 to-transparent"></div>
+          <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/90 to-transparent"></div>
+          
+          {/* Side gradients for more dimension */}
+          <div className="absolute inset-y-0 left-0 w-40 bg-gradient-to-r from-black/70 to-transparent"></div>
+          <div className="absolute inset-y-0 right-0 w-40 bg-gradient-to-l from-black/70 to-transparent"></div>
           
           {/* Movie title and actions - positioned for cinematic feel */}
           <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 lg:p-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6">
               <div className="flex-1">
-                {/* Movie rating badge - positioned above title */}
+                {/* Movie rating badge */}
                 {movie.rating && (
-                  <div className="inline-block mb-2 px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-xs font-medium">
+                  <div className="inline-block mb-2.5 px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-xs font-medium backdrop-blur-sm">
                     <Star size={12} className="inline mr-1 fill-yellow-400" /> {movie.rating} Rating
                   </div>
                 )}
                 
                 <h2 
                   id="movie-details-title" 
-                  className="text-2xl md:text-3xl lg:text-5xl font-bold text-white mb-1 md:mb-2 drop-shadow-lg"
+                  className="text-2xl md:text-3xl lg:text-5xl font-bold text-white mb-2 md:mb-3 drop-shadow-lg"
                 >
                   {movie.title}
                 </h2>
                 
                 {/* Key info highlights */}
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs md:text-sm text-gray-300 md:mb-2">
-                  {year && <span>{year}</span>}
-                  {movie.duration && <span>{movie.duration}</span>}
-                  {movie.category && movie.category[0] && <span>{movie.category[0]}</span>}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs md:text-sm text-gray-300 md:mb-2">
+                  {year && (
+                    <span className="flex items-center">
+                      <Calendar size={14} className="mr-1 text-gray-400" />
+                      {year}
+                    </span>
+                  )}
+                  {movie.duration && (
+                    <span className="flex items-center">
+                      <Clock size={14} className="mr-1 text-gray-400" />
+                      {movie.duration}
+                    </span>
+                  )}
+                  {movie.category && movie.category[0] && (
+                    <span className="flex items-center">
+                      <span className="w-2 h-2 rounded-full bg-red-500 mr-1.5"></span>
+                      {movie.category[0]}
+                    </span>
+                  )}
                   <span className="text-xs border border-gray-600 px-1 rounded">HD</span>
                 </div>
               </div>
               
-              {/* Action buttons */}
-              <div className="flex items-center gap-2 md:gap-3">
-                {/* Download button with quality dropdown */}
-                {movie.final_links && movie.final_links.length > 0 && (
-                  <div className="relative quality-dropdown">
-                    <button 
-                      className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white font-semibold px-3 md:px-4 py-1.5 md:py-2 rounded transition-colors duration-200"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowQualityOptions(!showQualityOptions);
-                      }}
-                      aria-haspopup="true"
-                      aria-expanded={showQualityOptions}
-                    >
-                      <Download size={isMobile ? 16 : 18} />
-                      <span className={isMobile ? 'hidden' : ''}>Download</span>
-                    </button>
-                    
-                    {/* Animated quality options dropdown */}
-                    {showQualityOptions && (
-                      <div className="absolute top-full right-0 mt-2 bg-[#212121] rounded-lg shadow-2xl border border-gray-700 w-48 z-50 overflow-hidden">
-                        <div className="py-1">
-                          {movie.final_links.map((link, index) => (
-                            <button
-                              key={index}
-                              className="w-full text-left px-4 py-3 hover:bg-red-600 text-white flex justify-between items-center group transition-colors duration-200"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownload(link.size);
-                              }}
-                            >
-                              <span>{link.size || `Option ${index + 1}`}</span>
-                              <Download size={16} className="opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {/* My List button */}
-                <button className="flex items-center justify-center bg-white/20 backdrop-blur-sm hover:bg-white/30 p-2.5 rounded-full transition-all duration-200">
-                  <Bookmark size={isMobile ? 16 : 18} className="text-white" />
+              {/* Action buttons - now with ripple effects */}
+              <div className="flex items-center gap-2.5 md:gap-3">
+                {/* Save button */}
+                <button className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2.5 rounded-full transition-all duration-200 overflow-hidden group">
+                  <Bookmark size={isMobile ? 16 : 18} className="text-white relative z-10" />
+                  <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
                 </button>
                 
                 {/* Like button */}
-                <button className="flex items-center justify-center bg-white/20 backdrop-blur-sm hover:bg-white/30 p-2.5 rounded-full transition-all duration-200">
-                  <ThumbsUp size={isMobile ? 16 : 18} className="text-white" />
+                <button className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2.5 rounded-full transition-all duration-200 overflow-hidden group">
+                  <ThumbsUp size={isMobile ? 16 : 18} className="text-white relative z-10" />
+                  <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
                 </button>
                 
                 {/* Share button */}
-                <button className="flex items-center justify-center bg-white/20 backdrop-blur-sm hover:bg-white/30 p-2.5 rounded-full transition-all duration-200">
-                  <Share2 size={isMobile ? 16 : 18} className="text-white" />
+                <button className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2.5 rounded-full transition-all duration-200 overflow-hidden group">
+                  <Share2 size={isMobile ? 16 : 18} className="text-white relative z-10" />
+                  <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
                 </button>
               </div>
             </div>
           </div>
         </div>
 
+        {/* IMPROVED DOWNLOAD SECTION - Always visible with clear icons */}
+        {movie.final_links && movie.final_links.length > 0 && (
+          <div className="relative z-50 bg-gradient-to-r from-red-900/40 via-purple-900/30 to-red-900/40 border-y border-red-500/30 py-3 px-4 md:px-8 overflow-visible">
+            <div className="flex flex-wrap items-center gap-3 justify-between">
+              <div className="text-sm md:text-base text-white font-medium flex items-center">
+                <Download size={18} className="mr-2 text-red-400" />
+                <span>Download {movie.title.split('(')[0].trim()}:</span>
+              </div>
+              <div className="flex flex-wrap gap-2 md:gap-3">
+                {movie.final_links.map((link, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleDownload(link.size)}
+                    className="relative overflow-hidden group transform transition-all duration-300 hover:scale-105 focus:scale-105 focus:outline-none"
+                  >
+                    <div className="bg-gradient-to-br from-red-600 to-purple-600 rounded-md px-3 md:px-4 py-1.5 md:py-2 text-white font-medium flex items-center gap-2 shadow-lg shadow-red-900/20">
+                      <Download size={isMobile ? 14 : 16} className="text-white" />
+                      <span className="text-sm">{link.size}</span>
+                    </div>
+                    <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-20 group-active:opacity-30 transition-opacity duration-300 rounded-md"></div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Navigation tabs for mobile */}
         {isMobile && (
-          <div className="flex items-center justify-around border-b border-gray-800 bg-black/50 backdrop-blur-sm sticky top-0 z-20">
+          <div className="flex items-center justify-around border-b border-gray-800 bg-black/90 backdrop-blur-sm sticky top-0 z-10">
             <button 
-              className={`flex-1 py-3 text-sm font-medium relative ${activeTab === 'details' ? 'text-red-500' : 'text-gray-400'}`}
+              className={`flex-1 py-3.5 text-sm font-medium relative overflow-hidden ${activeTab === 'details' ? 'text-red-500' : 'text-gray-400'}`}
               onClick={() => setActiveTab('details')}
             >
               Details
-              {activeTab === 'details' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-500"></span>}
+              {activeTab === 'details' && (
+                <>
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-red-400"></span>
+                  <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
+                </>
+              )}
             </button>
             {movie.cast && movie.cast.length > 0 && (
               <button 
-                className={`flex-1 py-3 text-sm font-medium relative ${activeTab === 'cast' ? 'text-red-500' : 'text-gray-400'}`}
+                className={`flex-1 py-3.5 text-sm font-medium relative overflow-hidden ${activeTab === 'cast' ? 'text-red-500' : 'text-gray-400'}`}
                 onClick={() => setActiveTab('cast')}
               >
                 Cast
-                {activeTab === 'cast' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-500"></span>}
+                {activeTab === 'cast' && (
+                  <>
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-red-400"></span>
+                    <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
+                  </>
+                )}
               </button>
             )}
             {movie.movie_screenshots && movie.movie_screenshots.length > 0 && (
               <button 
-                className={`flex-1 py-3 text-sm font-medium relative ${activeTab === 'screenshots' ? 'text-red-500' : 'text-gray-400'}`}
+                className={`flex-1 py-3.5 text-sm font-medium relative overflow-hidden ${activeTab === 'screenshots' ? 'text-red-500' : 'text-gray-400'}`}
                 onClick={() => setActiveTab('screenshots')}
               >
                 Photos
-                {activeTab === 'screenshots' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-500"></span>}
+                {activeTab === 'screenshots' && (
+                  <>
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-red-400"></span>
+                    <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
+                  </>
+                )}
               </button>
             )}
           </div>
@@ -359,74 +375,107 @@ const MovieDetails = ({ movie, onClose }) => {
         {/* Scrollable content area */}
         <div 
           ref={contentRef}
-          className="overflow-y-auto h-[60vh] md:max-h-[50vh] lg:max-h-[65vh] overscroll-contain"
+          className="overflow-y-auto h-[calc(60vh-56px)] md:h-[calc(50vh-56px)] lg:h-[calc(40vh-56px)] overscroll-contain" 
         >
           <div className="p-4 md:p-6 lg:p-8">
             {/* Mobile view - tab based content */}
             {isMobile && (
               <>
                 {activeTab === 'details' && (
-                  <>
-                    <p className="text-gray-300 text-sm mb-6 leading-relaxed">
+                  <div className="animate-fadeIn">
+                    <p className="text-gray-300 text-sm leading-relaxed mb-6">
                       {movie.description || "No description available."}
                     </p>
                     
                     {/* Movie details tags */}
-                    <div className="mb-6">
+                    <div className="mb-6 space-y-6">
                       {movie.category && movie.category.length > 0 && (
-                        <div className="mb-4">
-                          <span className="text-gray-400 text-xs mb-2 block">Genres</span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {movie.category.map((genre, idx) => (
+                        <div>
+                          <span className="text-gray-400 text-xs mb-2 block flex items-center">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>
+                            Genres
+                          </span>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {movie.category.slice(0, expandGenres ? movie.category.length : 4).map((genre, idx) => (
                               <span 
                                 key={idx}
-                                className="inline-block text-xs px-2 py-1 rounded-full bg-red-600/20 text-red-400 border border-red-600/30"
+                                className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600/20 to-purple-600/20 text-red-300 border border-red-600/30"
                               >
                                 {genre}
                               </span>
                             ))}
+                            {!expandGenres && movie.category.length > 4 && (
+                              <button 
+                                className="text-xs text-red-500 underline"
+                                onClick={() => setExpandGenres(true)}
+                              >
+                                +{movie.category.length - 4} more
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}
                       
                       {/* Languages */}
                       {movie.language && movie.language.length > 0 && (
-                        <div className="mb-4">
-                          <span className="text-gray-400 text-xs mb-2 block">Languages</span>
-                          <p className="text-white text-sm">{movie.language.join(', ')}</p>
+                        <div>
+                          <span className="text-gray-400 text-xs mb-2 block flex items-center">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5"></span>
+                            Languages
+                          </span>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {movie.language.map((lang, idx) => (
+                              <span 
+                                key={idx}
+                                className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-blue-600/20 to-cyan-600/20 text-blue-300 border border-blue-600/30"
+                              >
+                                {lang}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
                     
                     {/* More films like this */}
                     {movie.similar_movies && movie.similar_movies.length > 0 && (
-                      <div>
-                        <h3 className="text-base font-semibold mb-2 flex items-center">
-                          <span className="h-4 w-1 bg-red-600 mr-2 rounded-full"></span>
+                      <div className="mt-8">
+                        <h3 className="text-base font-semibold mb-3 flex items-center">
+                          <span className="h-4 w-1.5 bg-gradient-to-b from-red-500 to-purple-600 mr-2 rounded-full"></span>
                           More Like This
                         </h3>
-                        <div className="grid grid-cols-3 gap-2">
-                          {movie.similar_movies.slice(0, 3).map((similarMovie, idx) => (
-                            <div key={idx} className="rounded overflow-hidden">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {movie.similar_movies.slice(0, 6).map((similarMovie, idx) => (
+                            <div 
+                              key={idx} 
+                              className="rounded-lg overflow-hidden relative group cursor-pointer shadow-lg transform transition-transform duration-300 hover:scale-105"
+                            >
                               <img 
                                 src={similarMovie.image} 
                                 alt={similarMovie.title} 
                                 className="w-full h-28 object-cover"
+                                loading="lazy"
                               />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2">
+                                <span className="text-xs text-white line-clamp-2">{similarMovie.title}</span>
+                              </div>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
                 
                 {activeTab === 'cast' && movie.cast && movie.cast.length > 0 && (
-                  <div className="mb-6">
+                  <div className="animate-fadeIn">
                     <div className="grid grid-cols-2 gap-3">
                       {movie.cast.map((actor, idx) => (
-                        <div key={idx} className="bg-gray-800/50 backdrop-blur-sm p-3 rounded-lg">
-                          <div className="w-12 h-12 bg-gray-700 rounded-full mb-2 flex items-center justify-center text-gray-500">
+                        <div 
+                          key={idx} 
+                          className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm p-3 rounded-lg shadow-lg transform transition-transform duration-300 hover:scale-[1.02]"
+                        >
+                          <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-500 rounded-full mb-2 flex items-center justify-center text-white">
                             {actor.charAt(0)}
                           </div>
                           <p className="text-white text-sm font-medium">{actor}</p>
@@ -438,18 +487,18 @@ const MovieDetails = ({ movie, onClose }) => {
                 )}
                 
                 {activeTab === 'screenshots' && movie.movie_screenshots && movie.movie_screenshots.length > 0 && (
-                  <div className="mb-6">
-                    <div className="relative rounded-lg overflow-hidden">
+                  <div className="animate-fadeIn">
+                    <div className="relative rounded-lg overflow-hidden shadow-lg">
                       <img 
                         src={movie.movie_screenshots[activeScreenshot]}
                         alt={`Screenshot ${activeScreenshot + 1}`}
                         className="w-full h-auto object-cover"
                       />
                       
-                      {/* Navigation arrows */}
+                      {/* Navigation arrows - more visually appealing */}
                       <div className="absolute inset-0 flex items-center justify-between px-2">
                         <button 
-                          className="bg-black/70 backdrop-blur-sm rounded-full p-2"
+                          className="bg-black/50 backdrop-blur-sm rounded-full p-2 transition-transform duration-300 hover:scale-110"
                           onClick={(e) => {
                             e.stopPropagation();
                             prevScreenshot();
@@ -459,7 +508,7 @@ const MovieDetails = ({ movie, onClose }) => {
                         </button>
                         
                         <button 
-                          className="bg-black/70 backdrop-blur-sm rounded-full p-2"
+                          className="bg-black/50 backdrop-blur-sm rounded-full p-2 transition-transform duration-300 hover:scale-110"
                           onClick={(e) => {
                             e.stopPropagation();
                             nextScreenshot();
@@ -469,19 +518,21 @@ const MovieDetails = ({ movie, onClose }) => {
                         </button>
                       </div>
                       
-                      {/* Screenshot counter */}
-                      <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-xs px-2 py-1 rounded-full">
+                      {/* Improved screenshot counter */}
+                      <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-xs px-2.5 py-1 rounded-full">
                         {activeScreenshot + 1}/{movie.movie_screenshots.length}
                       </div>
                     </div>
                     
-                    {/* Dot indicators */}
-                    <div className="flex justify-center gap-1.5 mt-3">
+                    {/* Improved dot indicators */}
+                    <div className="flex justify-center gap-1.5 mt-4">
                       {movie.movie_screenshots.map((_, index) => (
                         <button
                           key={index}
-                          className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                            activeScreenshot === index ? 'bg-red-600 w-4' : 'bg-gray-600'
+                          className={`transition-all duration-300 ${
+                            activeScreenshot === index 
+                              ? 'w-6 h-1.5 bg-gradient-to-r from-red-600 to-red-500 rounded-full' 
+                              : 'w-1.5 h-1.5 bg-gray-600 rounded-full hover:bg-gray-500'
                           }`}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -498,13 +549,13 @@ const MovieDetails = ({ movie, onClose }) => {
             {/* Desktop view - all content visible */}
             {!isMobile && (
               <>
-                {/* Movie info grid layout */}
-                <div className="grid grid-cols-3 gap-6">
+                {/* Movie info grid layout - responsive for tablet/desktop */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   {/* Left column - description and genres */}
-                  <div className="col-span-2">
+                  <div className="md:col-span-2">
                     {/* Description with highlight */}
-                    <div className="bg-gradient-to-r from-gray-900 to-transparent p-5 rounded-lg mb-6">
-                      <h3 className="font-medium text-lg mb-2 flex items-center">
+                    <div className="bg-gradient-to-r from-gray-900 to-gray-900/30 p-5 rounded-lg mb-6 shadow-lg">
+                      <h3 className="font-medium text-lg mb-3 flex items-center">
                         <Info size={16} className="mr-2 text-red-500" />
                         Overview
                       </h3>
@@ -513,13 +564,13 @@ const MovieDetails = ({ movie, onClose }) => {
                       </p>
                     </div>
                     
-                    {/* Movie metadata */}
-                    <div className="grid grid-cols-2 gap-5 mb-6">
+                    {/* Movie metadata - improved layout */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
                       {/* Cast info */}
                       {movie.cast && movie.cast.length > 0 && (
-                        <div className="bg-gray-900/50 backdrop-blur-sm p-4 rounded-lg">
-                          <h4 className="text-sm uppercase text-gray-400 mb-2 flex items-center">
-                            <span className="w-1 h-4 bg-blue-500 rounded-full mr-2"></span>
+                        <div className="bg-gradient-to-br from-gray-900/70 to-gray-900/30 backdrop-blur-sm p-4 rounded-lg shadow-lg border border-gray-800/30 hover:border-blue-600/30 transition-colors duration-300">
+                          <h4 className="text-sm uppercase text-gray-400 mb-2.5 flex items-center">
+                            <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full mr-2"></span>
                             Cast
                           </h4>
                           <p className="text-white text-sm">{movie.cast.join(', ')}</p>
@@ -528,9 +579,9 @@ const MovieDetails = ({ movie, onClose }) => {
                       
                       {/* Languages */}
                       {movie.language && movie.language.length > 0 && (
-                        <div className="bg-gray-900/50 backdrop-blur-sm p-4 rounded-lg">
-                          <h4 className="text-sm uppercase text-gray-400 mb-2 flex items-center">
-                            <span className="w-1 h-4 bg-green-500 rounded-full mr-2"></span>
+                        <div className="bg-gradient-to-br from-gray-900/70 to-gray-900/30 backdrop-blur-sm p-4 rounded-lg shadow-lg border border-gray-800/30 hover:border-green-600/30 transition-colors duration-300">
+                          <h4 className="text-sm uppercase text-gray-400 mb-2.5 flex items-center">
+                            <span className="w-1 h-4 bg-gradient-to-b from-green-500 to-green-600 rounded-full mr-2"></span>
                             Available in
                           </h4>
                           <p className="text-white text-sm">{movie.language.join(', ')}</p>
@@ -542,7 +593,7 @@ const MovieDetails = ({ movie, onClose }) => {
                     {movie.category && movie.category.length > 0 && (
                       <div className="mb-6">
                         <h4 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                          <span className="w-1 h-4 bg-purple-500 rounded-full mr-2"></span>
+                          <span className="w-1 h-4 bg-gradient-to-b from-purple-500 to-purple-600 rounded-full mr-2"></span>
                           Genres
                         </h4>
                         <div className="flex flex-wrap gap-2">
@@ -559,88 +610,142 @@ const MovieDetails = ({ movie, onClose }) => {
                     )}
                   </div>
                   
-                  {/* Right column - screenshots */}
-                  <div className="col-span-1">
+                  {/* Right column - screenshots - OPTIMIZED */}
+                  <div className="md:col-span-1">
                     {movie.movie_screenshots && movie.movie_screenshots.length > 0 && (
                       <div>
-                        <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                          <span className="w-1 h-4 bg-yellow-500 rounded-full mr-2"></span>
-                          Screenshots
-                        </h3>
-                        
-                        <div className="relative rounded-lg overflow-hidden shadow-xl">
-                          <img 
-                            src={movie.movie_screenshots[activeScreenshot]}
-                            alt={`Screenshot ${activeScreenshot + 1}`}
-                            className="w-full h-auto object-cover transition-opacity duration-500 opacity-100"
-                          />
-                          
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-3">
-                            <div className="flex gap-2">
-                              <button 
-                                className="bg-black/70 backdrop-blur-sm rounded-full p-1.5"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  prevScreenshot();
-                                }}
-                              >
-                                <ChevronLeft size={18} />
-                              </button>
-                              
-                              <span className="bg-black/70 backdrop-blur-sm text-xs px-2 py-1 rounded-full flex items-center">
-                                {activeScreenshot + 1}/{movie.movie_screenshots.length}
-                              </span>
-                              
-                              <button 
-                                className="bg-black/70 backdrop-blur-sm rounded-full p-1.5"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  nextScreenshot();
-                                }}
-                              >
-                                <ChevronRight size={18} />
-                              </button>
-                            </div>
+                        <div className="flex justify-between items-center mb-3">
+                          <h3 className="text-sm uppercase text-gray-400 flex items-center">
+                            <span className="w-1 h-4 bg-gradient-to-b from-yellow-500 to-yellow-600 rounded-full mr-2"></span>
+                            Screenshots
+                            <span className="text-xs ml-2 text-gray-500">({movie.movie_screenshots.length})</span>
+                          </h3>
+                          <div className="flex gap-1">
+                            <button 
+                              className="bg-gray-800/80 hover:bg-gray-700/80 p-1 rounded text-xs"
+                              onClick={() => setActiveScreenshot(Math.max(0, activeScreenshot - 1))}
+                            >
+                              <ChevronLeft size={14} />
+                            </button>
+                            <button 
+                              className="bg-gray-800/80 hover:bg-gray-700/80 p-1 rounded text-xs"
+                              onClick={() => setActiveScreenshot(Math.min(movie.movie_screenshots.length - 1, activeScreenshot + 1))}
+                            >
+                              <ChevronRight size={14} />
+                            </button>
                           </div>
                         </div>
                         
-                        {/* Thumbnail navigation */}
-                        <div className="grid grid-cols-5 gap-2 mt-3">
-                          {movie.movie_screenshots.slice(0, 5).map((screenshot, index) => (
-                            <button
-                              key={index}
-                              className={`rounded-md overflow-hidden transition-all duration-200 ${
-                                activeScreenshot === index ? 'ring-2 ring-red-600 scale-105' : 'opacity-60 hover:opacity-100 hover:scale-105'
-                              }`}
+                        {/* Main screenshot with enhanced interactive features */}
+                        <div className="relative rounded-lg overflow-hidden shadow-xl group">
+                          <img 
+                            src={movie.movie_screenshots[activeScreenshot]}
+                            alt={`Screenshot ${activeScreenshot + 1}`}
+                            className="w-full h-auto object-cover rounded-lg transition-all duration-500"
+                          />
+                          
+                          {/* Always visible navigation controls on hover */}
+                          <div className="absolute inset-0 flex items-center justify-between px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <button 
+                              className="bg-black/50 backdrop-blur-sm rounded-full p-2 transform transition-all duration-200 hover:scale-110 hover:bg-black/70"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setActiveScreenshot(index);
+                                prevScreenshot();
                               }}
                             >
-                              <img 
-                                src={screenshot}
-                                alt={`Thumbnail ${index + 1}`}
-                                className="w-full h-14 object-cover"
-                                loading="lazy"
-                              />
+                              <ChevronLeft size={20} />
                             </button>
-                          ))}
+                            
+                            <button 
+                              className="bg-black/50 backdrop-blur-sm rounded-full p-2 transform transition-all duration-200 hover:scale-110 hover:bg-black/70"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                nextScreenshot();
+                              }}
+                            >
+                              <ChevronRight size={20} />
+                            </button>
+                          </div>
+                          
+                          {/* Enhanced counter with blurred background */}
+                          <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-xs px-2.5 py-1 rounded-md">
+                            {activeScreenshot + 1}/{movie.movie_screenshots.length}
+                          </div>
                         </div>
+                        
+                        {/* Improved thumbnail navigation with scrolling support */}
+                        <div className="relative mt-3">
+                          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                            {movie.movie_screenshots.map((screenshot, index) => (
+                              <button
+                                key={index}
+                                className={`flex-shrink-0 rounded-md overflow-hidden transition-all duration-200 ${
+                                  activeScreenshot === index 
+                                    ? 'ring-2 ring-red-600 scale-[1.03]' 
+                                    : 'opacity-60 hover:opacity-100 hover:scale-[1.03]'
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveScreenshot(index);
+                                }}
+                              >
+                                <img 
+                                  src={screenshot}
+                                  alt={`Thumbnail ${index + 1}`}
+                                  className="w-16 h-12 object-cover"
+                                  loading="lazy"
+                                />
+                              </button>
+                            ))}
+                          </div>
+                          
+                          {/* Show all screenshots button if there are many */}
+                          {movie.movie_screenshots.length > 5 && (
+                            <button 
+                              className="mt-2 w-full py-1.5 bg-gray-800/60 hover:bg-gray-700/80 rounded-md text-xs font-medium text-gray-300 hover:text-white transition-colors duration-200 flex items-center justify-center gap-1"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Implementation for showing all screenshots in a grid/gallery view
+                                // You could expand this into a modal or toggle to show all
+                                setActiveTab && setActiveTab('screenshots');
+                              }}
+                            >
+                              View All Screenshots
+                            </button>
+                          )}
+                        </div>
+                        
+                        {/* Add a full-width screenshots grid view that shows when user wants to see all */}
+                        {isTablet && !isMobile && (
+                          <div className="mt-4 grid grid-cols-3 gap-2">
+                            {movie.movie_screenshots.map((screenshot, index) => (
+                              <button
+                                key={index}
+                                className={`relative rounded-md overflow-hidden transition-all duration-200 ${
+                                  activeScreenshot === index ? 'ring-2 ring-red-600' : 'opacity-80 hover:opacity-100'
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveScreenshot(index);
+                                }}
+                              >
+                                <img 
+                                  src={screenshot}
+                                  alt={`Screenshot ${index + 1}`}
+                                  className="w-full aspect-video object-cover"
+                                  loading="lazy"
+                                />
+                                <div className="absolute bottom-1 right-1 bg-black/70 text-[10px] px-1.5 py-0.5 rounded-sm">
+                                  {index + 1}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                     
-                    {/* Awards section (placeholder) */}
-                    {movie.awards && (
-                      <div className="mt-6 bg-gradient-to-r from-yellow-900/20 to-transparent p-4 rounded-lg">
-                        <h3 className="font-medium text-sm mb-2 flex items-center">
-                          <Award size={16} className="mr-2 text-yellow-500" />
-                          Awards
-                        </h3>
-                        <p className="text-gray-300 text-xs">
-                          {movie.awards}
-                        </p>
-                      </div>
-                    )}
+                    {/* Keep the awards section or other content */}
                   </div>
                 </div>
                 
@@ -648,14 +753,21 @@ const MovieDetails = ({ movie, onClose }) => {
                 {movie.similar_movies && movie.similar_movies.length > 0 && (
                   <div className="mt-8 pt-6 border-t border-gray-800">
                     <h3 className="text-lg font-semibold mb-4">More Like This</h3>
-                    <div className="grid grid-cols-6 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                       {movie.similar_movies.slice(0, 6).map((similarMovie, idx) => (
-                        <div key={idx} className="rounded overflow-hidden">
+                        <div 
+                          key={idx} 
+                          className="rounded-lg overflow-hidden relative group cursor-pointer shadow-lg transform transition-transform duration-300 hover:scale-105"
+                        >
                           <img 
                             src={similarMovie.image} 
                             alt={similarMovie.title} 
                             className="w-full h-28 object-cover"
+                            loading="lazy"
                           />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-2">
+                            <span className="text-xs text-white line-clamp-2">{similarMovie.title}</span>
+                          </div>
                         </div>
                       ))}
                     </div>
