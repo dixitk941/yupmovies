@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info } from 'lucide-react';
-import { generateSecureToken } from '../utils/secureTokens.js'; // Adjust the path as needed
+import CryptoJS from 'crypto-js';
 
+const SECURITY_KEY = "6f1d8a3b9c5e7f2a4d6b8e0f1a3c7d9e2b4f6a8c1d3e5f7a0b2c4d6e8f0a1b3";
 
 const MovieDetails = ({ movie, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -109,56 +110,90 @@ const MovieDetails = ({ movie, onClose }) => {
   
     if (link) {
       try {
-        // Get movie ID or generate one if not available
-        const movieId = movie.id || generateUniqueId(movie.title);
+        // Create minimal download payload with only essential information
+        const downloadPayload = {
+          m: movie.id || generateUniqueId(movie.title),
+          q: size,
+          u: generateUserToken(),
+          t: Date.now(),
+          // Include the actual download link if available
+          l: link.link || ""
+        };
         
-        // Use the secure token generation function from secureTokens.js
-        const token = generateSecureToken(movieId, size);
+        // Convert payload to JSON string
+        const jsonPayload = JSON.stringify(downloadPayload);
         
-        // Use a secure redirect URL with the token
-        const redirectUrl = `https://my-blog-five-amber-64.vercel.app/secure-download?token=${encodeURIComponent(token)}`;
+        // Encrypt the payload using AES with the security key
+        const encryptedToken = CryptoJS.AES.encrypt(jsonPayload, SECURITY_KEY).toString();
         
-        // Open the redirect URL in a new tab
+        // URL-safe Base64 encoding
+        const safeToken = encryptedToken
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
+        
+        // Create the secure download URL with just the encrypted token
+        const redirectUrl = `https://my-blog-five-amber-64.vercel.app/secure-download?t=${encodeURIComponent(safeToken)}`;
+        
+        // Open in new tab
         window.open(redirectUrl, '_blank');
         
-        // Show toast with less specific information
-        showToast(`Starting download in ${size}`);
+        // Show toast with minimal information
+        showToast(`Starting download for ${size}`);
         
-        // Optional: Track download for analytics
-        trackDownload(movieId, size);
+        // Optional: Log download activity (non-identifying)
+        logActivity('download_initiated', { quality: size });
       } catch (error) {
         console.error("Download error:", error);
-        showToast("Download failed. Please try again.");
+        showToast("Unable to process download request");
       }
     } else {
       showToast(`Download link unavailable for ${size}`);
     }
   };
   
-  // Helper function to generate a unique ID from the title (keep your existing function)
-  const generateUniqueId = (title) => {
-    if (!title) return Math.random().toString(36).substring(2, 15);
+  // Generate a semi-unique user token (not personally identifiable)
+  const generateUserToken = () => {
+    // Create a fingerprint from browser info without storing personal data
+    const browserInfo = 
+      navigator.userAgent.substring(0, 10) + 
+      window.screen.width + 
+      window.screen.height;
     
-    // Create a slug from title and add timestamp for uniqueness
+    return CryptoJS.SHA256(browserInfo).toString().substring(0, 16);
+  };
+  
+  // Generate a unique ID from movie title
+  const generateUniqueId = (title) => {
+    if (!title) return Math.random().toString(36).substring(2, 10);
+    
     const slug = title
       .toLowerCase()
       .replace(/[^\w\s]/gi, '')
-      .replace(/\s+/g, '-');
+      .replace(/\s+/g, '-')
+      .substring(0, 30);
       
-    return `${slug}-${Date.now().toString(36)}`;
+    return slug;
   };
   
-  // Update the tracking function to be more secure
-  const trackDownload = (movieId, quality) => {
+  // Activity logging (optional)
+  const logActivity = (action, data) => {
     try {
-      // Use a secure token here too for tracking
-      const trackToken = generateSecureToken(movieId.substring(0, 10), "track");
+      const activityData = {
+        action,
+        ...data,
+        timestamp: new Date().toISOString()
+      };
       
-      // Example - using a more secure tracking approach
-      const trackingPixel = new Image();
-      trackingPixel.src = `https://my-blog-five-amber-64.vercel.app/track?e=d&t=${encodeURIComponent(trackToken)}`;
+      // Send to your analytics endpoint if needed
+      // Using a non-blocking approach
+      navigator.sendBeacon && 
+        navigator.sendBeacon(
+          'https://my-blog-five-amber-64.vercel.app/api/log-activity', 
+          JSON.stringify(activityData)
+        );
     } catch (e) {
-      // Silent fail for tracking
+      // Silent fail for analytics
     }
   };
   
@@ -323,6 +358,7 @@ const MovieDetails = ({ movie, onClose }) => {
                 {/* Like button */}
                 <button className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2.5 rounded-full transition-all duration-200 overflow-hidden group">
                   <ThumbsUp size={isMobile ? 16 : 18} className="text-white relative z-10" />
+                  <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
                   <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
                 </button>
                 
@@ -647,142 +683,88 @@ const MovieDetails = ({ movie, onClose }) => {
                     )}
                   </div>
                   
-                  {/* Right column - screenshots - OPTIMIZED */}
+                  {/* Right column - screenshots */}
                   <div className="md:col-span-1">
                     {movie.movie_screenshots && movie.movie_screenshots.length > 0 && (
                       <div>
-                        <div className="flex justify-between items-center mb-3">
-                          <h3 className="text-sm uppercase text-gray-400 flex items-center">
-                            <span className="w-1 h-4 bg-gradient-to-b from-yellow-500 to-yellow-600 rounded-full mr-2"></span>
-                            Screenshots
-                            <span className="text-xs ml-2 text-gray-500">({movie.movie_screenshots.length})</span>
-                          </h3>
-                          <div className="flex gap-1">
-                            <button 
-                              className="bg-gray-800/80 hover:bg-gray-700/80 p-1 rounded text-xs"
-                              onClick={() => setActiveScreenshot(Math.max(0, activeScreenshot - 1))}
-                            >
-                              <ChevronLeft size={14} />
-                            </button>
-                            <button 
-                              className="bg-gray-800/80 hover:bg-gray-700/80 p-1 rounded text-xs"
-                              onClick={() => setActiveScreenshot(Math.min(movie.movie_screenshots.length - 1, activeScreenshot + 1))}
-                            >
-                              <ChevronRight size={14} />
-                            </button>
-                          </div>
-                        </div>
+                        <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
+                          <span className="w-1 h-4 bg-gradient-to-b from-yellow-500 to-yellow-600 rounded-full mr-2"></span>
+                          Screenshots
+                        </h3>
                         
-                        {/* Main screenshot with enhanced interactive features */}
-                        <div className="relative rounded-lg overflow-hidden shadow-xl group">
+                        <div className="relative rounded-lg overflow-hidden shadow-xl">
                           <img 
                             src={movie.movie_screenshots[activeScreenshot]}
                             alt={`Screenshot ${activeScreenshot + 1}`}
-                            className="w-full h-auto object-cover rounded-lg transition-all duration-500"
+                            className="w-full h-auto object-cover transition-opacity duration-500 opacity-100"
                           />
                           
-                          {/* Always visible navigation controls on hover */}
-                          <div className="absolute inset-0 flex items-center justify-between px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                            <button 
-                              className="bg-black/50 backdrop-blur-sm rounded-full p-2 transform transition-all duration-200 hover:scale-110 hover:bg-black/70"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                prevScreenshot();
-                              }}
-                            >
-                              <ChevronLeft size={20} />
-                            </button>
-                            
-                            <button 
-                              className="bg-black/50 backdrop-blur-sm rounded-full p-2 transform transition-all duration-200 hover:scale-110 hover:bg-black/70"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                nextScreenshot();
-                              }}
-                            >
-                              <ChevronRight size={20} />
-                            </button>
-                          </div>
-                          
-                          {/* Enhanced counter with blurred background */}
-                          <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-xs px-2.5 py-1 rounded-md">
-                            {activeScreenshot + 1}/{movie.movie_screenshots.length}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-3">
+                            <div className="flex gap-2">
+                              <button 
+                                className="bg-black/70 backdrop-blur-sm rounded-full p-1.5"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  prevScreenshot();
+                                }}
+                              >
+                                <ChevronLeft size={18} />
+                              </button>
+                              
+                              <span className="bg-black/70 backdrop-blur-sm text-xs px-2 py-1 rounded-full flex items-center">
+                                {activeScreenshot + 1}/{movie.movie_screenshots.length}
+                              </span>
+                              
+                              <button 
+                                className="bg-black/70 backdrop-blur-sm rounded-full p-1.5"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  nextScreenshot();
+                                }}
+                              >
+                                <ChevronRight size={18} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                         
-                        {/* Improved thumbnail navigation with scrolling support */}
-                        <div className="relative mt-3">
-                          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                            {movie.movie_screenshots.map((screenshot, index) => (
-                              <button
-                                key={index}
-                                className={`flex-shrink-0 rounded-md overflow-hidden transition-all duration-200 ${
-                                  activeScreenshot === index 
-                                    ? 'ring-2 ring-red-600 scale-[1.03]' 
-                                    : 'opacity-60 hover:opacity-100 hover:scale-[1.03]'
-                                }`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveScreenshot(index);
-                                }}
-                              >
-                                <img 
-                                  src={screenshot}
-                                  alt={`Thumbnail ${index + 1}`}
-                                  className="w-16 h-12 object-cover"
-                                  loading="lazy"
-                                />
-                              </button>
-                            ))}
-                          </div>
-                          
-                          {/* Show all screenshots button if there are many */}
-                          {movie.movie_screenshots.length > 5 && (
-                            <button 
-                              className="mt-2 w-full py-1.5 bg-gray-800/60 hover:bg-gray-700/80 rounded-md text-xs font-medium text-gray-300 hover:text-white transition-colors duration-200 flex items-center justify-center gap-1"
+                        {/* Thumbnail navigation */}
+                        <div className="grid grid-cols-5 gap-2 mt-3">
+                          {movie.movie_screenshots.slice(0, 5).map((screenshot, index) => (
+                            <button
+                              key={index}
+                              className={`rounded-md overflow-hidden transition-all duration-200 ${
+                                activeScreenshot === index ? 'ring-2 ring-red-600 scale-105' : 'opacity-60 hover:opacity-100 hover:scale-105'
+                              }`}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // Implementation for showing all screenshots in a grid/gallery view
-                                // You could expand this into a modal or toggle to show all
-                                setActiveTab && setActiveTab('screenshots');
+                                setActiveScreenshot(index);
                               }}
                             >
-                              View All Screenshots
+                              <img 
+                                src={screenshot}
+                                alt={`Thumbnail ${index + 1}`}
+                                className="w-full h-14 object-cover"
+                                loading="lazy"
+                              />
                             </button>
-                          )}
+                          ))}
                         </div>
-                        
-                        {/* Add a full-width screenshots grid view that shows when user wants to see all */}
-                        {isTablet && !isMobile && (
-                          <div className="mt-4 grid grid-cols-3 gap-2">
-                            {movie.movie_screenshots.map((screenshot, index) => (
-                              <button
-                                key={index}
-                                className={`relative rounded-md overflow-hidden transition-all duration-200 ${
-                                  activeScreenshot === index ? 'ring-2 ring-red-600' : 'opacity-80 hover:opacity-100'
-                                }`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveScreenshot(index);
-                                }}
-                              >
-                                <img 
-                                  src={screenshot}
-                                  alt={`Screenshot ${index + 1}`}
-                                  className="w-full aspect-video object-cover"
-                                  loading="lazy"
-                                />
-                                <div className="absolute bottom-1 right-1 bg-black/70 text-[10px] px-1.5 py-0.5 rounded-sm">
-                                  {index + 1}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     )}
                     
-                    {/* Keep the awards section or other content */}
+                    {/* Awards section (placeholder) */}
+                    {movie.awards && (
+                      <div className="mt-6 bg-gradient-to-r from-yellow-900/20 to-transparent p-4 rounded-lg">
+                        <h3 className="font-medium text-sm mb-2 flex items-center">
+                          <Award size={16} className="mr-2 text-yellow-500" />
+                          Awards
+                        </h3>
+                        <p className="text-gray-300 text-xs">
+                          {movie.awards}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
                 
