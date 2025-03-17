@@ -7,6 +7,7 @@ import MovieCard from './MovieCard';
 import MovieDetails from './MovieDetails';
 import MovieSection from './MovieSection';
 import { getAllMovies } from '../services/movieService';
+import movieService from '../services/movieService';
 
 function Home() {
   const [selectedPlatform, setSelectedPlatform] = useState(null);
@@ -151,6 +152,34 @@ function Home() {
       </div>
     </div>
   );
+
+  const [sections, setSections] = useState({
+    featured: [],
+    trending: [],
+    topRated: [],
+    newReleases: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMovies = async () => {
+      try {
+        setLoading(true);
+        const data = await movieService.getHomePageSections(10);
+        setSections(data);
+      } catch (error) {
+        console.error("Error loading home page data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMovies();
+  }, []);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-[#121212] text-white">

@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, getDocs, query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
     apiKey: "AIzaSyBoR3A3ksIlmIzsW9s8LE02ExMT2Q4DQJg",
@@ -11,6 +12,13 @@ const firebaseConfig = {
     appId: "1:418891489602:web:155a8d181d90d72a8528db",
     measurementId: "G-4KCFN23SGG"
 };
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const auth = getAuth(app);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const storage = getStorage(app);
+
+console.log("Firebase initialized with project:", firebaseConfig.projectId);
+
+export { db, auth, storage };
+export default app;
