@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info } from 'lucide-react';
+import { generateSecureToken } from '../utils/secureTokens.js'; // Adjust the path as needed
+
 
 const MovieDetails = ({ movie, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -107,19 +109,13 @@ const MovieDetails = ({ movie, onClose }) => {
   
     if (link) {
       try {
-        // Generate a unique download token instead of exposing details in URL
-        const downloadData = {
-          id: movie.id || generateUniqueId(movie.title),
-          q: size,
-          t: Date.now(),
-          // Include a hash for verification if needed
-          hash: btoa(`${movie.id || movie.title}-${size}-${Date.now()}`).slice(0, 16)
-        };
+        // Get movie ID or generate one if not available
+        const movieId = movie.id || generateUniqueId(movie.title);
         
-        // Convert to base64 to avoid exposing details directly
-        const token = btoa(JSON.stringify(downloadData));
+        // Use the secure token generation function from secureTokens.js
+        const token = generateSecureToken(movieId, size);
         
-        // Use a more secure redirect URL with just the token
+        // Use a secure redirect URL with the token
         const redirectUrl = `https://my-blog-five-amber-64.vercel.app/secure-download?token=${encodeURIComponent(token)}`;
         
         // Open the redirect URL in a new tab
@@ -129,7 +125,7 @@ const MovieDetails = ({ movie, onClose }) => {
         showToast(`Starting download in ${size}`);
         
         // Optional: Track download for analytics
-        trackDownload(movie.id, size);
+        trackDownload(movieId, size);
       } catch (error) {
         console.error("Download error:", error);
         showToast("Download failed. Please try again.");
@@ -139,7 +135,7 @@ const MovieDetails = ({ movie, onClose }) => {
     }
   };
   
-  // Helper function to generate a unique ID from the title
+  // Helper function to generate a unique ID from the title (keep your existing function)
   const generateUniqueId = (title) => {
     if (!title) return Math.random().toString(36).substring(2, 15);
     
@@ -152,14 +148,15 @@ const MovieDetails = ({ movie, onClose }) => {
     return `${slug}-${Date.now().toString(36)}`;
   };
   
-  // Optional analytics tracking
+  // Update the tracking function to be more secure
   const trackDownload = (movieId, quality) => {
-    // You could implement analytics here
-    // But don't expose sensitive information
     try {
-      // Example - you could use a simple pixel or API call
+      // Use a secure token here too for tracking
+      const trackToken = generateSecureToken(movieId.substring(0, 10), "track");
+      
+      // Example - using a more secure tracking approach
       const trackingPixel = new Image();
-      trackingPixel.src = `https://my-blog-five-amber-64.vercel.app/track?event=download&id=${btoa(movieId)}&q=${btoa(quality)}&t=${Date.now()}`;
+      trackingPixel.src = `https://my-blog-five-amber-64.vercel.app/track?e=d&t=${encodeURIComponent(trackToken)}`;
     } catch (e) {
       // Silent fail for tracking
     }
