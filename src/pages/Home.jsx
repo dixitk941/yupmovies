@@ -1,19 +1,24 @@
-// Home.jsx
+// Update imports to include SeriesDetail component
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronLeft, ChevronRight, Menu, X, TrendingUp, Star, Clock, Award } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Menu, X, TrendingUp, Star, Clock, Award, Film, Tv } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { platforms } from '../data/mockData';
 import MovieCard from './MovieCard';
 import MovieDetails from './MovieDetails';
+import SeriesDetail from './SeriesDetail'; // Import the SeriesDetail component
 import MovieSection from './MovieSection';
-import { getAllMovies } from '../services/movieService';
 import movieService from '../services/movieService';
 
 function Home() {
+  // Add new state for content type (movies/series)
+  const [contentType, setContentType] = useState('movies'); // 'movies' or 'series'
+  
+  // Keep your existing states
   const [selectedPlatform, setSelectedPlatform] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [allMovies, setAllMovies] = useState([]);
+  const [allSeries, setAllSeries] = useState([]); // Add state for series
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -23,11 +28,11 @@ function Home() {
   const headerRef = useRef(null);
   const lastScrollY = useRef(0);
 
-  // Hide header on scroll down
+  // Keep existing scroll effect
   useEffect(() => {
     const controlNavbar = () => {
       if (typeof window !== 'undefined') {
-        if (window.scrollY > 200) { // Show header background after scrolling
+        if (window.scrollY > 200) {
           headerRef.current.classList.add('bg-opacity-95', 'backdrop-blur-md');
           headerRef.current.classList.remove('bg-opacity-0');
         } else {
@@ -36,10 +41,8 @@ function Home() {
         }
         
         if (window.scrollY > 100 && window.scrollY > lastScrollY.current) {
-          // Scrolling down
           headerRef.current.classList.add('-translate-y-full');
         } else {
-          // Scrolling up
           headerRef.current.classList.remove('-translate-y-full');
         }
       }
@@ -54,67 +57,74 @@ function Home() {
     };
   }, []);
 
+  // Modify to fetch both movies and series
   useEffect(() => {
-    const fetchAllMovies = async () => {
+    const fetchContent = async () => {
       setIsLoading(true);
       try {
-        const movies = await getAllMovies();
+        const [movies, series] = await Promise.all([
+          movieService.getAllMovies(),
+          movieService.getAllSeries()
+        ]);
+        
         setAllMovies(movies);
-        setTimeout(() => setIsLoading(false), 800); // Simulate loading for visual effect
+        setAllSeries(series);
+        setTimeout(() => setIsLoading(false), 800);
       } catch (error) {
-        console.error("Error fetching all movies:", error);
+        console.error("Error fetching content:", error);
         setIsLoading(false);
       }
     };
 
-    fetchAllMovies();
+    fetchContent();
   }, []);
 
-  const [filteredMovies, setFilteredMovies] = useState([]);
-  const [paginatedMovies, setPaginatedMovies] = useState([]);
+  const [filteredContent, setFilteredContent] = useState([]);
+  const [paginatedContent, setPaginatedContent] = useState([]);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Update filtering based on content type
   useEffect(() => {
-    let filtered = [...allMovies];
+    // Select the appropriate content based on content type
+    const contentToFilter = contentType === 'movies' ? allMovies : allSeries;
+    
+    let filtered = [...contentToFilter];
 
     if (searchQuery) {
-      filtered = filtered.filter(movie =>
-        movie.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (movie.genre && movie.genre.some(g => g.toLowerCase().includes(searchQuery.toLowerCase()))) ||
-        (movie.platform && movie.platform.toLowerCase().includes(searchQuery.toLowerCase()))
+      filtered = filtered.filter(item =>
+        (item.title && item.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
 
     if (selectedPlatform) {
-      filtered = filtered.filter(movie => movie.platform === selectedPlatform);
+      filtered = filtered.filter(item => 
+        item.category && item.category.toLowerCase().includes(selectedPlatform.toLowerCase())
+      );
     }
 
-    setFilteredMovies(filtered);
+    setFilteredContent(filtered);
     setTotalPages(Math.ceil(filtered.length / moviesPerPage));
-    setPaginatedMovies(filtered.slice(0, moviesPerPage));
-  }, [searchQuery, selectedPlatform, allMovies, moviesPerPage]);
+    setPaginatedContent(filtered.slice(0, moviesPerPage));
+  }, [searchQuery, selectedPlatform, allMovies, allSeries, contentType, moviesPerPage]);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
     const start = (page - 1) * moviesPerPage;
     const end = start + moviesPerPage;
-    setPaginatedMovies(filteredMovies.slice(start, end));
+    setPaginatedContent(filteredContent.slice(start, end));
     
-    // Scroll with animation
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const toggleMobileMenu = () => {
     setShowMobileMenu(!showMobileMenu);
-    // Close search when opening menu
     if (!showMobileMenu) setShowSearch(false);
-    // Add body class to prevent scrolling when menu is open
     document.body.classList.toggle('overflow-hidden', !showMobileMenu);
   };
 
   const toggleSearch = () => {
     setShowSearch(!showSearch);
-    // Close menu when opening search
     if (!showSearch) {
       setShowMobileMenu(false);
       document.body.classList.remove('overflow-hidden');
@@ -124,7 +134,6 @@ function Home() {
   const handlePlatformSelect = (platform) => {
     setSelectedPlatform(platform);
     setActiveSection('all');
-    // Close mobile menu after selection on mobile
     if (window.innerWidth < 768) {
       setShowMobileMenu(false);
       document.body.classList.remove('overflow-hidden');
@@ -142,6 +151,14 @@ function Home() {
     }
   };
 
+  // Add handler for switching between movies and series
+  const handleContentTypeSwitch = (type) => {
+    setContentType(type);
+    setActiveSection('all');
+    setSelectedPlatform(null);
+    setCurrentPage(1);
+  };
+
   // Skeleton loader component for movies grid
   const MovieSkeleton = () => (
     <div className="animate-pulse bg-gray-800 rounded-md overflow-hidden">
@@ -157,12 +174,13 @@ function Home() {
     featured: [],
     trending: [],
     topRated: [],
-    newReleases: []
+    newReleases: [],
+    series: [] // Series section
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchMovies = async () => {
+    const fetchSections = async () => {
       try {
         setLoading(true);
         const data = await movieService.getHomePageSections(10);
@@ -174,12 +192,42 @@ function Home() {
       }
     };
 
-    fetchMovies();
+    fetchSections();
   }, []);
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+  // Get the current content to display
+  const currentContent = contentType === 'movies' ? allMovies : allSeries;
+
+  // Helper function to filter content by category
+  const filterByCategory = (content, category) => {
+    return content.filter(item => item.category && item.category.toLowerCase().includes(category.toLowerCase()));
+  };
+
+  // Render the appropriate detail component based on content type
+  const renderDetailComponent = () => {
+    if (!selectedMovie) return null;
+    
+    // Check if the selected content is a series
+    const isSeries = selectedMovie.isSeries || 
+      Object.keys(selectedMovie).some(key => key.startsWith('Season ') && selectedMovie[key]);
+    
+    // Render SeriesDetail for series, MovieDetails for movies
+    if (isSeries) {
+      return (
+        <SeriesDetail 
+          series={selectedMovie} 
+          onClose={() => setSelectedMovie(null)} 
+        />
+      );
+    } else {
+      return (
+        <MovieDetails 
+          movie={selectedMovie} 
+          onClose={() => setSelectedMovie(null)} 
+        />
+      );
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#121212] text-white">
@@ -211,12 +259,40 @@ function Home() {
             <div className="hidden md:flex relative flex-1 max-w-xl mx-4 group">
               <input
                 type="text"
-                placeholder="Search movies..."
+                placeholder={`Search ${contentType === 'movies' ? 'movies' : 'series'}...`}
                 className="w-full bg-[#1e1e1e] border border-gray-700 group-focus-within:border-red-500 rounded-full px-10 py-2 focus:outline-none transition-all duration-300"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
               <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
+            </div>
+            
+            {/* Movie/Series Toggle (Desktop) */}
+            <div className="hidden md:flex items-center mr-4">
+              <div className="bg-[#1e1e1e] p-1 rounded-full flex">
+                <button
+                  className={`px-3 py-1 rounded-full flex items-center gap-1 transition-all ${
+                    contentType === 'movies' 
+                      ? 'bg-gradient-to-r from-red-600 to-purple-600 text-white' 
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                  onClick={() => handleContentTypeSwitch('movies')}
+                >
+                  <Film size={16} />
+                  <span>Movies</span>
+                </button>
+                <button
+                  className={`px-3 py-1 rounded-full flex items-center gap-1 transition-all ${
+                    contentType === 'series' 
+                      ? 'bg-gradient-to-r from-red-600 to-purple-600 text-white' 
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                  onClick={() => handleContentTypeSwitch('series')}
+                >
+                  <Tv size={16} />
+                  <span>Series</span>
+                </button>
+              </div>
             </div>
             
             {/* Mobile Search Icon */}
@@ -238,7 +314,7 @@ function Home() {
             <div className="md:hidden mt-3 pb-2 relative animate-slideDown">
               <input
                 type="text"
-                placeholder="Search movies..."
+                placeholder={`Search ${contentType === 'movies' ? 'movies' : 'series'}...`}
                 className="w-full bg-[#1e1e1e] border border-gray-700 focus:border-red-500 rounded-full px-10 py-2 focus:outline-none"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -258,7 +334,7 @@ function Home() {
         </div>
       </header>
 
-      {/* Mobile Menu - Slide from left */}
+      {/* Mobile Menu - With Movie/Series Toggle */}
       {showMobileMenu && (
         <div className="md:hidden fixed inset-0 z-40 bg-black bg-opacity-70 backdrop-blur-sm">
           <div 
@@ -266,11 +342,39 @@ function Home() {
             style={{ boxShadow: '5px 0 15px rgba(0,0,0,0.3)' }}
           >
             <div className="p-5">
+              {/* Content Type Switcher - Mobile */}
+              <div className="w-full bg-[#1a1a1a] p-1 rounded-full flex mb-6">
+                <button
+                  className={`flex-1 py-2 rounded-full flex items-center justify-center gap-1.5 transition-all ${
+                    contentType === 'movies' 
+                      ? 'bg-gradient-to-r from-red-600 to-purple-600 text-white' 
+                      : 'text-gray-400'
+                  }`}
+                  onClick={() => handleContentTypeSwitch('movies')}
+                >
+                  <Film size={16} />
+                  <span>Movies</span>
+                </button>
+                <button
+                  className={`flex-1 py-2 rounded-full flex items-center justify-center gap-1.5 transition-all ${
+                    contentType === 'series' 
+                      ? 'bg-gradient-to-r from-red-600 to-purple-600 text-white' 
+                      : 'text-gray-400'
+                  }`}
+                  onClick={() => handleContentTypeSwitch('series')}
+                >
+                  <Tv size={16} />
+                  <span>Series</span>
+                </button>
+              </div>
+            
               <div className="mb-6">
                 <div className="w-12 h-12 rounded-full bg-gradient-to-r from-red-600 to-purple-600 flex items-center justify-center mb-4">
                   <span className="text-xl font-bold">YM</span>
                 </div>
-                <p className="text-sm text-gray-400">Discover amazing movies</p>
+                <p className="text-sm text-gray-400">
+                  {contentType === 'movies' ? 'Discover amazing movies' : 'Watch your favorite series'}
+                </p>
               </div>
               
               <div className="mb-8">
@@ -282,7 +386,7 @@ function Home() {
                       onClick={() => handleSectionChange('all')}
                     >
                       <Star size={18} />
-                      <span>All Movies</span>
+                      <span className='font-10'>{contentType === 'movies' ? 'All Movies' : 'All Series'}</span>
                     </button>
                   </li>
                   <li>
@@ -292,6 +396,15 @@ function Home() {
                     >
                       <TrendingUp size={18} />
                       <span>Trending</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button 
+                      className={`w-full flex items-center gap-3 p-2 rounded-lg ${activeSection === 'topSeries' ? 'bg-red-600 text-white' : 'text-gray-300 hover:bg-gray-800'}`}
+                      onClick={() => handleSectionChange('topSeries')}
+                    >
+                      <Tv size={18} />
+                      <span>Top 10 Series</span>
                     </button>
                   </li>
                   <li>
@@ -342,16 +455,16 @@ function Home() {
       )}
 
       {/* Desktop Categories */}
-      <div className="hidden md:block fixed top-16 w-full bg-[#121212] bg-opacity-95 backdrop-blur-sm z-40 transition-all duration-300">
-        <div className="container mx-auto px-4 py-4">
+      <div className="hidden md:block fixed top-16 w-full bg-[#121212] bg-opacity-95 backdrop-blur-sm z-40 transition-all duration-300 text-[12px]">
+      <div className="container mx-auto px-4 py-4">
           <div className="flex gap-4 overflow-x-auto scrollbar-hide">
             <button
-              className={`px-4 py-1 rounded-full transition-all duration-300 ${
+              className={`px-4 py-1  rounded-full transition-all duration-300 ${
                 !selectedPlatform && activeSection === 'all' ? 'bg-gradient-to-r from-red-600 to-purple-600 text-white' : 'bg-[#1e1e1e] hover:bg-gray-800'
               }`}
               onClick={() => handleSectionChange('all')}
             >
-              All Movies
+              {contentType === 'movies' ? 'All Movies' : 'All Series'}
             </button>
             <button
               className={`px-4 py-1 rounded-full transition-all duration-300 ${
@@ -360,6 +473,14 @@ function Home() {
               onClick={() => handleSectionChange('trending')}
             >
               Trending
+            </button>
+            <button
+              className={`px-4 py-1 rounded-full transition-all duration-300 ${
+                !selectedPlatform && activeSection === 'topSeries' ? 'bg-gradient-to-r from-red-600 to-purple-600 text-white' : 'bg-[#1e1e1e] hover:bg-gray-800'
+              }`}
+              onClick={() => handleSectionChange('topSeries')}
+            >
+              Top 10 Series
             </button>
             <button
               className={`px-4 py-1 rounded-full transition-all duration-300 ${
@@ -416,40 +537,93 @@ function Home() {
           </div>
         ) : (
           <>
+            {/* Movie or Series label */}
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl md:text-3xl font-bold">
+                {contentType === 'movies' ? (
+                  <span className="flex items-center">
+                    <Film className="inline mr-2 text-red-500" size={28} /> Movies
+                  </span>
+                ) : (
+                  <span className="flex items-center">
+                    <Tv className="inline mr-2 text-purple-500" size={28} /> TV Series
+                  </span>
+                )}
+              </h1>
+            </div>
+          
             {/* Movie sections based on active section */}
             {!searchQuery && !selectedPlatform && (
               activeSection === 'all' ? (
                 <>
+                  {/* Featured section */}
                   <MovieSection 
-                    title={<><Star className="inline mr-2 text-yellow-500" size={20} /> Featured</>} 
-                    movies={allMovies.filter(movie => movie.category?.includes('featured'))} 
+                    title={<><Star className="inline mr-2 text-yellow-500" size={20} /> Featured</>}
+                    movies={contentType === 'movies' ? sections.featured.filter(item => !item.isSeries) : sections.featured.filter(item => item.isSeries)} 
                   />
+
+                  {/* Trending section */}
                   <MovieSection 
                     title={<><TrendingUp className="inline mr-2 text-blue-500" size={20} /> Trending Now</>}
-                    movies={allMovies.filter(movie => movie.category?.includes('trending'))} 
+                    movies={contentType === 'movies' ? sections.trending.filter(item => !item.isSeries) : sections.trending.filter(item => item.isSeries)}
                     showNumbers={true} 
                   />
+
+                  {/* Top Series section - always display if available */}
+                  {contentType === 'series' && (
+                    <MovieSection 
+                      title={<><Tv className="inline mr-2 text-purple-500" size={20} /> Top Series</>}
+                      movies={sections.series.slice(0, 10)}
+                      showNumbers={true}
+                    />
+                  )}
+
+                  {/* New releases */}
                   <MovieSection 
                     title={<><Clock className="inline mr-2 text-green-500" size={20} /> New Releases</>}
-                    movies={allMovies.filter(movie => movie.category?.includes('new'))} 
+                    movies={contentType === 'movies' ? sections.newReleases.filter(item => !item.isSeries) : sections.newReleases.filter(item => item.isSeries)}
                   />
+
+                  {/* Top rated */}
                   <MovieSection 
                     title={<><Award className="inline mr-2 text-amber-500" size={20} /> Top Rated</>}
-                    movies={allMovies.filter(movie => movie.category?.includes('topRated'))} 
+                    movies={contentType === 'movies' ? sections.topRated.filter(item => !item.isSeries) : sections.topRated.filter(item => item.isSeries)}
                   />
                 </>
               ) : activeSection === 'trending' ? (
                 <div className="mt-4">
                   <h2 className="text-2xl font-bold mb-6 flex items-center">
                     <TrendingUp className="mr-2 text-blue-500" size={24} />
-                    Trending Movies
+                    Trending {contentType === 'movies' ? 'Movies' : 'Series'}
                   </h2>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-                    {allMovies.filter(movie => movie.category?.includes('trending'))
-                      .map((movie, index) => (
+                    {sections.trending
+                      .filter(item => contentType === 'movies' ? !item.isSeries : item.isSeries)
+                      .map((item, index) => (
                         <MovieCard 
-                          key={movie.id || index}
-                          movie={movie} 
+                          key={item.id || index}
+                          movie={item} 
+                          onClick={setSelectedMovie}
+                          index={index}
+                          showNumber={true}
+                        />
+                      ))
+                    }
+                  </div>
+                </div>
+              ) : activeSection === 'topSeries' ? (
+                <div className="mt-4">
+                  <h2 className="text-2xl font-bold mb-6 flex items-center">
+                    <Tv className="mr-2 text-purple-500" size={24} />
+                    Top 10 Series
+                  </h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                    {sections.series
+                      .slice(0, 10)
+                      .map((item, index) => (
+                        <MovieCard 
+                          key={item.id || index}
+                          movie={item} 
                           onClick={setSelectedMovie}
                           index={index}
                           showNumber={true}
@@ -462,14 +636,15 @@ function Home() {
                 <div className="mt-4">
                   <h2 className="text-2xl font-bold mb-6 flex items-center">
                     <Clock className="mr-2 text-green-500" size={24} />
-                    New Releases
+                    New {contentType === 'movies' ? 'Movies' : 'Series'} Releases
                   </h2>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-                    {allMovies.filter(movie => movie.category?.includes('new'))
-                      .map((movie, index) => (
+                    {sections.newReleases
+                      .filter(item => contentType === 'movies' ? !item.isSeries : item.isSeries)
+                      .map((item, index) => (
                         <MovieCard 
-                          key={movie.id || index}
-                          movie={movie} 
+                          key={item.id || index}
+                          movie={item} 
                           onClick={setSelectedMovie}
                           index={index}
                         />
@@ -481,14 +656,15 @@ function Home() {
                 <div className="mt-4">
                   <h2 className="text-2xl font-bold mb-6 flex items-center">
                     <Award className="mr-2 text-amber-500" size={24} />
-                    Top Rated
+                    Top Rated {contentType === 'movies' ? 'Movies' : 'Series'}
                   </h2>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-                    {allMovies.filter(movie => movie.category?.includes('topRated'))
-                      .map((movie, index) => (
+                    {sections.topRated
+                      .filter(item => contentType === 'movies' ? !item.isSeries : item.isSeries)
+                      .map((item, index) => (
                         <MovieCard 
-                          key={movie.id || index}
-                          movie={movie} 
+                          key={item.id || index}
+                          movie={item} 
                           onClick={setSelectedMovie}
                           index={index}
                         />
@@ -521,9 +697,9 @@ function Home() {
               </h2>
               
               {(searchQuery || selectedPlatform || activeSection === 'all') && (
-                paginatedMovies.length > 0 ? (
+                paginatedContent.length > 0 ? (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
-                    {paginatedMovies.map((movie, index) => (
+                    {paginatedContent.map((movie, index) => (
                       <div 
                         key={movie.id || index}
                         className="transform transition-transform duration-300 hover:scale-105"
@@ -595,9 +771,8 @@ function Home() {
         )}
       </main>
 
-      {selectedMovie && (
-        <MovieDetails movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
-      )}
+      {/* Replace the MovieDetails component with the dynamic renderer */}
+      {selectedMovie && renderDetailComponent()}
 
       {/* Add custom animations to your CSS */}
       <style jsx>{`
