@@ -321,8 +321,6 @@ const SeriesDetail = ({ series, onClose }) => {
         q: quality || size || 'HD',
         u: generateUserToken(),
         t: Date.now(),
-        // Include the actual download link
-        l: link
       };
       
       // Convert payload to JSON string
