@@ -250,6 +250,110 @@ const SeriesDetail = ({ series, onClose }) => {
     setActiveScreenshot((prev) => (prev === 0 ? screenshots.length - 1 : prev - 1));
   }, [screenshots.length]);
 
+  // Generate a semi-unique user token (not personally identifiable)
+  const generateUserToken = () => {
+    // Create a fingerprint from browser info without storing personal data
+    const browserInfo = 
+      navigator.userAgent.substring(0, 10) + 
+      window.screen.width + 
+      window.screen.height;
+    
+    return CryptoJS.SHA256(browserInfo).toString().substring(0, 16);
+  };
+  
+  // Generate a unique ID from series title
+  const generateUniqueId = (title) => {
+    if (!title) return Math.random().toString(36).substring(2, 10);
+    
+    const slug = title
+      .toLowerCase()
+      .replace(/[^\w\s]/gi, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 30);
+      
+    return slug;
+  };
+  
+  // Activity logging (optional)
+  const logActivity = (action, data) => {
+    try {
+      const activityData = {
+        action,
+        ...data,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Send to your analytics endpoint if needed
+      // Using a non-blocking approach
+      navigator.sendBeacon && 
+        navigator.sendBeacon(
+          'https://my-blog-five-amber-64.vercel.app/api/log-activity', 
+          JSON.stringify(activityData)
+        );
+    } catch (e) {
+      // Silent fail for analytics
+    }
+  };
+  
+  // Simple toast notification function
+  const showToast = (message) => {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-[100] animate-fadeIn';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+      toast.classList.add('animate-fadeOut');
+      setTimeout(() => document.body.removeChild(toast), 300);
+    }, 3000);
+  };
+  
+  const handleDownload = useCallback((link, quality, size) => {
+    if (!link) {
+      showToast("No download link available");
+      return;
+    }
+  
+    try {
+      // Create minimal download payload with only essential information
+      const downloadPayload = {
+        m: series.id || generateUniqueId(series.title),
+        q: quality || size || 'HD',
+        u: generateUserToken(),
+        t: Date.now(),
+        // Include the actual download link
+        l: link
+      };
+      
+      // Convert payload to JSON string
+      const jsonPayload = JSON.stringify(downloadPayload);
+      
+      // Encrypt the payload using AES with the security key
+      const encryptedToken = CryptoJS.AES.encrypt(jsonPayload, SECURITY_KEY).toString();
+      
+      // URL-safe Base64 encoding
+      const safeToken = encryptedToken
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      
+      // Create the secure download URL with just the encrypted token
+      const redirectUrl = `https://my-blog-five-amber-64.vercel.app/secure-download?t=${encodeURIComponent(safeToken)}`;
+      
+      // Open in new tab
+      window.open(redirectUrl, '_blank');
+      
+      // Show toast with minimal information
+      showToast(`Starting download for ${quality || size || 'episode'}`);
+      
+      // Optional: Log download activity (non-identifying)
+      logActivity('download_initiated', { quality: quality || size || 'HD' });
+    } catch (error) {
+      console.error("Download error:", error);
+      showToast("Unable to process download request");
+    }
+  }, [series]);
+
   // Function to render episodes list
   const renderEpisodes = useCallback(() => {
     if (!series) {
@@ -314,16 +418,14 @@ const SeriesDetail = ({ series, onClose }) => {
               </h3>
               <div className="flex flex-wrap gap-2">
                 {seasonFullDownloads.map((download, index) => (
-                  <a
+                  <button
                     key={index}
-                    href={`/download?link=${encryptLink(download.url)}`}
+                    onClick={() => handleDownload(download.url, download.quality, download.size)}
                     className="inline-flex items-center bg-[#252525] hover:bg-[#303030] px-4 py-2 rounded-full text-sm transition-all duration-300"
-                    target="_blank"
-                    rel="noopener noreferrer"
                   >
                     <Download size={14} className="mr-2" />
                     {download.quality} {download.size && `(${download.size})`}
-                  </a>
+                  </button>
                 ))}
               </div>
             </div>
@@ -381,16 +483,14 @@ const SeriesDetail = ({ series, onClose }) => {
             </h3>
             <div className="flex flex-wrap gap-2">
               {seasonFullDownloads.map((download, index) => (
-                <a
+                <button
                   key={index}
-                  href={`/download?link=${encryptLink(download.url)}`}
+                  onClick={() => handleDownload(download.url, download.quality, download.size)}
                   className="inline-flex items-center bg-[#252525] hover:bg-[#303030] px-4 py-2 rounded-full text-sm transition-all duration-300"
-                  target="_blank"
-                  rel="noopener noreferrer"
                 >
                   <Download size={14} className="mr-2" />
                   {download.quality} {download.size && `(${download.size})`}
-                </a>
+                </button>
               ))}
             </div>
           </div>
@@ -417,21 +517,19 @@ const SeriesDetail = ({ series, onClose }) => {
                   </div>
                 </div>
                 
-                <a
-                  href={`/download?link=${encryptLink(episode.link)}`}
+                <button
+                  onClick={() => handleDownload(episode.link, episode.quality, episode.size)}
                   className="bg-[#252525] hover:bg-[#303030] p-2 rounded-md transition-all duration-300 hover:scale-105"
-                  target="_blank"
-                  rel="noopener noreferrer"
                 >
                   <Download size={20} />
-                </a>
+                </button>
               </div>
             </div>
           ))}
         </div>
       </div>
     );
-  }, [activeSeason, availableSeasons, encryptLink, handleSeasonChange, seasonEpisodes, seasonFullDownloads, showSeasonDropdown]);
+  }, [activeSeason, availableSeasons, handleDownload, handleSeasonChange, seasonEpisodes, seasonFullDownloads, series, showSeasonDropdown]);
 
   if (!series) {
     return <div className="text-center py-10">Series data not available</div>;
