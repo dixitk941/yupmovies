@@ -1,0 +1,123 @@
+[33mcommit 9c0c4f8491345158ee2127ec57a3ab65568fa1ce[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Sun Mar 23 08:37:34 2025 +0530
+
+    feat: add Firestore integration for series and season data upload with improved ID handling
+
+[33mcommit 6a21d63f7fcd7d17b97d4e0c77d118fce9d22c14[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Fri Mar 21 00:01:53 2025 +0530
+
+    feat: remove direct download link from SeriesDetail component for enhanced security
+
+[33mcommit a9dda98f2749dea68eabf3a87a4690a49ae688af[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Thu Mar 20 23:27:38 2025 +0530
+
+    feat: implement secure download handling with user token generation and activity logging
+
+[33mcommit 27e272b1b9feadb44217bbe204875b0a934452ee[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Tue Mar 18 14:57:19 2025 +0530
+
+    feat: update data upload process to handle series data with improved error handling
+
+[33mcommit fffa791d5c775576b5741aa49b20d52653f5bd00[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Tue Mar 18 00:36:41 2025 +0530
+
+    feat: enhance Firebase integration and improve movie data upload process with error handling
+
+[33mcommit 221c0fa814584beda0d5299de623bb458bb278d5[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Mon Mar 17 14:51:57 2025 +0530
+
+    feat: add secure token generation and download URL handler for movie resources
+
+[33mcommit a03d10958e6f91b4aa4a7a0573a500f9079066de[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Mon Mar 17 13:33:40 2025 +0530
+
+    feat: implement secure token generation for downloads and enhance tracking methods
+
+[33mcommit a9a91d7d8dc7a1b4f8c8a39cbb85c55d39f01c6a[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Mon Mar 17 13:20:09 2025 +0530
+
+    feat: implement secure download token generation and enhance MovieSection with accessibility features
+
+[33mcommit b2eb2460287c4b97a3578e36d53c302a908d70a8[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Mon Mar 17 13:00:29 2025 +0530
+
+[33mcommit 26e36334912774d29c7ea9a2e84eff2a19f4943e[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Mon Mar 17 12:20:11 2025 +0530
+
+    feat: enhance MovieCard component with responsive design and loading states
+
+[33mcommit 7bbf9f975433eeb9824442f4f61b8dbf770a6c5d[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Sat Mar 15 15:31:51 2025 +0530
+
+    refactor: remove MovieDetail component and clean up related imports
+
+[33mcommit 499ad7b7ac5641c5407d5c122557bbc32d00542e[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Sat Mar 15 15:26:21 2025 +0530
+
+    chore: remove hardcoded Firebase service account path for security reasons
+
+[33mcommit 15ac3ce35518ad9ff20fcacd4f5bea44482773c4[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Sat Mar 15 15:25:09 2025 +0530
+
+    chore: remove Firebase service account JSON file for security reasons
+
+[33mcommit 080b04cadb19d635cefefe2695b0cb8cd9ab393a[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Sat Mar 15 15:22:12 2025 +0530
+
+    feat: integrate Firebase for movie data management and add MovieSection component
+
+[33mcommit 468e3f6fe41c70516212fc5f5c978c99752d3665[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Thu Mar 13 11:02:37 2025 +0530
+
+    fix: remove unnecessary blank line in MovieDetails component
+
+[33mcommit 2978d9e34983af77b289a58a52623a574abe2490[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Thu Mar 13 10:47:01 2025 +0530
+
+    feat: add download and verification pages with routing
+
+[33mcommit 09a8082f222db2484474a866890d48ea423525cb[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Tue Mar 11 10:06:22 2025 +0530
+
+    fix: adjust padding in MovieCard component for better layout
+
+[33mcommit 596a11e8a704c080904ff5a763340f6ba8eea9c9[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Tue Mar 11 10:03:33 2025 +0530
+
+    add custom CSS variables and styles for movie section, buttons, and pagination
+
+[33mcommit a6d87908707b0b5dc0196632eda3e16a1c20ecf0[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Sat Mar 8 00:46:11 2025 +0530
+
+    add README.md with project overview, features, tech stack, and installation instructions
+
+[33mcommit ab8ad6cb0c929e77973a8631d064de02fab9a574[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Sat Mar 8 00:44:54 2025 +0530
+
+    remove unused Bolt configuration and prompt files
+
+[33mcommit a1a5992b599fdadb05160cfe163fbefa883638ac[m
+Author: Karan Dixit <dixitk941@gmail.com>
+Date:   Sat Mar 8 00:43:10 2025 +0530
+
+    Initial commit

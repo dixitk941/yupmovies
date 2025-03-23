@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info, Play, ChevronDown } from 'lucide-react';
 import CryptoJS from 'crypto-js';
-import { parseEpisodes, parseFullSeasonDownloads } from '../services/movieService';
+import { doc, collection, getDocs, query, orderBy, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const SECURITY_KEY = "6f1d8a3b9c5e7f2a4d6b8e0f1a3c7d9e2b4f6a8c1d3e5f7a0b2c4d6e8f0a1b3";
 
@@ -13,12 +14,14 @@ const SeriesDetail = ({ series, onClose }) => {
   const [activeTab, setActiveTab] = useState('details'); // 'details', 'screenshots', 'episodes'
   const [scrollPosition, setScrollPosition] = useState(0);
   const [expandGenres, setExpandGenres] = useState(false);
-  const [activeSeason, setActiveSeason] = useState(1);
+  const [activeSeason, setActiveSeason] = useState(null);
   const [seasonEpisodes, setSeasonEpisodes] = useState([]);
   const [availableSeasons, setAvailableSeasons] = useState([]);
   const [showSeasonDropdown, setShowSeasonDropdown] = useState(false);
   const [seasonFullDownloads, setSeasonFullDownloads] = useState([]);
   const [screenshots, setScreenshots] = useState([]);
+  const [isLoadingSeasons, setIsLoadingSeasons] = useState(true);
+  const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
   
   const modalRef = useRef(null);
   const contentRef = useRef(null);
@@ -54,88 +57,167 @@ const SeriesDetail = ({ series, onClose }) => {
     e.target.onerror = null;
   };
   
-  // Encrypt download link
-  const encryptLink = useCallback((link) => {
-    if (!link) return '';
-    return CryptoJS.AES.encrypt(link, SECURITY_KEY).toString();
-  }, []);
-  
-  // IMPORTANT: Define loadSeasonData before any useEffect that references it
-  // Load data for the selected season
-  const loadSeasonData = useCallback((seasonNumber) => {
-    if (!series) return;
+  // Generate a semi-unique user token (not personally identifiable)
+  const generateUserToken = () => {
+    // Create a fingerprint from browser info without storing personal data
+    const browserInfo = 
+      navigator.userAgent.substring(0, 10) + 
+      window.screen.width + 
+      window.screen.height;
     
-    const seasonKey = `Season ${seasonNumber}`;
-    if (series[seasonKey]) {
+    return CryptoJS.SHA256(browserInfo).toString().substring(0, 16);
+  };
+  
+  // Generate a unique ID from series title
+  const generateUniqueId = (title) => {
+    if (!title) return Math.random().toString(36).substring(2, 10);
+    
+    const slug = title
+      .toLowerCase()
+      .replace(/[^\w\s]/gi, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 30);
+      
+    return slug;
+  };
+  
+  // Activity logging (optional)
+  const logActivity = (action, data) => {
+    try {
+      const activityData = {
+        action,
+        ...data,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Send to your analytics endpoint if needed
+      // Using a non-blocking approach
+      navigator.sendBeacon && 
+        navigator.sendBeacon(
+          'https://my-blog-five-amber-64.vercel.app/api/log-activity', 
+          JSON.stringify(activityData)
+        );
+    } catch (e) {
+      // Silent fail for analytics
+    }
+  };
+  
+  // Simple toast notification function
+  const showToast = (message) => {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-[100] animate-fadeIn';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+      toast.classList.add('animate-fadeOut');
+      setTimeout(() => document.body.removeChild(toast), 300);
+    }, 3000);
+  };
+  
+  // Fetch available seasons from Firestore
+  useEffect(() => {
+    if (!series?.id) return;
+    
+    const fetchSeasons = async () => {
+      setIsLoadingSeasons(true);
       try {
-        // Specifically extract the season data as a string
-        const seasonText = series[seasonKey];
+        // Reference to the seasons subcollection
+        const seasonsRef = collection(db, 'series', series.id, 'seasons');
+        const seasonsQuery = query(seasonsRef, orderBy('season', 'asc'));
+        const snapshot = await getDocs(seasonsQuery);
         
-        // Use imported parseEpisodes with the exact season text
-        const parsedEpisodes = parseEpisodes(seasonText);
-        setSeasonEpisodes(parsedEpisodes);
+        if (snapshot.empty) {
+          console.log('No seasons found for this series');
+          setAvailableSeasons([]);
+          setIsLoadingSeasons(false);
+          return;
+        }
         
-        // Use imported parseFullSeasonDownloads with the exact season text
-        const fullSeasonLinks = parseFullSeasonDownloads(seasonText);
-        setSeasonFullDownloads(fullSeasonLinks);
+        // Process seasons data
+        const seasons = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
         
-        // Debug information
-        console.log(`Season ${seasonNumber} data:`, {
-          rawData: seasonText ? seasonText.substring(0, 100) + '...' : 'null',
-          episodes: parsedEpisodes,
-          fullSeason: fullSeasonLinks
-        });
+        setAvailableSeasons(seasons);
+        
+        // Set default active season to the first one
+        if (seasons.length > 0) {
+          setActiveSeason(seasons[0]);
+          // Load episodes for the first season
+          loadSeasonEpisodes(seasons[0].id, seasons[0].season);
+        }
+        
+        // Set episodes tab active by default for series on mobile
+        if (isMobile && seasons.length > 0) {
+          setActiveTab('episodes');
+        }
+        
       } catch (error) {
-        console.error(`Error parsing season ${seasonNumber} data:`, error);
+        console.error('Error fetching seasons:', error);
+        showToast('Error loading seasons data');
+      } finally {
+        setIsLoadingSeasons(false);
+      }
+    };
+    
+    fetchSeasons();
+  }, [series, isMobile]);
+  
+  // Load episodes for a specific season
+  const loadSeasonEpisodes = useCallback(async (seasonId, seasonNumber) => {
+    if (!series?.id || !seasonId) return;
+    
+    setIsLoadingEpisodes(true);
+    
+    try {
+      // Reference to the episodes subcollection
+      const episodesRef = collection(db, 'series', series.id, 'seasons', seasonId, 'episodes');
+      const episodesQuery = query(episodesRef, orderBy('episode', 'asc'));
+      const snapshot = await getDocs(episodesQuery);
+      
+      if (snapshot.empty) {
+        console.log(`No episodes found for Season ${seasonNumber}`);
         setSeasonEpisodes([]);
+        setIsLoadingEpisodes(false);
+        return;
+      }
+      
+      // Process episodes data
+      const episodes = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        number: doc.data().episode, // For compatibility with the UI
+      }));
+      
+      setSeasonEpisodes(episodes);
+      
+      // Generate full season download links if available
+      const seasonDoc = await getDoc(doc(db, 'series', series.id, 'seasons', seasonId));
+      if (seasonDoc.exists() && seasonDoc.data().fullSeasonDownloads) {
+        setSeasonFullDownloads(seasonDoc.data().fullSeasonDownloads);
+      } else {
         setSeasonFullDownloads([]);
       }
-    } else {
-      console.log(`No data found for Season ${seasonNumber}`);
+      
+    } catch (error) {
+      console.error(`Error fetching episodes for season ${seasonNumber}:`, error);
+      showToast('Error loading episodes data');
       setSeasonEpisodes([]);
       setSeasonFullDownloads([]);
+    } finally {
+      setIsLoadingEpisodes(false);
     }
   }, [series]);
   
+  // Handle season change
   const handleSeasonChange = useCallback((season) => {
     setActiveSeason(season);
     setShowSeasonDropdown(false);
-    loadSeasonData(season);
-  }, [loadSeasonData]);
+    loadSeasonEpisodes(season.id, season.season);
+  }, [loadSeasonEpisodes]);
   
-  // Find available seasons (NOW THIS CAN REFERENCE loadSeasonData safely)
-  useEffect(() => {
-    if (!series) return;
-    
-    // Debug the series data structure
-    console.log('Series data structure:', {
-      title: series.title,
-      availableSeasonKeys: Object.keys(series).filter(key => key.startsWith('Season')),
-      hasSeasons: Object.keys(series).some(key => key.startsWith('Season') && series[key] !== null)
-    });
-    
-    const seasons = [];
-    for (let i = 1; i <= 14; i++) {
-      const seasonKey = `Season ${i}`;
-      if (series[seasonKey] && series[seasonKey] !== null) {
-        seasons.push(i);
-      }
-    }
-    
-    setAvailableSeasons(seasons);
-    
-    // Set default active season to the first available one
-    if (seasons.length > 0) {
-      setActiveSeason(seasons[0]);
-      loadSeasonData(seasons[0]);
-    }
-    
-    // Set episodes tab active by default for series on mobile
-    if (isMobile && seasons.length > 0) {
-      setActiveTab('episodes');
-    }
-  }, [series, isMobile, loadSeasonData]);
-
   // Parse screenshots
   useEffect(() => {
     if (!series) return;
@@ -249,110 +331,76 @@ const SeriesDetail = ({ series, onClose }) => {
     if (screenshots.length <= 1) return;
     setActiveScreenshot((prev) => (prev === 0 ? screenshots.length - 1 : prev - 1));
   }, [screenshots.length]);
+  
+ // Update the handleDownload function to include episode number
+const handleDownload = useCallback((link, quality, size, episodeNumber = null, isFullSeason = false) => {
+  if (!link) {
+    showToast("No download link available");
+    return;
+  }
 
-  // Generate a semi-unique user token (not personally identifiable)
-  const generateUserToken = () => {
-    // Create a fingerprint from browser info without storing personal data
-    const browserInfo = 
-      navigator.userAgent.substring(0, 10) + 
-      window.screen.width + 
-      window.screen.height;
+  try {
+    // Create download payload with episode/season information
+    const downloadPayload = {
+      m: series.id || generateUniqueId(series.title),
+      q: quality || size || 'HD',
+      u: generateUserToken(),
+      t: Date.now(),
+      s: activeSeason?.season, // Include season number
+      n: series.title, // Include series name
+    };
     
-    return CryptoJS.SHA256(browserInfo).toString().substring(0, 16);
-  };
-  
-  // Generate a unique ID from series title
-  const generateUniqueId = (title) => {
-    if (!title) return Math.random().toString(36).substring(2, 10);
+    // Add episode number if downloading a single episode
+    if (episodeNumber !== null) {
+      downloadPayload.e = episodeNumber;
+    }
     
-    const slug = title
-      .toLowerCase()
-      .replace(/[^\w\s]/gi, '')
-      .replace(/\s+/g, '-')
-      .substring(0, 30);
-      
-    return slug;
-  };
-  
-  // Activity logging (optional)
-  const logActivity = (action, data) => {
-    try {
-      const activityData = {
-        action,
-        ...data,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Send to your analytics endpoint if needed
-      // Using a non-blocking approach
-      navigator.sendBeacon && 
-        navigator.sendBeacon(
-          'https://my-blog-five-amber-64.vercel.app/api/log-activity', 
-          JSON.stringify(activityData)
-        );
-    } catch (e) {
-      // Silent fail for analytics
+    // Mark as full season download if applicable
+    if (isFullSeason) {
+      downloadPayload.fs = true;
     }
-  };
-  
-  // Simple toast notification function
-  const showToast = (message) => {
-    const toast = document.createElement('div');
-    toast.className = 'fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-md shadow-lg z-[100] animate-fadeIn';
-    toast.textContent = message;
-    document.body.appendChild(toast);
     
-    setTimeout(() => {
-      toast.classList.add('animate-fadeOut');
-      setTimeout(() => document.body.removeChild(toast), 300);
-    }, 3000);
-  };
-  
-  const handleDownload = useCallback((link, quality, size) => {
-    if (!link) {
-      showToast("No download link available");
-      return;
+    // Convert payload to JSON string
+    const jsonPayload = JSON.stringify(downloadPayload);
+    
+    // Encrypt the payload using AES with the security key
+    const encryptedToken = CryptoJS.AES.encrypt(jsonPayload, SECURITY_KEY).toString();
+    
+    // URL-safe Base64 encoding
+    const safeToken = encryptedToken
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    
+    // Create the secure download URL with the encrypted token and link
+    const safeLink = encodeURIComponent(CryptoJS.AES.encrypt(link, SECURITY_KEY).toString());
+    const redirectUrl = `https://my-blog-five-amber-64.vercel.app/secure-download?t=${encodeURIComponent(safeToken)}&r=${safeLink}`;
+    
+    // Open in new tab
+    window.open(redirectUrl, '_blank');
+    
+    // Show appropriate toast message
+    if (isFullSeason) {
+      showToast(`Starting download for ${series.title} Season ${activeSeason?.season} (${quality || size || 'HD'})`);
+    } else if (episodeNumber !== null) {
+      showToast(`Starting download for ${series.title} S${activeSeason?.season}E${episodeNumber} (${quality || size || 'HD'})`);
+    } else {
+      showToast(`Starting download for ${series.title} (${quality || size || 'HD'})`);
     }
-  
-    try {
-      // Create minimal download payload with only essential information
-      const downloadPayload = {
-        m: series.id || generateUniqueId(series.title),
-        q: quality || size || 'HD',
-        u: generateUserToken(),
-        t: Date.now(),
-        // Include the actual download link
-        l: link
-      };
-      
-      // Convert payload to JSON string
-      const jsonPayload = JSON.stringify(downloadPayload);
-      
-      // Encrypt the payload using AES with the security key
-      const encryptedToken = CryptoJS.AES.encrypt(jsonPayload, SECURITY_KEY).toString();
-      
-      // URL-safe Base64 encoding
-      const safeToken = encryptedToken
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-      
-      // Create the secure download URL with just the encrypted token
-      const redirectUrl = `https://my-blog-five-amber-64.vercel.app/secure-download?t=${encodeURIComponent(safeToken)}`;
-      
-      // Open in new tab
-      window.open(redirectUrl, '_blank');
-      
-      // Show toast with minimal information
-      showToast(`Starting download for ${quality || size || 'episode'}`);
-      
-      // Optional: Log download activity (non-identifying)
-      logActivity('download_initiated', { quality: quality || size || 'HD' });
-    } catch (error) {
-      console.error("Download error:", error);
-      showToast("Unable to process download request");
-    }
-  }, [series]);
+    
+    // Log download activity
+    logActivity('download_initiated', { 
+      title: series.title,
+      quality: quality || size || 'HD',
+      season: activeSeason?.season,
+      episode: episodeNumber,
+      fullSeason: isFullSeason
+    });
+  } catch (error) {
+    console.error("Download error:", error);
+    showToast("Unable to process download request");
+  }
+}, [series, activeSeason]);
 
   // Function to render episodes list
   const renderEpisodes = useCallback(() => {
@@ -365,11 +413,63 @@ const SeriesDetail = ({ series, onClose }) => {
       );
     }
     
+    if (isLoadingSeasons) {
+      return (
+        <div className="text-center py-8 text-gray-400">
+          <div className="animate-spin w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p>Loading seasons...</p>
+        </div>
+      );
+    }
+    
     if (!availableSeasons || availableSeasons.length === 0) {
       return (
         <div className="text-center py-8 text-gray-400">
           <Info size={40} className="mx-auto mb-4 text-gray-600" />
           <p>No seasons available for this series</p>
+        </div>
+      );
+    }
+    
+    if (isLoadingEpisodes) {
+      return (
+        <div className="space-y-4">
+          {/* Season selector dropdown */}
+          <div className="relative mb-6" ref={seasonDropdownRef}>
+            <button
+              className="flex items-center justify-between w-full sm:w-64 p-3 bg-[#1a1a1a] rounded-lg border border-gray-700 focus:outline-none hover:border-purple-500/50 transition-colors duration-300"
+              onClick={() => setShowSeasonDropdown(!showSeasonDropdown)}
+            >
+              <span className="flex items-center">
+                <Play size={16} className="mr-2 text-red-500" />
+                Season {activeSeason?.season}
+              </span>
+              <ChevronDown 
+                size={18} 
+                className={`transition-transform duration-300 ${showSeasonDropdown ? 'rotate-180' : ''}`} 
+              />
+            </button>
+            
+            {showSeasonDropdown && (
+              <div className="absolute z-10 mt-1 w-full sm:w-64 bg-[#1a1a1a] rounded-lg border border-gray-700 shadow-xl max-h-60 overflow-y-auto">
+                {availableSeasons.map(season => (
+                  <button
+                    key={season.id}
+                    className="w-full text-left px-4 py-2 hover:bg-[#252525] flex items-center"
+                    onClick={() => handleSeasonChange(season)}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full mr-2 ${activeSeason?.id === season.id ? 'bg-red-500' : 'bg-gray-600'}`}></span>
+                    Season {season.season}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex items-center justify-center py-8 text-gray-400">
+            <div className="animate-spin w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full mr-3"></div>
+            <p>Loading episodes...</p>
+          </div>
         </div>
       );
     }
@@ -385,7 +485,7 @@ const SeriesDetail = ({ series, onClose }) => {
             >
               <span className="flex items-center">
                 <Play size={16} className="mr-2 text-red-500" />
-                Season {activeSeason}
+                Season {activeSeason?.season}
               </span>
               <ChevronDown 
                 size={18} 
@@ -397,12 +497,12 @@ const SeriesDetail = ({ series, onClose }) => {
               <div className="absolute z-10 mt-1 w-full sm:w-64 bg-[#1a1a1a] rounded-lg border border-gray-700 shadow-xl max-h-60 overflow-y-auto">
                 {availableSeasons.map(season => (
                   <button
-                    key={season}
+                    key={season.id}
                     className="w-full text-left px-4 py-2 hover:bg-[#252525] flex items-center"
                     onClick={() => handleSeasonChange(season)}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full mr-2 ${activeSeason === season ? 'bg-red-500' : 'bg-gray-600'}`}></span>
-                    Season {season}
+                    <span className={`w-1.5 h-1.5 rounded-full mr-2 ${activeSeason?.id === season.id ? 'bg-red-500' : 'bg-gray-600'}`}></span>
+                    Season {season.season}
                   </button>
                 ))}
               </div>
@@ -414,13 +514,13 @@ const SeriesDetail = ({ series, onClose }) => {
             <div className="mb-6 p-4 bg-[#1a1a1a] rounded-lg border border-gray-800/50">
               <h3 className="text-lg mb-3 flex items-center">
                 <Download size={18} className="mr-2 text-purple-500" /> 
-                Complete Season {activeSeason} Download
+                Complete Season {activeSeason?.season} Download
               </h3>
               <div className="flex flex-wrap gap-2">
                 {seasonFullDownloads.map((download, index) => (
                   <button
                     key={index}
-                    onClick={() => handleDownload(download.url, download.quality, download.size)}
+                    onClick={() => handleDownload(download.link, download.quality, download.size, null, true)}
                     className="inline-flex items-center bg-[#252525] hover:bg-[#303030] px-4 py-2 rounded-full text-sm transition-all duration-300"
                   >
                     <Download size={14} className="mr-2" />
@@ -450,7 +550,7 @@ const SeriesDetail = ({ series, onClose }) => {
           >
             <span className="flex items-center">
               <Play size={16} className="mr-2 text-red-500" />
-              Season {activeSeason}
+              Season {activeSeason?.season}
             </span>
             <ChevronDown 
               size={18} 
@@ -462,12 +562,12 @@ const SeriesDetail = ({ series, onClose }) => {
             <div className="absolute z-10 mt-1 w-full sm:w-64 bg-[#1a1a1a] rounded-lg border border-gray-700 shadow-xl max-h-60 overflow-y-auto">
               {availableSeasons.map(season => (
                 <button
-                  key={season}
+                  key={season.id}
                   className="w-full text-left px-4 py-2 hover:bg-[#252525] flex items-center"
                   onClick={() => handleSeasonChange(season)}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full mr-2 ${activeSeason === season ? 'bg-red-500' : 'bg-gray-600'}`}></span>
-                  Season {season}
+                  <span className={`w-1.5 h-1.5 rounded-full mr-2 ${activeSeason?.id === season.id ? 'bg-red-500' : 'bg-gray-600'}`}></span>
+                  Season {season.season}
                 </button>
               ))}
             </div>
@@ -479,13 +579,13 @@ const SeriesDetail = ({ series, onClose }) => {
           <div className="mb-6 p-4 bg-[#1a1a1a] rounded-lg border border-gray-800/50">
             <h3 className="text-lg mb-3 flex items-center">
               <Download size={18} className="mr-2 text-purple-500" /> 
-              Complete Season {activeSeason} Download
+              Complete Season {activeSeason?.season} Download
             </h3>
             <div className="flex flex-wrap gap-2">
               {seasonFullDownloads.map((download, index) => (
                 <button
                   key={index}
-                  onClick={() => handleDownload(download.url, download.quality, download.size)}
+                  onClick={() => handleDownload(download.link, download.quality, download.size, null, true)}
                   className="inline-flex items-center bg-[#252525] hover:bg-[#303030] px-4 py-2 rounded-full text-sm transition-all duration-300"
                 >
                   <Download size={14} className="mr-2" />
@@ -500,7 +600,7 @@ const SeriesDetail = ({ series, onClose }) => {
         <div className="space-y-3">
           {seasonEpisodes.map((episode) => (
             <div 
-              key={episode.number} 
+              key={episode.id} 
               className="bg-[#1a1a1a] p-3 rounded-lg border border-gray-800/30 hover:border-purple-500/20 transition-colors duration-300"
             >
               <div className="flex justify-between items-center">
@@ -518,7 +618,7 @@ const SeriesDetail = ({ series, onClose }) => {
                 </div>
                 
                 <button
-                  onClick={() => handleDownload(episode.link, episode.quality, episode.size)}
+                  onClick={() => handleDownload(episode.link, episode.quality, episode.size, episode.number, false)}
                   className="bg-[#252525] hover:bg-[#303030] p-2 rounded-md transition-all duration-300 hover:scale-105"
                 >
                   <Download size={20} />
@@ -529,7 +629,18 @@ const SeriesDetail = ({ series, onClose }) => {
         </div>
       </div>
     );
-  }, [activeSeason, availableSeasons, handleDownload, handleSeasonChange, seasonEpisodes, seasonFullDownloads, series, showSeasonDropdown]);
+  }, [
+    activeSeason, 
+    availableSeasons, 
+    handleDownload, 
+    handleSeasonChange, 
+    isLoadingEpisodes, 
+    isLoadingSeasons, 
+    seasonEpisodes, 
+    seasonFullDownloads, 
+    series, 
+    showSeasonDropdown
+  ]);
 
   if (!series) {
     return <div className="text-center py-10">Series data not available</div>;
@@ -751,19 +862,26 @@ const SeriesDetail = ({ series, onClose }) => {
                     Available Seasons
                   </h4>
                   <div className="flex flex-wrap gap-2 mb-4">
-                    {availableSeasons.map((season) => (
-                      <button
-                        key={season}
-                        className={`px-4 py-2 rounded-full text-sm
-                          ${activeSeason === season 
-                            ? 'bg-gradient-to-r from-red-600 to-purple-600 text-white shadow-md shadow-purple-900/20' 
-                            : 'bg-[#252525] hover:bg-[#303030] text-gray-300'
-                        } transition-all duration-300`}
-                        onClick={() => handleSeasonChange(season)}
-                      >
-                        Season {season}
-                      </button>
-                    ))}
+                    {isLoadingSeasons ? (
+                      <div className="flex items-center py-2 px-3">
+                        <div className="animate-spin w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full mr-2"></div>
+                        <span className="text-sm text-gray-400">Loading seasons...</span>
+                      </div>
+                    ) : (
+                      availableSeasons.map((season) => (
+                        <button
+                          key={season.id}
+                          className={`px-4 py-2 rounded-full text-sm
+                            ${activeSeason?.id === season.id 
+                              ? 'bg-gradient-to-r from-red-600 to-purple-600 text-white shadow-md shadow-purple-900/20' 
+                              : 'bg-[#252525] hover:bg-[#303030] text-gray-300'
+                          } transition-all duration-300`}
+                          onClick={() => handleSeasonChange(season)}
+                        >
+                          Season {season.season}
+                        </button>
+                      ))
+                    )}
                   </div>
                   <div className="p-4 bg-[#1a1a1a] rounded-lg border border-gray-800/30">
                     <p className="text-sm text-gray-400">
@@ -860,6 +978,7 @@ const SeriesDetail = ({ series, onClose }) => {
                       src={screenshots[activeScreenshot]} 
                       alt={`Screenshot ${activeScreenshot + 1}`} 
                       className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+                      onError={handleImageError}
                     />
                   </div>
                 </div>
