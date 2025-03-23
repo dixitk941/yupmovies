@@ -656,6 +656,7 @@ const handleDownload = useCallback((link, quality, size, episodeNumber = null, i
     >
       <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-[#100818]/30 to-black/40 animate-gradient-shift"></div>
       
+      {/* Animated particles in background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {[...Array(20)].map((_, i) => (
           <div 
@@ -677,6 +678,7 @@ const handleDownload = useCallback((link, quality, size, episodeNumber = null, i
           ${isLoaded ? 'scale-100 opacity-100' : 'scale-95 opacity-0'} transition-all duration-500`}
         onClick={e => e.stopPropagation()}
       >
+        {/* Header with close button */}
         <div className={`absolute top-0 left-0 right-0 z-30 transition-all duration-300 ${
           scrollPosition > 100 ? 'bg-black/90 backdrop-blur-md shadow-xl' : 'bg-transparent'
         }`}>
@@ -697,43 +699,75 @@ const handleDownload = useCallback((link, quality, size, episodeNumber = null, i
           </div>
         </div>
         
-        <div className="relative h-[40vh] sm:h-[45vh] md:h-[55vh] lg:h-[60vh] w-full overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-900 to-gray-800 animate-pulse"></div>
-          
-          <div ref={backdropRef} className="absolute inset-0 overflow-hidden">
-            <img 
-              src={series.featured_image || series.image} 
-              alt={series.title} 
-              className="w-full h-full object-cover transition-opacity duration-700 opacity-0 onload-visible"
-              onLoad={(e) => {
-                e.target.classList.add('opacity-100');
-                e.target.classList.remove('opacity-0');
-              }}
-              onError={handleImageError}
-            />
-          </div>
+        {/* Main content container */}
+        <div className="md:flex h-full">
+          {/* Left column - Featured image (desktop) and full-width hero (mobile) */}
+          <div className={`${isMobile ? 'h-[35vh]' : 'md:w-[40%] lg:w-[35%] h-full'}`}>
+            <div className="relative h-full w-full overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-r from-gray-900 to-gray-800 animate-pulse"></div>
+              
+              <div ref={backdropRef} className="absolute inset-0 overflow-hidden">
+                <img 
+                  src={series.featured_image || series.image} 
+                  alt={series.title} 
+                  className={`w-full h-full ${isMobile ? 'object-cover' : 'object-cover md:object-contain'} transition-opacity duration-700 opacity-0 onload-visible`}
+                  onLoad={(e) => {
+                    e.target.classList.add('opacity-100');
+                    e.target.classList.remove('opacity-0');
+                  }}
+                  onError={handleImageError}
+                />
+              </div>
 
-          <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-black via-black/90 to-transparent"></div>
-          <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/90 to-transparent"></div>
+              {/* Gradient overlays for better text legibility */}
+              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black via-black/90 to-transparent"></div>
+              <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 to-transparent"></div>
+              
+              {/* Show title on mobile view over the image */}
+              {isMobile && (
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <div className="inline-block mb-2 px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30 text-xs font-medium backdrop-blur-sm">
+                    <Play size={12} className="inline mr-1" /> TV Series
+                  </div>
+                  
+                  <h2 id="series-details-title" className="text-2xl font-bold text-white mb-2 drop-shadow-lg">
+                    {series.title}
+                  </h2>
+                  
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-300">
+                    {year && (
+                      <span className="flex items-center">
+                        <Calendar size={14} className="mr-1 text-gray-400" />
+                        {year}
+                      </span>
+                    )}
+                    {availableSeasons.length > 0 && (
+                      <span className="flex items-center">
+                        <span className="w-2 h-2 rounded-full bg-purple-500 mr-1.5"></span>
+                        {availableSeasons.length} {availableSeasons.length === 1 ? 'Season' : 'Seasons'}
+                      </span>
+                    )}
+                    <span className="text-xs border border-gray-600 px-1 rounded">HD</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
           
-          <div className="absolute inset-y-0 left-0 w-40 bg-gradient-to-r from-black/70 to-transparent"></div>
-          <div className="absolute inset-y-0 right-0 w-40 bg-gradient-to-l from-black/70 to-transparent"></div>
-          
-          <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6 lg:p-8">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6">
-              <div className="flex-1">
-                <div className="inline-block mb-2.5 px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30 text-xs font-medium backdrop-blur-sm">
+          {/* Right column - Content area */}
+          <div className={`${isMobile ? 'h-[65vh]' : 'md:w-[60%] lg:w-[65%] h-full'} flex flex-col`}>
+            {/* Series title & metadata (desktop only) */}
+            {!isMobile && (
+              <div className="px-5 pt-5 pb-3">
+                <div className="inline-block mb-2 px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30 text-xs font-medium">
                   <Play size={12} className="inline mr-1" /> TV Series
                 </div>
                 
-                <h2 
-                  id="series-details-title" 
-                  className="text-2xl md:text-3xl lg:text-5xl font-bold text-white mb-2 md:mb-3 drop-shadow-lg"
-                >
+                <h2 id="series-details-title" className="text-2xl md:text-3xl font-bold text-white mb-2">
                   {series.title}
                 </h2>
                 
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs md:text-sm text-gray-300 md:mb-2">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs md:text-sm text-gray-300 mb-2">
                   {year && (
                     <span className="flex items-center">
                       <Calendar size={14} className="mr-1 text-gray-400" />
@@ -754,236 +788,329 @@ const handleDownload = useCallback((link, quality, size, episodeNumber = null, i
                   )}
                   <span className="text-xs border border-gray-600 px-1 rounded">HD</span>
                 </div>
+                
+                <div className="flex items-center gap-2.5 mt-3">
+                  <button className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2 rounded-full transition-all duration-200 overflow-hidden group">
+                    <Bookmark size={16} className="text-white relative z-10" />
+                    <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
+                  </button>
+                  
+                  <button className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2 rounded-full transition-all duration-200 overflow-hidden group">
+                    <ThumbsUp size={16} className="text-white relative z-10" />
+                    <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
+                  </button>
+                  
+                  <button className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2 rounded-full transition-all duration-200 overflow-hidden group">
+                    <Share2 size={16} className="text-white relative z-10" />
+                    <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
+                  </button>
+                </div>
               </div>
+            )}
+            
+            {/* Tab navigation */}
+            <div className="flex border-b border-gray-800 sticky top-0 z-20 bg-black/90 backdrop-blur-sm">
+              <button
+                className={`py-3 px-4 text-sm font-medium relative overflow-hidden ${activeTab === 'episodes' ? 'text-red-500' : 'text-gray-400'}`}
+                onClick={() => setActiveTab('episodes')}
+              >
+                Episodes
+                {activeTab === 'episodes' && (
+                  <>
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-purple-600"></span>
+                    <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
+                  </>
+                )}
+              </button>
               
-              <div className="flex items-center gap-2.5 md:gap-3">
-                <button className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2.5 rounded-full transition-all duration-200 overflow-hidden group">
-                  <Bookmark size={isMobile ? 16 : 18} className="text-white relative z-10" />
-                  <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
+              <button
+                className={`py-3 px-4 text-sm font-medium relative overflow-hidden ${activeTab === 'details' ? 'text-red-500' : 'text-gray-400'}`}
+                onClick={() => setActiveTab('details')}
+              >
+                Details
+                {activeTab === 'details' && (
+                  <>
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-purple-600"></span>
+                    <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
+                  </>
+                )}
+              </button>
+              
+              {screenshots.length > 0 && (
+                <button
+                  className={`py-3 px-4 text-sm font-medium relative overflow-hidden ${activeTab === 'screenshots' ? 'text-red-500' : 'text-gray-400'}`}
+                  onClick={() => setActiveTab('screenshots')}
+                >
+                  Screenshots
+                  {activeTab === 'screenshots' && (
+                    <>
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-purple-600"></span>
+                      <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
+                    </>
+                  )}
                 </button>
-                
-                <button className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2.5 rounded-full transition-all duration-200 overflow-hidden group">
-                  <ThumbsUp size={isMobile ? 16 : 18} className="text-white relative z-10" />
-                  <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
-                </button>
-                
-                <button className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2.5 rounded-full transition-all duration-200 overflow-hidden group">
-                  <Share2 size={isMobile ? 16 : 18} className="text-white relative z-10" />
-                  <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex border-b border-gray-800 sticky top-0 z-20 bg-black/90 backdrop-blur-sm">
-          <button
-            className={`py-3 px-4 text-sm font-medium relative overflow-hidden ${activeTab === 'details' ? 'text-red-500' : 'text-gray-400'}`}
-            onClick={() => setActiveTab('details')}
-          >
-            Details
-            {activeTab === 'details' && (
-              <>
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-purple-600"></span>
-                <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
-              </>
-            )}
-          </button>
-          
-          <button
-            className={`py-3 px-4 text-sm font-medium relative overflow-hidden ${activeTab === 'episodes' ? 'text-red-500' : 'text-gray-400'}`}
-            onClick={() => setActiveTab('episodes')}
-          >
-            Episodes
-            {activeTab === 'episodes' && (
-              <>
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-purple-600"></span>
-                <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
-              </>
-            )}
-          </button>
-          
-          {screenshots.length > 0 && (
-            <button
-              className={`py-3 px-4 text-sm font-medium relative overflow-hidden ${activeTab === 'screenshots' ? 'text-red-500' : 'text-gray-400'}`}
-              onClick={() => setActiveTab('screenshots')}
-            >
-              Screenshots
-              {activeTab === 'screenshots' && (
-                <>
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-purple-600"></span>
-                  <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
-                </>
               )}
-            </button>
-          )}
-        </div>
-
-        <div 
-          ref={contentRef}
-          className="overflow-y-auto h-[calc(100vh-56px-40vh)] md:h-[calc(100vh-56px-45vh)] lg:h-[calc(100vh-56px-55vh)] overscroll-contain" 
-        >
-          <div className="p-4 md:p-6 lg:p-8">
-            {activeTab === 'details' && (
-              <div className="animate-fadeIn">
-                {getCategories().length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                      <span className="w-1 h-4 bg-gradient-to-b from-purple-500 to-purple-600 rounded-full mr-2"></span>
-                      Genres
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {getCategories()
-                        .slice(0, expandGenres ? undefined : 5)
-                        .map((category, index) => (
-                          <span 
-                            key={index}
-                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600/20 to-purple-600/20 text-red-300 border border-red-600/30 hover:bg-red-600/30 transition-colors duration-200"
-                          >
-                            {category}
-                          </span>
-                        ))}
-                        
-                      {getCategories().length > 5 && !expandGenres && (
-                        <button 
-                          className="text-xs px-3 py-1 rounded-full bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors duration-300"
-                          onClick={() => setExpandGenres(true)}
-                        >
-                          +{getCategories().length - 5} more
-                        </button>
+            </div>
+            
+            {/* Tab content area */}
+            <div 
+              ref={contentRef}
+              className="flex-1 overflow-y-auto overscroll-contain" 
+            >
+              <div className="p-4 md:p-5">
+                {/* EPISODES TAB - Now first by default for easier access */}
+                {activeTab === 'episodes' && (
+                  <div className="animate-fadeIn">
+                    {/* Season selector dropdown with loading states and episode rendering */}
+                    <div className="relative mb-4" ref={seasonDropdownRef}>
+                      <button
+                        className="flex items-center justify-between w-full sm:w-64 p-3 bg-[#1a1a1a] rounded-lg border border-gray-700 focus:outline-none hover:border-purple-500/50 transition-colors duration-300"
+                        onClick={() => setShowSeasonDropdown(!showSeasonDropdown)}
+                      >
+                        <span className="flex items-center">
+                          <Play size={16} className="mr-2 text-red-500" />
+                          {activeSeason ? `Season ${activeSeason.season}` : 'Select Season'}
+                        </span>
+                        <ChevronDown 
+                          size={18} 
+                          className={`transition-transform duration-300 ${showSeasonDropdown ? 'rotate-180' : ''}`} 
+                        />
+                      </button>
+                      
+                      {showSeasonDropdown && (
+                        <div className="absolute z-10 mt-1 w-full sm:w-64 bg-[#1a1a1a] rounded-lg border border-gray-700 shadow-xl max-h-60 overflow-y-auto">
+                          {availableSeasons.map(season => (
+                            <button
+                              key={season.id}
+                              className="w-full text-left px-4 py-2 hover:bg-[#252525] flex items-center"
+                              onClick={() => handleSeasonChange(season)}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full mr-2 ${activeSeason?.id === season.id ? 'bg-red-500' : 'bg-gray-600'}`}></span>
+                              Season {season.season}
+                            </button>
+                          ))}
+                        </div>
                       )}
+                    </div>
+
+                    {/* Full season download section */}
+                    {seasonFullDownloads && seasonFullDownloads.length > 0 && (
+                      <div className="mb-4 p-3 bg-[#1a1a1a] rounded-lg border border-gray-800/50">
+                        <h3 className="text-sm mb-3 flex items-center">
+                          <Download size={16} className="mr-2 text-purple-500" /> 
+                          Complete Season {activeSeason?.season} Download
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {seasonFullDownloads.map((download, index) => (
+                            <button
+                              key={index}
+                              onClick={() => handleDownload(download.link, download.quality, download.size, null, true)}
+                              className="inline-flex items-center bg-[#252525] hover:bg-[#303030] px-3 py-1.5 rounded-full text-xs transition-all duration-300"
+                            >
+                              <Download size={14} className="mr-1.5" />
+                              {download.quality} {download.size && `(${download.size})`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Loading states */}
+                    {isLoadingSeasons && (
+                      <div className="text-center py-6 text-gray-400">
+                        <div className="animate-spin w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                        <p>Loading seasons...</p>
+                      </div>
+                    )}
+
+                    {isLoadingEpisodes && (
+                      <div className="text-center py-6 text-gray-400">
+                        <div className="animate-spin w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                        <p>Loading episodes...</p>
+                      </div>
+                    )}
+
+                    {/* Episodes list */}
+                    {!isLoadingSeasons && !isLoadingEpisodes && seasonEpisodes && seasonEpisodes.length > 0 && (
+                      <div className="space-y-2.5">
+                        {seasonEpisodes.map((episode) => (
+                          <div 
+                            key={episode.id} 
+                            className="bg-[#1a1a1a] p-3 rounded-lg border border-gray-800/30 hover:border-purple-500/20 transition-colors duration-300"
+                          >
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center">
+                                <div className="bg-gradient-to-r from-red-600 to-purple-600 w-10 h-10 flex items-center justify-center rounded-md mr-3 shadow-md shadow-purple-900/20">
+                                  {episode.number}
+                                </div>
+                                <div>
+                                  <h4 className="font-medium">Episode {episode.number}</h4>
+                                  <div className="text-sm text-gray-400 flex items-center mt-1">
+                                    <span className="mr-3">{episode.quality || 'HD'}</span>
+                                    {episode.size && <span>{episode.size}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <button
+                                onClick={() => handleDownload(episode.link, episode.quality, episode.size, episode.number, false)}
+                                className="bg-[#252525] hover:bg-[#303030] p-2 rounded-md transition-all duration-300 hover:scale-105"
+                              >
+                                <Download size={20} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* No episodes available */}
+                    {!isLoadingSeasons && !isLoadingEpisodes && (!seasonEpisodes || seasonEpisodes.length === 0) && (
+                      <div className="text-center py-6 text-gray-400">
+                        <Info size={40} className="mx-auto mb-4 text-gray-600" />
+                        <p>No episodes available for this season</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* DETAILS TAB */}
+                {activeTab === 'details' && (
+                  <div className="animate-fadeIn">
+                    {/* Genres */}
+                    {getCategories().length > 0 && (
+                      <div className="mb-5">
+                        <h4 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
+                          <span className="w-1 h-4 bg-gradient-to-b from-purple-500 to-purple-600 rounded-full mr-2"></span>
+                          Genres
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {getCategories()
+                            .slice(0, expandGenres ? undefined : 5)
+                            .map((category, index) => (
+                              <span 
+                                key={index}
+                                className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600/20 to-purple-600/20 text-red-300 border border-red-600/30 hover:bg-red-600/30 transition-colors duration-200"
+                              >
+                                {category}
+                              </span>
+                            ))}
+                            
+                          {getCategories().length > 5 && !expandGenres && (
+                            <button 
+                              className="text-xs px-3 py-1 rounded-full bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors duration-300"
+                              onClick={() => setExpandGenres(true)}
+                            >
+                              +{getCategories().length - 5} more
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Description */}
+                    {series.description && (
+                      <div className="mb-5">
+                        <h4 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
+                          <span className="w-1 h-4 bg-gradient-to-b from-green-500 to-green-600 rounded-full mr-2"></span>
+                          Description
+                        </h4>
+                        <p className="text-gray-300 text-sm leading-relaxed">
+                          {series.description}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Additional Information */}
+                    <div className="mb-5">
+                      <h4 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
+                        <span className="w-1 h-4 bg-gradient-to-b from-yellow-500 to-yellow-600 rounded-full mr-2"></span>
+                        Additional Information
+                      </h4>
+                      <div className="space-y-2 text-sm text-gray-300">
+                        {series.director && (
+                          <div className="flex items-center">
+                            <Award size={16} className="mr-2 text-yellow-500" />
+                            <span className="font-medium text-gray-400 mr-1">Director:</span>
+                            {series.director}
+                          </div>
+                        )}
+                        {series.cast && (
+                          <div className="flex items-center">
+                            <Star size={16} className="mr-2 text-yellow-500" />
+                            <span className="font-medium text-gray-400 mr-1">Cast:</span>
+                            {series.cast}
+                          </div>
+                        )}
+                        {series.duration && (
+                          <div className="flex items-center">
+                            <Clock size={16} className="mr-2 text-yellow-500" />
+                            <span className="font-medium text-gray-400 mr-1">Duration:</span>
+                            {series.duration}
+                          </div>
+                        )}
+                        {series.language && (
+                          <div className="flex items-center">
+                            <Globe size={16} className="mr-2 text-yellow-500" />
+                            <span className="font-medium text-gray-400 mr-1">Language:</span>
+                            {series.language}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Quick link to episodes */}
+                    <div className="p-4 bg-[#1a1a1a] rounded-lg border border-gray-800/30">
+                      <p className="text-sm text-gray-400">
+                        Want to start watching? Access all episodes and download links:
+                      </p>
+                      <button
+                        className="mt-3 px-4 py-2 bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-700 hover:to-purple-700 rounded-md text-sm flex items-center transition-all duration-300 shadow-md shadow-purple-900/20"
+                        onClick={() => setActiveTab('episodes')}
+                      >
+                        <ChevronRight size={16} className="mr-2" />
+                        Go to Episodes
+                      </button>
                     </div>
                   </div>
                 )}
 
-                <div className="mb-6">
-                  <h4 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                    <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full mr-2"></span>
-                    Available Seasons
-                  </h4>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {isLoadingSeasons ? (
-                      <div className="flex items-center py-2 px-3">
-                        <div className="animate-spin w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full mr-2"></div>
-                        <span className="text-sm text-gray-400">Loading seasons...</span>
-                      </div>
-                    ) : (
-                      availableSeasons.map((season) => (
-                        <button
-                          key={season.id}
-                          className={`px-4 py-2 rounded-full text-sm
-                            ${activeSeason?.id === season.id 
-                              ? 'bg-gradient-to-r from-red-600 to-purple-600 text-white shadow-md shadow-purple-900/20' 
-                              : 'bg-[#252525] hover:bg-[#303030] text-gray-300'
-                          } transition-all duration-300`}
-                          onClick={() => handleSeasonChange(season)}
+                {/* SCREENSHOTS TAB */}
+                {activeTab === 'screenshots' && (
+                  <div className="animate-fadeIn">
+                    <div className="relative">
+                      <div className="flex items-center justify-between mb-4">
+                        <button 
+                          className="bg-[#252525] hover:bg-[#303030] p-2.5 rounded-full transition-all duration-300"
+                          onClick={prevScreenshot}
+                          aria-label="Previous screenshot"
                         >
-                          Season {season.season}
+                          <ChevronLeft size={20} className="text-white" />
                         </button>
-                      ))
-                    )}
-                  </div>
-                  <div className="p-4 bg-[#1a1a1a] rounded-lg border border-gray-800/30">
-                    <p className="text-sm text-gray-400">
-                      To access all episodes and download links, go to the Episodes tab
-                    </p>
-                    <button
-                      className="mt-3 px-4 py-2 bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-700 hover:to-purple-700 rounded-md text-sm flex items-center transition-all duration-300 shadow-md shadow-purple-900/20"
-                      onClick={() => setActiveTab('episodes')}
-                    >
-                      <ChevronRight size={16} className="mr-2" />
-                      Go to Episodes
-                    </button>
-                  </div>
-                </div>
-
-                {series.description && (
-                  <div className="mb-6">
-                    <h4 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                      <span className="w-1 h-4 bg-gradient-to-b from-green-500 to-green-600 rounded-full mr-2"></span>
-                      Description
-                    </h4>
-                    <p className="text-gray-300 text-sm leading-relaxed">
-                      {series.description}
-                    </p>
+                        <span className="text-sm text-gray-400">
+                          {activeScreenshot + 1} / {screenshots.length}
+                        </span>
+                        <button 
+                          className="bg-[#252525] hover:bg-[#303030] p-2.5 rounded-full transition-all duration-300"
+                          onClick={nextScreenshot}
+                          aria-label="Next screenshot"
+                        >
+                          <ChevronRight size={20} className="text-white" />
+                        </button>
+                      </div>
+                      <div className="relative w-full h-0 pb-[56.25%] overflow-hidden rounded-lg shadow-lg">
+                        <img 
+                          src={screenshots[activeScreenshot]} 
+                          alt={`Screenshot ${activeScreenshot + 1}`} 
+                          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+                          onError={handleImageError}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
-
-                <div className="mb-6">
-                  <h4 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                    <span className="w-1 h-4 bg-gradient-to-b from-yellow-500 to-yellow-600 rounded-full mr-2"></span>
-                    Additional Information
-                  </h4>
-                  <div className="space-y-2 text-sm text-gray-300">
-                    {series.director && (
-                      <div className="flex items-center">
-                        <Award size={16} className="mr-2 text-yellow-500" />
-                        <span className="font-medium text-gray-400 mr-1">Director:</span>
-                        {series.director}
-                      </div>
-                    )}
-                    {series.cast && (
-                      <div className="flex items-center">
-                        <Star size={16} className="mr-2 text-yellow-500" />
-                        <span className="font-medium text-gray-400 mr-1">Cast:</span>
-                        {series.cast}
-                      </div>
-                    )}
-                    {series.duration && (
-                      <div className="flex items-center">
-                        <Clock size={16} className="mr-2 text-yellow-500" />
-                        <span className="font-medium text-gray-400 mr-1">Duration:</span>
-                        {series.duration}
-                      </div>
-                    )}
-                    {series.language && (
-                      <div className="flex items-center">
-                        <Globe size={16} className="mr-2 text-yellow-500" />
-                        <span className="font-medium text-gray-400 mr-1">Language:</span>
-                        {series.language}
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
-            )}
-
-            {activeTab === 'episodes' && (
-              <div className="animate-fadeIn">
-                {renderEpisodes()}
-              </div>
-            )}
-
-            {activeTab === 'screenshots' && (
-              <div className="animate-fadeIn">
-                <div className="relative">
-                  <div className="flex items-center justify-between mb-4">
-                    <button 
-                      className="bg-[#252525] hover:bg-[#303030] p-2.5 rounded-full transition-all duration-300"
-                      onClick={prevScreenshot}
-                      aria-label="Previous screenshot"
-                    >
-                      <ChevronLeft size={20} className="text-white" />
-                    </button>
-                    <button 
-                      className="bg-[#252525] hover:bg-[#303030] p-2.5 rounded-full transition-all duration-300"
-                      onClick={nextScreenshot}
-                      aria-label="Next screenshot"
-                    >
-                      <ChevronRight size={20} className="text-white" />
-                    </button>
-                  </div>
-                  <div className="relative w-full h-0 pb-[56.25%] overflow-hidden rounded-lg shadow-lg">
-                    <img 
-                      src={screenshots[activeScreenshot]} 
-                      alt={`Screenshot ${activeScreenshot + 1}`} 
-                      className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
-                      onError={handleImageError}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
