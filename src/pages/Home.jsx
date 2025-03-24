@@ -28,6 +28,46 @@ function Home() {
   const headerRef = useRef(null);
   const lastScrollY = useRef(0);
 
+  // Add a debounce function to avoid too many requests
+  const [searchTimeout, setSearchTimeout] = useState(null);
+
+  const handleSearchChange = (value) => {
+    setSearchQuery(value);
+    
+    // Clear any existing timeout
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    // Set new timeout
+    const timeout = setTimeout(() => {
+      if (value.trim()) {
+        setIsLoading(true);
+        movieService.searchContent(value, contentType)
+          .then(results => {
+            setFilteredContent(results);
+            setPaginatedContent(results.slice(0, moviesPerPage));
+            setTotalPages(Math.ceil(results.length / moviesPerPage));
+            setCurrentPage(1);
+          })
+          .catch(error => {
+            console.error("Error searching content:", error);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+      } else {
+        // If search is cleared, reset to show all content
+        const currentContent = contentType === 'movies' ? allMovies : allSeries;
+        setFilteredContent(currentContent);
+        setPaginatedContent(currentContent.slice(0, moviesPerPage));
+        setTotalPages(Math.ceil(currentContent.length / moviesPerPage));
+      }
+    }, 500); // 500ms delay
+    
+    setSearchTimeout(timeout);
+  };
+
   // Keep existing scroll effect
   useEffect(() => {
     const controlNavbar = () => {
@@ -85,17 +125,13 @@ function Home() {
 
   // Update filtering based on content type
   useEffect(() => {
+    // Skip filtering if search query is active (we're using direct Firebase queries)
+    if (searchQuery) return;
+    
     // Select the appropriate content based on content type
     const contentToFilter = contentType === 'movies' ? allMovies : allSeries;
     
     let filtered = [...contentToFilter];
-
-    if (searchQuery) {
-      filtered = filtered.filter(item =>
-        (item.title && item.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-    }
 
     if (selectedPlatform) {
       filtered = filtered.filter(item => 
@@ -106,7 +142,7 @@ function Home() {
     setFilteredContent(filtered);
     setTotalPages(Math.ceil(filtered.length / moviesPerPage));
     setPaginatedContent(filtered.slice(0, moviesPerPage));
-  }, [searchQuery, selectedPlatform, allMovies, allSeries, contentType, moviesPerPage]);
+  }, [selectedPlatform, allMovies, allSeries, contentType, moviesPerPage]);
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
@@ -262,7 +298,7 @@ function Home() {
                 placeholder={`Search ${contentType === 'movies' ? 'movies' : 'series'}...`}
                 className="w-full bg-[#1e1e1e] border border-gray-700 group-focus-within:border-red-500 rounded-full px-10 py-2 focus:outline-none transition-all duration-300"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
               />
               <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
             </div>
@@ -317,14 +353,14 @@ function Home() {
                 placeholder={`Search ${contentType === 'movies' ? 'movies' : 'series'}...`}
                 className="w-full bg-[#1e1e1e] border border-gray-700 focus:border-red-500 rounded-full px-10 py-2 focus:outline-none"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 autoFocus
               />
               <Search className="absolute left-3 top-2.5 text-gray-400" size={20} />
               {searchQuery && (
                 <button 
                   className="absolute right-3 top-2.5 text-gray-400"
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => handleSearchChange('')}
                 >
                   <X size={20} />
                 </button>

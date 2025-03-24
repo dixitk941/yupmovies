@@ -376,6 +376,57 @@ export const parseFullSeasonDownloads = (seasonText) => {
   return downloads;
 };
 
+/**
+ * Search content by title
+ * @param {string} searchQuery - The search query
+ * @param {string} contentType - The type of content ('movies' or 'series')
+ * @returns {Array} Array of matching content
+ */
+export const searchContent = async (searchQuery, contentType = 'movies') => {
+  if (!searchQuery || searchQuery.trim() === '') {
+    // Return empty array for empty queries
+    return [];
+  }
+
+  const trimmedQuery = searchQuery.trim().toLowerCase();
+  
+  try {
+    // Use the existing cached methods for better performance and reliability
+    const allItems = contentType === 'movies' 
+      ? await getAllMovies(500) 
+      : await getAllSeries(500);
+    
+    // Filter items where title contains the search query (case insensitive)
+    const results = allItems.filter(item => 
+      item.title && item.title.toLowerCase().includes(trimmedQuery)
+    );
+    
+    // Sort results by relevance (exact matches first)
+    results.sort((a, b) => {
+      const aTitle = (a.title || '').toLowerCase();
+      const bTitle = (b.title || '').toLowerCase();
+      
+      // Exact match at the beginning gets highest priority
+      if (aTitle.startsWith(trimmedQuery) && !bTitle.startsWith(trimmedQuery)) return -1;
+      if (!aTitle.startsWith(trimmedQuery) && bTitle.startsWith(trimmedQuery)) return 1;
+      
+      // Next, exact matches anywhere in the title
+      const aIncludes = aTitle.includes(trimmedQuery);
+      const bIncludes = bTitle.includes(trimmedQuery);
+      if (aIncludes && !bIncludes) return -1;
+      if (!aIncludes && bIncludes) return 1;
+      
+      // Finally, sort alphabetically
+      return aTitle.localeCompare(bTitle);
+    });
+    
+    return results;
+  } catch (error) {
+    console.error("Error searching content:", error);
+    return [];
+  }
+};
+
 export default {
   getMoviesByCategory,
   getHomePageSections,
@@ -385,5 +436,6 @@ export default {
   searchMovies,
   getAvailableSeasons,
   parseEpisodes,
-  parseFullSeasonDownloads
+  parseFullSeasonDownloads,
+  searchContent
 };
