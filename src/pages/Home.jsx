@@ -556,7 +556,7 @@ function Home() {
           <div className="animate-pulse space-y-8">
             <div>
               <div className="h-8 bg-gray-800 rounded w-1/4 mb-4"></div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4">
                 {[...Array(6)].map((_, i) => (
                   <MovieSkeleton key={i} />
                 ))}
@@ -564,7 +564,7 @@ function Home() {
             </div>
             <div>
               <div className="h-8 bg-gray-800 rounded w-1/4 mb-4"></div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4">
                 {[...Array(6)].map((_, i) => (
                   <MovieSkeleton key={i} />
                 ))}
@@ -596,6 +596,7 @@ function Home() {
                   <MovieSection 
                     title={<><Star className="inline mr-2 text-yellow-500" size={20} /> Featured</>}
                     movies={contentType === 'movies' ? sections.featured.filter(item => !item.isSeries) : sections.featured.filter(item => item.isSeries)} 
+                    gridClassName="grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4"
                   />
 
                   {/* Trending section */}
@@ -603,6 +604,7 @@ function Home() {
                     title={<><TrendingUp className="inline mr-2 text-blue-500" size={20} /> Trending Now</>}
                     movies={contentType === 'movies' ? sections.trending.filter(item => !item.isSeries) : sections.trending.filter(item => item.isSeries)}
                     showNumbers={true} 
+                    gridClassName="grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4"
                   />
 
                   {/* Top Series section - always display if available */}
@@ -611,6 +613,7 @@ function Home() {
                       title={<><Tv className="inline mr-2 text-purple-500" size={20} /> Top Series</>}
                       movies={sections.series.slice(0, 10)}
                       showNumbers={true}
+                      gridClassName="grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4"
                     />
                   )}
 
@@ -618,12 +621,14 @@ function Home() {
                   <MovieSection 
                     title={<><Clock className="inline mr-2 text-green-500" size={20} /> New Releases</>}
                     movies={contentType === 'movies' ? sections.newReleases.filter(item => !item.isSeries) : sections.newReleases.filter(item => item.isSeries)}
+                    gridClassName="grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4"
                   />
 
                   {/* Top rated */}
                   <MovieSection 
                     title={<><Award className="inline mr-2 text-amber-500" size={20} /> Top Rated</>}
                     movies={contentType === 'movies' ? sections.topRated.filter(item => !item.isSeries) : sections.topRated.filter(item => item.isSeries)}
+                    gridClassName="grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4"
                   />
                 </>
               ) : activeSection === 'trending' ? (
@@ -632,7 +637,7 @@ function Home() {
                     <TrendingUp className="mr-2 text-blue-500" size={24} />
                     Trending {contentType === 'movies' ? 'Movies' : 'Series'}
                   </h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4">
                     {sections.trending
                       .filter(item => contentType === 'movies' ? !item.isSeries : item.isSeries)
                       .map((item, index) => (
@@ -653,7 +658,7 @@ function Home() {
                     <Tv className="mr-2 text-purple-500" size={24} />
                     Top 10 Series
                   </h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4">
                     {sections.series
                       .slice(0, 10)
                       .map((item, index) => (
@@ -674,7 +679,7 @@ function Home() {
                     <Clock className="mr-2 text-green-500" size={24} />
                     New {contentType === 'movies' ? 'Movies' : 'Series'} Releases
                   </h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4">
                     {sections.newReleases
                       .filter(item => contentType === 'movies' ? !item.isSeries : item.isSeries)
                       .map((item, index) => (
@@ -694,7 +699,7 @@ function Home() {
                     <Award className="mr-2 text-amber-500" size={24} />
                     Top Rated {contentType === 'movies' ? 'Movies' : 'Series'}
                   </h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4">
                     {sections.topRated
                       .filter(item => contentType === 'movies' ? !item.isSeries : item.isSeries)
                       .map((item, index) => (
@@ -734,7 +739,7 @@ function Home() {
               
               {(searchQuery || selectedPlatform || activeSection === 'all') && (
                 paginatedContent.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 md:gap-4">
+                  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5 sm:gap-2 md:gap-4">
                     {paginatedContent.map((movie, index) => (
                       <div 
                         key={movie.id || index}
