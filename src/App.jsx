@@ -28,26 +28,40 @@ function App() {
   const [isChecking, setIsChecking] = useState(true);
   const [isApiRequest, setIsApiRequest] = useState(false);
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
-  let refreshInterval;
+  const refreshIntervalRef = React.useRef(null);
+  const devtoolsCheckIntervalRef = React.useRef(null);
 
   // Devtools detection setup
   useEffect(() => {
+    // Function to force refresh the page
+    const forceRefresh = () => {
+      window.location.replace(window.location.href);
+    };
+
     const handleDevToolsOpen = () => {
       setIsDevToolsOpen(true);
+      
+      // Clear any existing interval first
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+      
       // Continuously refresh while devtools are open
-      refreshInterval = setInterval(() => {
-        window.location.reload();
-      }, 1000);
+      refreshIntervalRef.current = setInterval(forceRefresh, 1000);
+      
+      // Also attempt an immediate refresh
+      forceRefresh();
     };
 
     const handleDevToolsClose = () => {
       setIsDevToolsOpen(false);
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
       }
     };
 
-    // Add listeners for devtools events
+    // Add listeners for devtools events from the library
     const unsubscribe = addListener({
       onOpen: handleDevToolsOpen,
       onClose: handleDevToolsClose
@@ -58,14 +72,34 @@ function App() {
       handleDevToolsOpen();
     }
 
-    // Cleanup
-    return () => {
-      unsubscribe();
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
+    // Additional detection method - window size differences
+    const checkDevToolsStatus = () => {
+      const threshold = 160;
+      const widthDiff = window.outerWidth - window.innerWidth;
+      const heightDiff = window.outerHeight - window.innerHeight;
+      
+      if (widthDiff > threshold || heightDiff > threshold) {
+        handleDevToolsOpen();
+      } else if (isDevToolsOpen) {
+        // Only close if we previously detected DevTools
+        handleDevToolsClose();
       }
     };
-  }, []);
+
+    // Set up interval for additional check
+    devtoolsCheckIntervalRef.current = setInterval(checkDevToolsStatus, 1000);
+
+    // Clean up
+    return () => {
+      unsubscribe();
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+      if (devtoolsCheckIntervalRef.current) {
+        clearInterval(devtoolsCheckIntervalRef.current);
+      }
+    };
+  }, [isDevToolsOpen]);
 
   // Security layer: API tool detection and referrer validation
   useEffect(() => {
