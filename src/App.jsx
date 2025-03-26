@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
-import ProtectedPage from './pages/ProtectedPage.jsx';
-import ForbiddenPage from './pages/ForbiddenPage.jsx';
-import NotFoundPage from './pages/NotFoundPage.jsx';
+import ProtectedPage from './pages/ProtectedPage';
+import ForbiddenPage from './pages/ForbiddenPage';
+import NotFoundPage from './pages/NotFoundPage';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { addListener, launch } from 'devtools-detector';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -26,26 +27,59 @@ function App() {
   const [isValidReferrer, setIsValidReferrer] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isApiRequest, setIsApiRequest] = useState(false);
+  const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
+  let refreshInterval;
 
+  // Devtools detection setup
   useEffect(() => {
-    // Security layer: API tool detection
+    const handleDevToolsOpen = () => {
+      setIsDevToolsOpen(true);
+      // Continuously refresh while devtools are open
+      refreshInterval = setInterval(() => {
+        window.location.reload();
+      }, 1000);
+    };
+
+    const handleDevToolsClose = () => {
+      setIsDevToolsOpen(false);
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    };
+
+    // Add listeners for devtools events
+    const unsubscribe = addListener({
+      onOpen: handleDevToolsOpen,
+      onClose: handleDevToolsClose
+    });
+
+    // Check if devtools are already open
+    if (launch()) {
+      handleDevToolsOpen();
+    }
+
+    // Cleanup
+    return () => {
+      unsubscribe();
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    };
+  }, []);
+
+  // Security layer: API tool detection and referrer validation
+  useEffect(() => {
     const detectApiTools = () => {
       const userAgent = navigator.userAgent.toLowerCase();
       
-      // Check for common API tools in User-Agent
       const apiTools = ['postman', 'insomnia', 'curl', 'wget', 'python-requests', 'axios', 'hoppscotch'];
       const isApiTool = apiTools.some(tool => userAgent.includes(tool));
       
-      // Check for missing browser properties
       const hasWindow = typeof window !== 'undefined';
       const hasDocument = typeof document !== 'undefined';
       const hasNavigator = typeof navigator !== 'undefined';
-      
-      // Check for browser-specific objects
       const hasHistory = typeof history !== 'undefined';
       const hasLocation = typeof location !== 'undefined';
-      
-      // Check for event handling capability
       const canHandleEvents = typeof addEventListener !== 'undefined';
       
       const isStandardBrowser = hasWindow && hasDocument && hasNavigator && 
@@ -53,52 +87,42 @@ function App() {
       
       return isApiTool || !isStandardBrowser;
     };
-    
-    // If detected as API request, mark as invalid
+
     if (detectApiTools()) {
       setIsApiRequest(true);
       setIsValidReferrer(false);
       setIsChecking(false);
       return;
     }
-    
-    // Function to check if the referrer or local storage indicates valid access
+
     const checkAccess = () => {
-      // Get the referrer
       const referrer = document.referrer;
-      
-      // Valid referrers (including dev environment)
       const validReferrers = [
         'hiicine.vercel.app',
         'www.hiicine.vercel.app',
-        'localhost'  // Allow localhost for development
+        'localhost'
       ];
-      
-      // Check if referrer contains any valid domain
+
       const isValid = validReferrers.some(domain => 
         referrer.includes(domain)
       );
-      
+
       setIsValidReferrer(isValid);
       setIsChecking(false);
-      
-      // Change the address bar URL after successful loading
+
       if (isValid) {
         try {
           window.history.pushState({}, '', '/');
-          // Use replaceState to change the displayed URL without navigation
-          window.history.replaceState({}, '', 'https://aajnhibataunga.com' + window.location.pathname);
+          window.history.replaceState({}, '', '<url id="cvhvomcjc3ffrsqhccbg" type="url" status="failed" title="" wc="0">https://aajnhibataunga.com</url> ' + window.location.pathname);
         } catch (error) {
           console.error('Failed to update URL:', error);
         }
       }
     };
-    
-    // Short delay to ensure referrer is available
+
     setTimeout(checkAccess, 200);
   }, []);
 
-  // While checking referrer, show a loading state
   if (isChecking) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center">
@@ -107,8 +131,7 @@ function App() {
     );
   }
 
-  // For API requests, show 403 forbidden
-  if (isApiRequest) {
+  if (isApiRequest || isDevToolsOpen) {
     return <ForbiddenPage />;
   }
 
