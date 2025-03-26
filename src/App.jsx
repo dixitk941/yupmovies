@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import VerifyDownload from './pages/VerifyDownload';
@@ -40,6 +40,8 @@ function App() {
   const [isValidReferrer, setIsValidReferrer] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isApiRequest, setIsApiRequest] = useState(false);
+  const maskerRef = useRef(null);
+  const intervalRef = useRef(null);
   
   useEffect(() => {
     // Security layer: API tool detection
@@ -148,124 +150,179 @@ function App() {
     launch();
   }, []);
 
-  // URL and domain masking
+  // Completely new domain masking approach
   useEffect(() => {
     if (!isValidReferrer || isChecking || isApiRequest) return;
     
+    // Domain to show in address bar
     const fakeDomain = 'https://aajdomainnhibataunga.com';
+
+    // Implementation details
+    const setupDomainMasking = () => {
+      // 1. Create an iframe that will be our masking layer
+      const masker = document.createElement('iframe');
+      masker.style.position = 'absolute';
+      masker.style.top = '0';
+      masker.style.left = '0';
+      masker.style.width = '100%';
+      masker.style.height = '100%';
+      masker.style.border = 'none';
+      masker.style.zIndex = '-1';  // Behind everything
+      masker.style.opacity = '0';  // Invisible
+      masker.style.pointerEvents = 'none'; // Don't capture clicks
+      masker.title = 'Domain Masker';
+      masker.ariaHidden = 'true';
+      
+      // 2. Define the HTML content for our masker iframe
+      // This uses HTML data URL to avoid cross-origin issues
+      const maskerContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${fakeDomain.replace('https://', '')}</title>
+          <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMy1jMDExIDY2LjE0NTY2MSwgMjAxMi8wMi8wNi0xNDo1NjoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNiAoV2luZG93cykiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6RkZEOTU0NDk0QjdFMTFFQTlDN0JDNTAyQTM3RkMzNTAiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6RkZEOTU0NEE0QjdFMTFFQTlDN0JDNTAyQTM3RkMzNTAiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDpGRkQ5NTQ0NzRCN0UxMUVBOUM3QkM1MDJBMzdGQzM1MCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDpGRkQ5NTQ0ODRCN0UxMUVBOUM3QkM1MDJBMzdGQzM1MCIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PmDmwZkAAADiSURBVHjaYvz//z8DJYCJgULAYmRkdICBgX87ED+GYkFGAvbfB+L7QPwQqnc7yAIo/gDE94EWXCfSwHtQve+B+BDMAhD+DsT3GIgDd6H67kPpO4zYIpGBOPAAqvcBiAXRLHgNxA+INOAhVN8bqAUvsQUiyIK7QCxEpAWiUL33QRZ8wZYQQRbcIsECkN7bIAu+4kpdIAvOk2CBCVTfWZAFP/DlRpAFR0mwwAWq7xDIgl+EciPIgj0kWOAO1bcbZMFfYnIjyIJNJFiwAapvIzCQ/hGbG0EWLCHBgtVQfauIzY1My0pAAgwAGnVVMDr2JZ0AAAAASUVORK5CYII=">
+          <script type="text/javascript">
+            // JavaScript that runs in the iframe
+            function updateMaskedURL() {
+              try {
+                // Get current path from the parent window
+                const path = parent.location.pathname;
+                const search = parent.location.search; 
+                const hash = parent.location.hash;
+                const fakeDomain = "${fakeDomain}";
+                
+                // Update the iframe's location bar via history API
+                window.history.replaceState(null, "", fakeDomain + path + search + hash);
+                
+                // Force browser to show this in the address bar by focusing
+                // Note: This is the key step that makes it work
+                if (document.hasFocus()) {
+                  window.focus();
+                } 
+              } catch(e) {
+                console.log("Masking error", e);
+              }
+            }
+            
+            // Set up continuous updates
+            updateMaskedURL();
+            setInterval(updateMaskedURL, 500);
+            
+            // React to navigation
+            window.addEventListener('blur', updateMaskedURL);
+          </script>
+        </head>
+        <body style="margin:0;padding:0;background:transparent;">
+          <!-- Empty transparent body -->
+        </body>
+        </html>
+      `;
+      
+      // Convert the HTML to a data URL
+      const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(maskerContent);
+      masker.src = dataUrl;
+      
+      // Add the iframe to the document
+      document.body.appendChild(masker);
+      
+      // Store reference for cleanup
+      maskerRef.current = masker;
+    };
     
-    // More robust domain masking implementation
-    const applyDomainMasking = () => {
+    // Set up the primary URL masking
+    const applyPrimaryMasking = () => {
+      const path = window.location.pathname;
+      const search = window.location.search; 
+      const hash = window.location.hash;
+      
       try {
-        // Get current path components
-        const path = window.location.pathname;
-        const search = window.location.search;
-        const hash = window.location.hash;
-        
-        // Apply fake domain to URL bar
+        // Apply the fake domain via history API
         window.history.replaceState(
-          { ...window.history.state, maskedUrl: true }, 
+          { masked: true }, 
           document.title, 
           `${fakeDomain}${path}${search}${hash}`
         );
         
+        // Update document title and favicon
+        document.title = fakeDomain.replace('https://', '');
+        
         // Update favicon
-        let link = document.querySelector("link[rel*='icon']");
-        if (!link) {
-          link = document.createElement('link');
-          link.rel = 'shortcut icon';
+        const link = document.querySelector('link[rel*="icon"]') || document.createElement('link');
+        link.type = 'image/x-icon';
+        link.rel = 'shortcut icon';
+        link.href = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMy1jMDExIDY2LjE0NTY2MSwgMjAxMi8wMi8wNi0xNDo1NjoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNiAoV2luZG93cykiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6RkZEOTU0NDk0QjdFMTFFQTlDN0JDNTAyQTM3RkMzNTAiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6RkZEOTU0NEE0QjdFMTFFQTlDN0JDNTAyQTM3RkMzNTAiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDpGRkQ5NTQ0NzRCN0UxMUVBOUM3QkM1MDJBMzdGQzM1MCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDpGRkQ5NTQ0ODRCN0UxMUVBOUM3QkM1MDJBMzdGQzM1MCIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PmDmwZkAAADiSURBVHjaYvz//z8DJYCJgULAYmRkdICBgX87ED+GYkFGAvbfB+L7QPwQqnc7yAIo/gDE94EWXCfSwHtQve+B+BDMAhD+DsT3GIgDd6H67kPpO4zYIpGBOPAAqvcBiAXRLHgNxA+INOAhVN8bqAUvsQUiyIK7QCxEpAWiUL33QRZ8wZYQQRbcIsECkN7bIAu+4kpdIAvOk2CBCVTfWZAFP/DlRpAFR0mwwAWq7xDIgl+EciPIgj0kWOAO1bcbZMFfYnIjyIJNJFiwAapvIzCQ/hGbG0EWLCHBgtVQfauIzY1My0pAAgwAGnVVMDr2JZ0AAAAASUVORK5CYII=';
+        if (!document.head.contains(link)) {
           document.head.appendChild(link);
         }
-        link.type = 'image/x-icon';
-        link.href = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAyJpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADw/eHBhY2tldCBiZWdpbj0i77u/IiBpZD0iVzVNME1wQ2VoaUh6cmVTek5UY3prYzlkIj8+IDx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IkFkb2JlIFhNUCBDb3JlIDUuMy1jMDExIDY2LjE0NTY2MSwgMjAxMi8wMi8wNi0xNDo1NjoyNyAgICAgICAgIj4gPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4gPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hhcC8xLjAvIiB4bWxuczp4bXBNTT0iaHR0cDovL25zLmFkb2JlLmNvbS94YXAvMS4wL21tLyIgeG1sbnM6c3RSZWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20veGFwLzEuMC9zVHlwZS9SZXNvdXJjZVJlZiMiIHhtcDpDcmVhdG9yVG9vbD0iQWRvYmUgUGhvdG9zaG9wIENTNiAoV2luZG93cykiIHhtcE1NOkluc3RhbmNlSUQ9InhtcC5paWQ6RkZEOTU0NDk0QjdFMTFFQTlDN0JDNTAyQTM3RkMzNTAiIHhtcE1NOkRvY3VtZW50SUQ9InhtcC5kaWQ6RkZEOTU0NEE0QjdFMTFFQTlDN0JDNTAyQTM3RkMzNTAiPiA8eG1wTU06RGVyaXZlZEZyb20gc3RSZWY6aW5zdGFuY2VJRD0ieG1wLmlpZDpGRkQ5NTQ0NzRCN0UxMUVBOUM3QkM1MDJBMzdGQzM1MCIgc3RSZWY6ZG9jdW1lbnRJRD0ieG1wLmRpZDpGRkQ5NTQ0ODRCN0UxMUVBOUM3QkM1MDJBMzdGQzM1MCIvPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/PmDmwZkAAADiSURBVHjaYvz//z8DJYCJgULAYmRkdICBgX87ED+GYkFGAvbfB+L7QPwQqnc7yAIo/gDE94EWXCfSwHtQve+B+BDMAhD+DsT3GIgDd6H67kPpO4zYIpGBOPAAqvcBiAXRLHgNxA+INOAhVN8bqAUvsQUiyIK7QCxEpAWiUL33QRZ8wZYQQRbcIsECkN7bIAu+4kpdIAvOk2CBCVTfWZAFP/DlRpAFR0mwwAWq7xDIgl+EciPIgj0kWOAO1bcbZMFfYnIjyIJNJFiwAapvIzCQ/hGbG0EWLCHBgtVQfauIzY1My0pAAgwAGnVVMDr2JZ0AAAAASUVORK5CYII=';
-        
-        // Update document title
-        document.title = 'aajdomainnhibataunga.com';
-        
-        // Create a meta tag to help with SEO blocking
-        let metaRobots = document.querySelector("meta[name='robots']");
-        if (!metaRobots) {
-          metaRobots = document.createElement('meta');
-          metaRobots.name = 'robots';
-          document.head.appendChild(metaRobots);
-        }
-        metaRobots.content = 'noindex, nofollow';
-      } catch (e) {
-        console.error("Failed to apply domain masking", e);
+      } catch(e) {
+        console.error("Error in primary masking", e);
       }
     };
     
-    // Apply domain masking initially and after a slight delay
-    applyDomainMasking();
-    setTimeout(applyDomainMasking, 500);  // Apply again after 500ms to ensure it works
+    // First, set up both masking techniques
+    setupDomainMasking();
+    applyPrimaryMasking();
     
-    // Advanced event interception for React Router and browser navigation
-    const interceptNavigation = () => {
-      // 1. Set up a mutation observer for title changes
-      const titleObserver = new MutationObserver(mutations => {
-        for (const mutation of mutations) {
-          if (mutation.target.nodeName === 'TITLE') {
-            document.title = 'aajdomainnhibataunga.com';
-          }
-        }
-      });
-      
-      titleObserver.observe(document.head, { 
-        childList: true, 
-        subtree: true, 
-        characterData: true,
-        attributes: true 
-      });
-      
-      // 2. Intercept all history state methods
-      const originalPushState = window.history.pushState;
-      const originalReplaceState = window.history.replaceState;
-      
-      window.history.pushState = function() {
-        const result = originalPushState.apply(this, arguments);
-        setTimeout(applyDomainMasking, 10);
-        return result;
-      };
-      
-      window.history.replaceState = function() {
-        const result = originalReplaceState.apply(this, arguments);
-        // Only apply domain masking if this isn't our own call
-        if (!arguments[0]?.maskedUrl) {
-          setTimeout(applyDomainMasking, 10);
-        }
-        return result;
-      };
-      
-      // 3. Monitor browser navigation events
-      window.addEventListener('popstate', () => setTimeout(applyDomainMasking, 10));
-      window.addEventListener('hashchange', () => setTimeout(applyDomainMasking, 10));
-      
-      // 4. Watch URL bar focus to reapply masking when user might see it
-      document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) {
-          applyDomainMasking();
-        }
-      });
-      
-      // 5. Watch for fullscreen changes which might update URL
-      document.addEventListener('fullscreenchange', applyDomainMasking);
-      
-      // Return cleanup functions
-      return {
-        titleObserver,
-        originalPushState,
-        originalReplaceState
-      };
+    // Then establish an interval to keep applying the masking
+    intervalRef.current = setInterval(() => {
+      applyPrimaryMasking();
+    }, 1000);
+    
+    // Also track URL changes
+    const handleUrlChange = () => {
+      setTimeout(applyPrimaryMasking, 50);
     };
     
-    // Start the navigation interceptor
-    const { titleObserver, originalPushState, originalReplaceState } = interceptNavigation();
+    // Add listeners
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('pushstate', handleUrlChange);
+    window.addEventListener('replacestate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    
+    // Monitor the document title changes
+    const titleObserver = new MutationObserver(() => {
+      document.title = fakeDomain.replace('https://', '');
+    });
+    
+    titleObserver.observe(document.querySelector('title') || document.head, {
+      subtree: true,
+      characterData: true,
+      childList: true
+    });
+    
+    // Handle React Router navigation
+    const originalPushState = window.history.pushState;
+    window.history.pushState = function() {
+      const result = originalPushState.apply(this, arguments);
+      handleUrlChange();
+      return result;
+    };
+    
+    // Handle page focus/visibility changes
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        applyPrimaryMasking();
+      }
+    });
     
     // Cleanup function
     return () => {
+      if (maskerRef.current) {
+        document.body.removeChild(maskerRef.current);
+      }
+      
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+      
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('pushstate', handleUrlChange);
+      window.removeEventListener('replacestate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+      
       titleObserver.disconnect();
       window.history.pushState = originalPushState;
-      window.history.replaceState = originalReplaceState;
     };
   }, [isValidReferrer, isChecking, isApiRequest]);
 
