@@ -3,30 +3,6 @@
       { "source": "/api/(.*)", "destination": "/api/$1" },
       { "source": "/(.*)", "destination": "/index.html" }
     ],
-    "routes": [
-      {
-        "src": "/static/(.*)",
-        "dest": "/static/$1",
-        "headers": { "cache-control": "public, max-age=31536000, immutable" }
-      },
-      {
-        "src": "/(.*)",
-        "has": [
-          {
-            "type": "header",
-            "key": "user-agent",
-            "value": "(Postman|insomnia|curl|wget|httpie|axios|http-client|python-requests|Go-http-client|Fiddler)"
-          }
-        ],
-        "status": 403,
-        "dest": "/index.html"
-      },
-      { 
-        "src": "/[^.]+", 
-        "dest": "/index.html",
-        "status": 200
-      }
-    ],
     "headers": [
       {
         "source": "/(.*)",
@@ -56,6 +32,17 @@
             "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline';"
           }
         ]
+      },
+      {
+        "source": "/static/(.*)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
       }
-    ]
+    ],
+    "trailingSlash": false,
+    "cleanUrls": true
   }
