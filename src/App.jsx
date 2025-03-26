@@ -109,15 +109,6 @@ function App() {
 
       setIsValidReferrer(isValid);
       setIsChecking(false);
-
-      if (isValid) {
-        try {
-          window.history.pushState({}, '', '/');
-          window.history.replaceState({}, '', '<url id="cvhvomcjc3ffrsqhccbg" type="url" status="failed" title="" wc="0">https://aajnhibataunga.com</url> ' + window.location.pathname);
-        } catch (error) {
-          console.error('Failed to update URL:', error);
-        }
-      }
     };
 
     setTimeout(checkAccess, 200);
