@@ -85,20 +85,9 @@ function App() {
       // Change the address bar URL after successful loading
       if (isValid) {
         try {
-          // You can only modify the path portion of the URL, not the domain
           window.history.pushState({}, '', '/');
-          // Append a fake path to make it look different
-          window.history.replaceState({}, '', '/aajnhibataunga' + window.location.pathname);
-          
-          // Alternative approach: Set a document title to show in the browser tab
-          document.title = "AajNhiBataunga";
-          
-          // You can also use a favicon to show a different site icon
-          const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
-          link.type = 'image/x-icon';
-          link.rel = 'shortcut icon';
-          link.href = 'https://aajnhibataunga.com/favicon.ico'; // If this favicon exists
-          document.getElementsByTagName('head')[0].appendChild(link);
+          // Use replaceState to change the displayed URL without navigation
+          window.history.replaceState({}, '', 'https://aajnhibataunga.com' + window.location.pathname);
         } catch (error) {
           console.error('Failed to update URL:', error);
         }
