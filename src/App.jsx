@@ -23,6 +23,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Set up a global variable to track DevTools state
+window.__devtoolsDetected = false;
+
 function App() {
   const [isValidReferrer, setIsValidReferrer] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
@@ -30,77 +33,154 @@ function App() {
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
   const refreshIntervalRef = React.useRef(null);
   const devtoolsCheckIntervalRef = React.useRef(null);
+  const multipleCheckIntervalRef = React.useRef(null);
 
-  // Devtools detection setup
+  // More aggressive DevTools detection and page refresh
   useEffect(() => {
-    // Function to force refresh the page
-    const forceRefresh = () => {
-      window.location.replace(window.location.href);
+    const forceReload = () => {
+      if (window.__devtoolsDetected) {
+        // Use a more aggressive approach to refresh
+        window.location.href = window.location.href + (window.location.href.includes('?') ? '&' : '?') + 'cacheBust=' + Date.now();
+      }
     };
 
     const handleDevToolsOpen = () => {
+      console.clear(); // Clear console
+      window.__devtoolsDetected = true;
       setIsDevToolsOpen(true);
       
-      // Clear any existing interval first
+      // Clear any existing intervals
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
       }
       
-      // Continuously refresh while devtools are open
-      refreshIntervalRef.current = setInterval(forceRefresh, 1000);
+      // Set multiple refresh strategies with different timings
+      refreshIntervalRef.current = setInterval(forceReload, 500); // More frequent refresh
       
-      // Also attempt an immediate refresh
-      forceRefresh();
+      // Also force an immediate reload
+      forceReload();
+      
+      // Set a cookie to remember DevTools were opened (persists across refreshes)
+      document.cookie = "devtools_detected=true; path=/;";
     };
 
     const handleDevToolsClose = () => {
+      window.__devtoolsDetected = false;
       setIsDevToolsOpen(false);
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
         refreshIntervalRef.current = null;
       }
+      // Clear the cookie
+      document.cookie = "devtools_detected=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     };
 
-    // Add listeners for devtools events from the library
+    // Add listeners from devtools-detector library
     const unsubscribe = addListener({
       onOpen: handleDevToolsOpen,
       onClose: handleDevToolsClose
     });
 
-    // Check if devtools are already open
+    // Launch initial check
     if (launch()) {
       handleDevToolsOpen();
     }
 
-    // Additional detection method - window size differences
-    const checkDevToolsStatus = () => {
-      const threshold = 160;
+    // Check if the devtools cookie exists from previous detection
+    if (document.cookie.includes("devtools_detected=true")) {
+      handleDevToolsOpen();
+    }
+
+    // Additional detection methods
+    const detectDevTools = () => {
+      // Method 1: Check window dimensions
+      const widthThreshold = 160;
+      const heightThreshold = 160;
       const widthDiff = window.outerWidth - window.innerWidth;
       const heightDiff = window.outerHeight - window.innerHeight;
       
-      if (widthDiff > threshold || heightDiff > threshold) {
+      // Method 2: Debugger detection
+      const devtoolsPresent = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor) && 
+                            window.console && 
+                            (window.console.firebug || 
+                             (window.console.clear && window.console.profile));
+      
+      // Method 3: Check for Firefox dev tools
+      const isFirefox = typeof InstallTrigger !== 'undefined';
+      const firefoxDevtools = isFirefox && window.console && window.console.profileEnd;
+
+      if ((widthDiff > widthThreshold || heightDiff > heightThreshold) || 
+          devtoolsPresent || firefoxDevtools) {
         handleDevToolsOpen();
-      } else if (isDevToolsOpen) {
-        // Only close if we previously detected DevTools
-        handleDevToolsClose();
+        return true;
       }
+      
+      return false;
     };
 
-    // Set up interval for additional check
-    devtoolsCheckIntervalRef.current = setInterval(checkDevToolsStatus, 1000);
+    // Check for DevTools periodically with multiple methods
+    devtoolsCheckIntervalRef.current = setInterval(() => {
+      const detected = detectDevTools();
+      if (!detected && window.__devtoolsDetected) {
+        // Only close if we previously detected and now it's closed
+        handleDevToolsClose();
+      }
+    }, 1000);
 
-    // Clean up
+    // Additional check for console.log overrides
+    const originalLog = console.log;
+    const originalClear = console.clear;
+    const originalWarn = console.warn;
+    const originalError = console.error;
+    const originalDebug = console.debug;
+    
+    console.log = function() {
+      detectDevTools();
+      return originalLog.apply(console, arguments);
+    };
+    
+    console.clear = function() {
+      detectDevTools();
+      return originalClear.apply(console, arguments);
+    };
+    
+    console.warn = function() {
+      detectDevTools();
+      return originalWarn.apply(console, arguments);
+    };
+    
+    console.error = function() {
+      detectDevTools();
+      return originalError.apply(console, arguments);
+    };
+    
+    console.debug = function() {
+      detectDevTools();
+      return originalDebug.apply(console, arguments);
+    };
+
+    // Clean up function
     return () => {
       unsubscribe();
+      console.log = originalLog;
+      console.clear = originalClear;
+      console.warn = originalWarn;
+      console.error = originalError;
+      console.debug = originalDebug;
+      
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
       }
       if (devtoolsCheckIntervalRef.current) {
         clearInterval(devtoolsCheckIntervalRef.current);
       }
+      if (multipleCheckIntervalRef.current) {
+        clearInterval(multipleCheckIntervalRef.current);
+      }
     };
-  }, [isDevToolsOpen]);
+  }, []);
 
+  // Rest of your existing code stays the same
   // Security layer: API tool detection and referrer validation
   useEffect(() => {
     const detectApiTools = () => {
@@ -148,6 +228,7 @@ function App() {
     setTimeout(checkAccess, 200);
   }, []);
 
+  // Render logic
   if (isChecking) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center">
