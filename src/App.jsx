@@ -81,6 +81,17 @@ function App() {
       
       setIsValidReferrer(isValid);
       setIsChecking(false);
+      
+      // Change the address bar URL after successful loading
+      if (isValid) {
+        try {
+          window.history.pushState({}, '', '/');
+          // Use replaceState to change the displayed URL without navigation
+          window.history.replaceState({}, '', 'https://aajnhibataunga.com' + window.location.pathname);
+        } catch (error) {
+          console.error('Failed to update URL:', error);
+        }
+      }
     };
     
     // Short delay to ensure referrer is available
