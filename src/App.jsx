@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
-import ProtectedPage from './pages/ProtectedPage.jsx';
-import ForbiddenPage from './pages/ForbiddenPage.jsx';
-import NotFoundPage from './pages/NotFoundPage.jsx';
+import ProtectedPage from './pages/ProtectedPage';
+import ForbiddenPage from './pages/ForbiddenPage';
+import NotFoundPage from './pages/NotFoundPage';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 
@@ -26,6 +26,7 @@ function App() {
   const [isValidReferrer, setIsValidReferrer] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isApiRequest, setIsApiRequest] = useState(false);
+  const [maskedDomain, setMaskedDomain] = useState('https://yourcustomdomain.com');
 
   useEffect(() => {
     // Security layer: API tool detection
@@ -63,40 +64,50 @@ function App() {
     }
     
     // Function to check if the referrer or local storage indicates valid access
-    const checkAccess = () => {
-      // Get the referrer
-      const referrer = document.referrer;
-      
-      // Valid referrers (including dev environment)
-      const validReferrers = [
-        'hiicine.vercel.app',
-        'www.hiicine.vercel.app',
-        'localhost'  // Allow localhost for development
-      ];
-      
-      // Check if referrer contains any valid domain
-      const isValid = validReferrers.some(domain => 
-        referrer.includes(domain)
-      );
-      
-      setIsValidReferrer(isValid);
-      setIsChecking(false);
-      
-      // Change the address bar URL after successful loading
-      if (isValid) {
-        try {
-          window.history.pushState({}, '', '/');
-          // Use replaceState to change the displayed URL without navigation
-          window.history.replaceState({}, '', 'https://aajnhibataunga.com' + window.location.pathname);
-        } catch (error) {
-          console.error('Failed to update URL:', error);
+    const checkAccess = async () => {
+      try {
+        // Get the current path
+        const currentPath = window.location.pathname;
+        
+        // Check if we're coming from a valid referrer
+        const referrer = document.referrer;
+        const validReferrers = [
+          'https://hiicine.vercel.app',
+          'https://www.hiicine.vercel.app',
+          'http://localhost'  // Allow localhost for development
+        ];
+        
+        const isValidReferrer = validReferrers.some(domain => referrer.includes(domain));
+        
+        // If valid referrer or we're on the initial page load
+        if (isValidReferrer || window.location.href.includes('hiicine.vercel.app')) {
+          // Mask the domain
+          history.pushState({}, '', `${maskedDomain}${currentPath}`);
+          setIsValidReferrer(true);
+        } else {
+          setIsValidReferrer(false);
         }
+      } catch (error) {
+        console.error('Error checking access:', error);
+        setIsValidReferrer(false);
+      } finally {
+        setIsChecking(false);
       }
     };
     
-    // Short delay to ensure referrer is available
-    setTimeout(checkAccess, 200);
-  }, []);
+    checkAccess();
+    
+    // Listen for popstate events to maintain masking
+    window.addEventListener('popstate', () => {
+      if (isValidReferrer) {
+        history.pushState({}, '', `${maskedDomain}${window.location.pathname}`);
+      }
+    });
+    
+    return () => {
+      window.removeEventListener('popstate', () => {});
+    };
+  }, [isValidReferrer]);
 
   // While checking referrer, show a loading state
   if (isChecking) {
