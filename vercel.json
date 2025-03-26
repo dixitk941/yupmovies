@@ -19,7 +19,7 @@
           }
         ],
         "status": 403,
-        "dest": "/api/blocked.json"
+        "dest": "/index.html"
       },
       { 
         "src": "/[^.]+", 
