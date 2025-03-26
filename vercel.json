@@ -1,3 +1,61 @@
 {
-    "rewrites": [{ "source": "/api/(.*)", "destination": "/api/$1" }]
+    "rewrites": [
+      { "source": "/api/(.*)", "destination": "/api/$1" },
+      { "source": "/(.*)", "destination": "/index.html" }
+    ],
+    "routes": [
+      {
+        "src": "/static/(.*)",
+        "dest": "/static/$1",
+        "headers": { "cache-control": "public, max-age=31536000, immutable" }
+      },
+      {
+        "src": "/(.*)",
+        "has": [
+          {
+            "type": "header",
+            "key": "user-agent",
+            "value": "(Postman|insomnia|curl|wget|httpie|axios|http-client|python-requests|Go-http-client|Fiddler)"
+          }
+        ],
+        "status": 403,
+        "dest": "/api/blocked.json"
+      },
+      { 
+        "src": "/[^.]+", 
+        "dest": "/index.html",
+        "status": 200
+      }
+    ],
+    "headers": [
+      {
+        "source": "/(.*)",
+        "headers": [
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          },
+          {
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "key": "X-XSS-Protection",
+            "value": "1; mode=block"
+          },
+          {
+            "key": "Referrer-Policy",
+            "value": "strict-origin-when-cross-origin"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "camera=(), microphone=(), geolocation=()"
+          },
+          {
+            "key": "Content-Security-Policy",
+            "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline';"
+          }
+        ]
+      }
+    ]
   }
