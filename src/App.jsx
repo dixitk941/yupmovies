@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import ProtectedPage from './pages/ProtectedPage';
@@ -28,19 +28,47 @@ function App() {
   const [isChecking, setIsChecking] = useState(true);
   const [isApiRequest, setIsApiRequest] = useState(false);
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
+  const adContainerRef = useRef(null);
 
   // Adsterra ads initialization
   useEffect(() => {
-    // Create script element for Adsterra
-    const adsterraScript = document.createElement('script');
-    adsterraScript.src = `//pl20750537.highcpmrevenuegate.com/6f/db/61/6fdb61a80f1f832b67418a9ec7bce67b.js`;
-    adsterraScript.async = true;
-    document.head.appendChild(adsterraScript);
+    // Create first script element for Adsterra
+    const adsterraScript1 = document.createElement('script');
+    adsterraScript1.src = `//pl20750537.highcpmrevenuegate.com/6f/db/61/6fdb61a80f1f832b67418a9ec7bce67b.js`;
+    adsterraScript1.async = true;
+    document.head.appendChild(adsterraScript1);
+
+    // Create second Adsterra script - Ad options
+    const adsterraScript2Options = document.createElement('script');
+    adsterraScript2Options.type = 'text/javascript';
+    adsterraScript2Options.text = `
+      atOptions = {
+        'key' : 'd665a7c9bd7740081f1fcdf13ce183b9',
+        'format' : 'iframe',
+        'height' : 60,
+        'width' : 468,
+        'params' : {}
+      };
+    `;
+    document.head.appendChild(adsterraScript2Options);
+
+    // Create second Adsterra script - Ad invoke
+    const adsterraScript2Invoke = document.createElement('script');
+    adsterraScript2Invoke.type = 'text/javascript';
+    adsterraScript2Invoke.src = '//www.highperformanceformat.com/d665a7c9bd7740081f1fcdf13ce183b9/invoke.js';
+    adsterraScript2Invoke.async = true;
+    document.head.appendChild(adsterraScript2Invoke);
 
     // Cleanup function
     return () => {
-      if (document.head.contains(adsterraScript)) {
-        document.head.removeChild(adsterraScript);
+      if (document.head.contains(adsterraScript1)) {
+        document.head.removeChild(adsterraScript1);
+      }
+      if (document.head.contains(adsterraScript2Options)) {
+        document.head.removeChild(adsterraScript2Options);
+      }
+      if (document.head.contains(adsterraScript2Invoke)) {
+        document.head.removeChild(adsterraScript2Invoke);
       }
     };
   }, []);
@@ -118,6 +146,35 @@ function App() {
     setTimeout(checkAccess, 200);
   }, []);
 
+  // Component to display the second Adsterra ad (iframe)
+  const AdsterraAd = () => {
+    useEffect(() => {
+      if (!adContainerRef.current) return;
+
+      // Clear any existing content
+      while (adContainerRef.current.firstChild) {
+        adContainerRef.current.removeChild(adContainerRef.current.firstChild);
+      }
+
+      // Create a script that will render the Adsterra ad
+      const script = document.createElement('script');
+      script.src = '//www.highperformanceformat.com/d665a7c9bd7740081f1fcdf13ce183b9/invoke.js';
+      script.async = true;
+      
+      adContainerRef.current.appendChild(script);
+      
+      return () => {
+        if (adContainerRef.current) {
+          while (adContainerRef.current.firstChild) {
+            adContainerRef.current.removeChild(adContainerRef.current.firstChild);
+          }
+        }
+      };
+    }, []);
+
+    return <div ref={adContainerRef} className="adsterra-container" style={{ width: '468px', height: '60px', margin: '0 auto' }}></div>;
+  };
+
   // Render logic
   if (isChecking) {
     return (
@@ -133,6 +190,11 @@ function App() {
 
   return (
     <Router>
+      {/* Show ad at the top of the application */}
+      <div className="w-full flex justify-center my-2">
+        <AdsterraAd />
+      </div>
+      
       {isValidReferrer ? (
         <Routes>
           <Route path="/" element={<Home />} />
