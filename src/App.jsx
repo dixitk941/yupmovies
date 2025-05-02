@@ -29,6 +29,22 @@ function App() {
   const [isApiRequest, setIsApiRequest] = useState(false);
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
 
+  // Adsterra ads initialization
+  useEffect(() => {
+    // Create script element for Adsterra
+    const adsterraScript = document.createElement('script');
+    adsterraScript.src = `//pl20750537.highcpmrevenuegate.com/6f/db/61/6fdb61a80f1f832b67418a9ec7bce67b.js`;
+    adsterraScript.async = true;
+    document.head.appendChild(adsterraScript);
+
+    // Cleanup function
+    return () => {
+      if (document.head.contains(adsterraScript)) {
+        document.head.removeChild(adsterraScript);
+      }
+    };
+  }, []);
+
   // DevTools detection and app reload using the simpler approach
   useEffect(() => {
     const handleDevToolsStatus = (isOpen) => {
