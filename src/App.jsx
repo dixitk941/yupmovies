@@ -1,181 +1,164 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-import Home from './pages/Home';
-import ProtectedPage from './pages/ProtectedPage';
-import ForbiddenPage from './pages/ForbiddenPage';
-import NotFoundPage from './pages/NotFoundPage';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import { addListener, launch } from 'devtools-detector';
+import React, { useEffect, useState } from "react";
+import { BrowserRouter as Router, Route, Routes, useNavigate } from "react-router-dom";
 
-// Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyBoR3A3ksIlmIzsW9s8LE02ExMT2Q4DQJg",
-  authDomain: "goforcab-941.firebaseapp.com",
-  projectId: "goforcab-941",
-  storageBucket: "goforcab-941.firebasestorage.app",
-  messagingSenderId: "418891489602",
-  appId: "1:418891489602:web:155a8d181d90d72a8528db",
-  measurementId: "G-4KCFN23SGG"
-};
+// Import your pages
+import Home from "./pages/Home";
+import ProtectedPage from "./pages/ProtectedPage";
+import ForbiddenPage from "./pages/ForbiddenPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import { addListener, launch } from "devtools-detector";
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Import jsrsasign for JWT
+import { KJUR, b64utoutf8 } from "jsrsasign";
 
-function App() {
-  const [isValidReferrer, setIsValidReferrer] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
-  const [isApiRequest, setIsApiRequest] = useState(false);
-  const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
-  const adContainerRef = useRef(null);
+const SECRET = "hiicine_demo_secret_2025"; // Must match your token GENERATOR
 
-  // Adsterra ads initialization
-  useEffect(() => {
-    // Create first script element for Adsterra
-    const adsterraScript1 = document.createElement('script');
-    adsterraScript1.src = `//pl20750537.highcpmrevenuegate.com/6f/db/61/6fdb61a80f1f832b67418a9ec7bce67b.js`;
-    adsterraScript1.async = true;
-    document.head.appendChild(adsterraScript1);
+// Utility: detect API/bot tools
+function isApiTool() {
+  try {
+    const userAgent = navigator.userAgent.toLowerCase();
+    const apiTools = [
+      "postman", "insomnia", "curl", "wget", "python-requests", "axios",
+      "hoppscotch", "httpclient", "powershell", "httpie"
+    ];
+    const weirdProps = [
+      "callPhantom","_phantom","phantom","__nightmare","selenium","webdriver",
+      "__selenium_unwrapped","__webdriver_evaluate"
+    ];
+    for (const tool of apiTools) { if (userAgent.includes(tool)) return true; }
+    for (const p of weirdProps) { if (window[p]) return true; }
+    if (navigator.webdriver) return true;
+    if (/headlesschrome/.test(userAgent)) return true;
+    return false;
+  } catch {
+    return true;
+  }
+}
 
-    // Create second Adsterra script - Ad options
-    const adsterraScript2Options = document.createElement('script');
-    adsterraScript2Options.type = 'text/javascript';
-    adsterraScript2Options.text = `
-      atOptions = {
-        'key' : 'd665a7c9bd7740081f1fcdf13ce183b9',
-        'format' : 'iframe',
-        'height' : 60,
-        'width' : 468,
-        'params' : {}
-      };
-    `;
-    document.head.appendChild(adsterraScript2Options);
+// Utility: detect localhost for DevTools exception
+function isLocalhost() {
+  return (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+  );
+}
 
-    // Create second Adsterra script - Ad invoke
-    const adsterraScript2Invoke = document.createElement('script');
-    adsterraScript2Invoke.type = 'text/javascript';
-    adsterraScript2Invoke.src = '//www.highperformanceformat.com/d665a7c9bd7740081f1fcdf13ce183b9/invoke.js';
-    adsterraScript2Invoke.async = true;
-    document.head.appendChild(adsterraScript2Invoke);
+// Token gating page
+function EnterTokenPage({ setHasAccess }) {
+  const [input, setInput] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
-    // Cleanup function
-    return () => {
-      if (document.head.contains(adsterraScript1)) {
-        document.head.removeChild(adsterraScript1);
-      }
-      if (document.head.contains(adsterraScript2Options)) {
-        document.head.removeChild(adsterraScript2Options);
-      }
-      if (document.head.contains(adsterraScript2Invoke)) {
-        document.head.removeChild(adsterraScript2Invoke);
-      }
-    };
-  }, []);
-
-  // DevTools detection and app reload using the simpler approach
-  useEffect(() => {
-    const handleDevToolsStatus = (isOpen) => {
-      if (isOpen) {
-        // Force reload when DevTools is opened
-        window.location.reload();
-        
-        // Update state
-        setIsDevToolsOpen(true);
-      } else {
-        setIsDevToolsOpen(false);
-      }
-    };
-
-    // Add the listener for DevTools status changes
-    addListener(handleDevToolsStatus);
-    
-    // Start the detection
-    launch();
-
-    // Cleanup the listener when component unmounts
-    return () => {
-      addListener(handleDevToolsStatus);
-    };
-  }, []);
-
-  // Security layer: API tool detection and referrer validation
-  useEffect(() => {
-    const detectApiTools = () => {
-      const userAgent = navigator.userAgent.toLowerCase();
-      
-      const apiTools = ['postman', 'insomnia', 'curl', 'wget', 'python-requests', 'axios', 'hoppscotch'];
-      const isApiTool = apiTools.some(tool => userAgent.includes(tool));
-      
-      const hasWindow = typeof window !== 'undefined';
-      const hasDocument = typeof document !== 'undefined';
-      const hasNavigator = typeof navigator !== 'undefined';
-      const hasHistory = typeof history !== 'undefined';
-      const hasLocation = typeof location !== 'undefined';
-      const canHandleEvents = typeof addEventListener !== 'undefined';
-      
-      const isStandardBrowser = hasWindow && hasDocument && hasNavigator && 
-                               hasHistory && hasLocation && canHandleEvents;
-      
-      return isApiTool || !isStandardBrowser;
-    };
-
-    if (detectApiTools()) {
-      setIsApiRequest(true);
-      setIsValidReferrer(false);
-      setIsChecking(false);
+  function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    const token = input.trim();
+    if (!token) {
+      setError("Please enter a token.");
+      setLoading(false);
       return;
     }
-
-    const checkAccess = () => {
-      const referrer = document.referrer;
-      const validReferrers = [
-        'hiicine.vercel.app',
-        'www.hiicine.vercel.app',
-        'localhost'
-      ];
-
-      const isValid = validReferrers.some(domain => 
-        referrer.includes(domain)
+    try {
+      const isValid = KJUR.jws.JWS.verify(token, SECRET, ["HS256"]);
+      if (!isValid) {
+        setError("Invalid token signature. This is not a HiiCine token.");
+        setLoading(false);
+        return;
+      }
+      const payloadObj = KJUR.jws.JWS.readSafeJSONString(
+        b64utoutf8(token.split(".")[1])
       );
+      const now = Math.floor(Date.now() / 1000);
+      if (!payloadObj.exp || now > payloadObj.exp) {
+        setError("Token expired! Please generate a new token.");
+        setLoading(false);
+        return;
+      }
+      // Valid!
+      setHasAccess(true);
+      sessionStorage.setItem("hiiCineSessionValidated", "1");
+      navigate("/");
+    } catch (err) {
+      setError("Token format is invalid or corrupted.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      setIsValidReferrer(isValid);
-      setIsChecking(false);
-    };
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#121212]">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-gray-800 p-8 rounded shadow-md w-full max-w-md"
+      >
+        <h1 className="text-3xl mb-4 text-center font-bold text-red-500">
+          Enter Access Token
+        </h1>
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Paste your access token here"
+          className="w-full px-3 py-2 rounded bg-gray-900 text-white mb-3"
+          autoFocus
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-gradient-to-r from-red-600 to-orange-500 text-white px-4 py-2 rounded w-full font-bold hover:opacity-90"
+        >
+          {loading ? "Verifying..." : "Submit"}
+        </button>
+        {error && <p className="text-red-400 mt-2">{error}</p>}
+      </form>
+    </div>
+  );
+}
 
-    setTimeout(checkAccess, 200);
+function App() {
+  const [block, setBlock] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+  const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
+
+  // Block tools/bots immediately
+  useEffect(() => {
+    if (isApiTool()) setBlock(true);
   }, []);
 
-  // Component to display the second Adsterra ad (iframe)
-  const AdsterraAd = () => {
-    useEffect(() => {
-      if (!adContainerRef.current) return;
-
-      // Clear any existing content
-      while (adContainerRef.current.firstChild) {
-        adContainerRef.current.removeChild(adContainerRef.current.firstChild);
-      }
-
-      // Create a script that will render the Adsterra ad
-      const script = document.createElement('script');
-      script.src = '//www.highperformanceformat.com/d665a7c9bd7740081f1fcdf13ce183b9/invoke.js';
-      script.async = true;
-      
-      adContainerRef.current.appendChild(script);
-      
-      return () => {
-        if (adContainerRef.current) {
-          while (adContainerRef.current.firstChild) {
-            adContainerRef.current.removeChild(adContainerRef.current.firstChild);
-          }
+  // Detect and block DevTools in production ONLY
+  useEffect(() => {
+    if (!isLocalhost()) {
+      const handleDevToolsStatus = (isOpen) => {
+        if (isOpen) {
+          window.location.reload();
+          setIsDevToolsOpen(true);
+        } else {
+          setIsDevToolsOpen(false);
         }
       };
-    }, []);
+      addListener(handleDevToolsStatus);
+      launch();
+      return () => {
+        addListener(handleDevToolsStatus);
+      };
+    }
+  }, []);
 
-    return <div ref={adContainerRef} className="adsterra-container" style={{ width: '468px', height: '60px', margin: '0 auto' }}></div>;
-  };
+  // Session access check
+  useEffect(() => {
+    if (sessionStorage.getItem("hiiCineSessionValidated") === "1") {
+      setHasAccess(true);
+    }
+    setIsChecking(false);
+  }, []);
 
-  // Render logic
+  if (block || isDevToolsOpen) {
+    return <NotFoundPage />;
+  }
+
   if (isChecking) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center">
@@ -184,28 +167,24 @@ function App() {
     );
   }
 
-  if (isApiRequest || isDevToolsOpen) {
-    return <ForbiddenPage />;
-  }
-
   return (
     <Router>
-      {/* Show ad at the top of the application */}
-      <div className="w-full flex justify-center my-2">
-        <AdsterraAd />
-      </div>
-      
-      {isValidReferrer ? (
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/protected" element={<ProtectedPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      ) : (
-        <Routes>
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      )}
+      <Routes>
+        {hasAccess ? (
+          <>
+            <Route path="/" element={<Home />} />
+            <Route path="/protected" element={<ProtectedPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </>
+        ) : (
+          <>
+            <Route
+              path="*"
+              element={<EnterTokenPage setHasAccess={setHasAccess} />}
+            />
+          </>
+        )}
+      </Routes>
     </Router>
   );
 }
