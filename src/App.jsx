@@ -106,6 +106,8 @@ function App() {
     if (isApiTool()) setBlock(true);
   }, []);
 
+  // Comment out or remove this useEffect to allow DevTools everywhere
+  /*
   useEffect(() => {
     if (!isLocalhost()) {
       const handleDevToolsStatus = (isOpen) => {
@@ -123,6 +125,7 @@ function App() {
       };
     }
   }, []);
+  */
 
   useEffect(() => {
     if (sessionStorage.getItem("hiiCineSessionValidated") === "1") {
