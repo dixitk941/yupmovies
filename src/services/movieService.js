@@ -1,441 +1,579 @@
-import { db } from '../firebase';
-import { collection, getDocs, query, where, doc, getDoc, limit } from 'firebase/firestore';
+import { createClient } from '@supabase/supabase-js';
 
-// Cache to avoid repeated fetches
-let moviesCache = [];
-let seriesCache = [];
+// Initialize Supabase client
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.REACT_APP_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-/**
- * Get all movies from Firestore
- * @param {number} limitCount - Maximum number of movies to fetch
- * @returns {Array} Array of movie objects
- */
-export const getAllMovies = async (limitCount = 100) => {
+// Enhanced in-memory caches with category indexing
+let contentCache = new Map();
+let categoryIndex = new Map();
+let lastCacheUpdate = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Helper function to extract and normalize categories
+const parseCategories = (categoriesString) => {
+  if (!categoriesString) return [];
+  return categoriesString
+    .split(',')
+    .map(cat => cat.trim())
+    .filter(cat => cat.length > 0);
+};
+
+// Helper function to determine content type and extract quality info
+const analyzeContent = (row) => {
+  const categories = parseCategories(row.categories || '');
+  
+  // Check for seasons to determine if it's a series
+  const seasonColumns = [
+    'season_1', 'season_2', 'season_3', 'season_4', 'season_5',
+    'season_6', 'season_7', 'season_8', 'season_9', 'season_10'
+  ];
+  
+  const seasons = {};
+  let hasSeasons = false;
+  
+  seasonColumns.forEach((col, index) => {
+    if (row[col] && row[col].trim() !== '') {
+      seasons[`season_${index + 1}`] = row[col];
+      hasSeasons = true;
+    }
+  });
+
+  // Extract quality information from categories
+  const qualities = categories.filter(cat => 
+    ['480p', '720p', '1080p', '4K', 'HD', 'Full HD'].some(quality => 
+      cat.includes(quality)
+    )
+  );
+
+  // Extract genres (excluding technical categories)
+  const technicalCategories = [
+    '480p', '720p', '1080p', '4K', 'HD', 'Full HD',
+    'Hindi Dubbed Movies', 'Telugu', 'Tamil', 'Malayalam',
+    'English Movies', 'Bollywood', 'Hollywood',
+    'WEB-DL', 'BluRay', 'DVDRip', 'CAMRip'
+  ];
+  
+  const genres = categories.filter(cat => 
+    !technicalCategories.some(tech => cat.includes(tech)) &&
+    !cat.match(/^\d{4}$/) // Exclude years
+  );
+
+  // Extract year from categories
+  const years = categories.filter(cat => cat.match(/^\d{4}$/));
+  const releaseYear = years.length > 0 ? parseInt(years[0]) : null;
+
+  // Extract language information
+  const languages = categories.filter(cat => 
+    ['Hindi', 'Telugu', 'Tamil', 'Malayalam', 'English', 'Punjabi', 'Gujarati'].some(lang =>
+      cat.includes(lang)
+    )
+  );
+
+  return {
+    isSeries: hasSeasons,
+    seasons: hasSeasons ? seasons : null,
+    qualities,
+    genres,
+    languages,
+    releaseYear,
+    allCategories: categories
+  };
+};
+
+// Enhanced transform function
+const transformMovieData = (row) => {
+  const contentAnalysis = analyzeContent(row);
+  
+  // Parse links if they exist
+  let downloadLinks = [];
+  if (row.links) {
+    try {
+      // Split by comma and parse each link
+      const linkPairs = row.links.split(',');
+      for (let i = 0; i < linkPairs.length; i += 2) {
+        if (linkPairs[i] && linkPairs[i + 1]) {
+          downloadLinks.push({
+            url: linkPairs[i].trim(),
+            quality: linkPairs[i + 1].trim()
+          });
+        }
+      }
+    } catch (error) {
+      console.warn('Error parsing links for movie:', row.title, error);
+    }
+  }
+
+  // Parse content metadata if available
+  let metadata = {};
+  if (row.content) {
+    try {
+      const parsed = JSON.parse(row.content);
+      if (Array.isArray(parsed) && parsed.length >= 3) {
+        metadata = {
+          description: parsed[0],
+          duration: parsed[1],
+          rating: parsed[2]
+        };
+      }
+    } catch (error) {
+      // If parsing fails, treat as plain text description
+      metadata = { description: row.content };
+    }
+  }
+
+  return {
+    id: row.record_id?.toString() || row.url_slug,
+    recordId: row.record_id,
+    title: row.title,
+    slug: row.url_slug,
+    
+    // Media assets
+    featuredImage: row.featured_image,
+    poster: row.poster,
+    
+    // Content classification
+    isSeries: contentAnalysis.isSeries,
+    seasons: contentAnalysis.seasons,
+    
+    // Categories and classification
+    categories: contentAnalysis.allCategories,
+    genres: contentAnalysis.genres,
+    languages: contentAnalysis.languages,
+    qualities: contentAnalysis.qualities,
+    releaseYear: contentAnalysis.releaseYear,
+    
+    // Content and metadata
+    content: metadata,
+    excerpt: row.excerpt,
+    downloadLinks,
+    
+    // Publishing info
+    status: row.status,
+    publishDate: row.date,
+    modifiedDate: row.modified_date
+  };
+};
+
+// Cache management
+const isCacheValid = () => {
+  return lastCacheUpdate && (Date.now() - lastCacheUpdate < CACHE_DURATION);
+};
+
+const updateCache = (data) => {
+  contentCache.clear();
+  categoryIndex.clear();
+  
+  data.forEach(item => {
+    const transformed = transformMovieData(item);
+    contentCache.set(transformed.id, transformed);
+    
+    // Index by categories for faster filtering
+    transformed.categories.forEach(category => {
+      if (!categoryIndex.has(category)) {
+        categoryIndex.set(category, new Set());
+      }
+      categoryIndex.get(category).add(transformed.id);
+    });
+  });
+  
+  lastCacheUpdate = Date.now();
+};
+
+// Core data fetching function
+const fetchAllContent = async () => {
+  if (isCacheValid() && contentCache.size > 0) {
+    return Array.from(contentCache.values());
+  }
+
   try {
-    if (moviesCache.length > 0) {
-      return limitCount ? moviesCache.slice(0, limitCount) : moviesCache;
+    const { data, error } = await supabase
+      .from('movies')
+      .select('*')
+      .eq('status', 'publish')
+      .order('modified_date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching content:', error);
+      return [];
     }
 
-    const moviesCollection = collection(db, 'movies');
-    const moviesQuery = limitCount ? query(moviesCollection, limit(limitCount)) : moviesCollection;
-    const snapshot = await getDocs(moviesQuery);
+    updateCache(data);
+    return Array.from(contentCache.values());
+  } catch (error) {
+    console.error("Error in fetchAllContent:", error);
+    return [];
+  }
+};
+
+// ---- MOVIES ----
+export const getAllMovies = async (limitCount = 100) => {
+  try {
+    const allContent = await fetchAllContent();
+    const movies = allContent
+      .filter(item => !item.isSeries)
+      .slice(0, limitCount || allContent.length);
     
-    moviesCache = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    
-    return moviesCache;
+    return movies;
   } catch (error) {
     console.error("Error fetching movies:", error);
     return [];
   }
 };
 
-/**
- * Get all TV series from Firestore
- * @param {number} limitCount - Maximum number of series to fetch
- * @returns {Array} Array of series objects
- */
+// ---- SERIES ----
 export const getAllSeries = async (limitCount = 100) => {
   try {
-    if (seriesCache.length > 0) {
-      return limitCount ? seriesCache.slice(0, limitCount) : seriesCache;
-    }
-
-    const seriesCollection = collection(db, 'series');
-    const seriesQuery = limitCount ? query(seriesCollection, limit(limitCount)) : seriesCollection;
-    const snapshot = await getDocs(seriesQuery);
+    const allContent = await fetchAllContent();
+    const series = allContent
+      .filter(item => item.isSeries)
+      .slice(0, limitCount || allContent.length);
     
-    seriesCache = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      isSeries: true // Flag to distinguish series from movies
-    }));
-    
-    return seriesCache;
+    return series;
   } catch (error) {
     console.error("Error fetching series:", error);
     return [];
   }
 };
 
-/**
- * Get movies and series by category
- * @param {string} category - Category to filter by
- * @param {number} limitCount - Maximum number of results to return
- * @returns {Array} Array of movies and series matching the category
- */
-export const getMoviesByCategory = async (category, limitCount = 20) => {
+// ---- ENHANCED CATEGORY FUNCTIONS ----
+export const getAllCategories = async () => {
   try {
-    const [movies, series] = await Promise.all([
-      getAllMovies(),
-      getAllSeries()
-    ]);
-    
-    const combinedResults = [
-      ...movies.filter(movie => movie.category && movie.category.includes(category)),
-      ...series.filter(show => show.category && show.category.includes(category))
-    ];
-    
-    return combinedResults.slice(0, limitCount);
+    await fetchAllContent(); // Ensure cache is populated
+    return Array.from(categoryIndex.keys()).sort();
   } catch (error) {
-    console.error(`Error fetching by category ${category}:`, error);
+    console.error("Error fetching categories:", error);
     return [];
   }
 };
 
-/**
- * Get a specific movie or series by ID
- * @param {string} id - The document ID
- * @param {boolean} isSeries - Whether to look in series collection
- * @returns {Object|null} The movie or series object, or null if not found
- */
-export const getMovieById = async (id, isSeries = false) => {
+export const getMoviesByCategory = async (category, limitCount = 20) => {
   try {
-    const collectionName = isSeries ? 'series' : 'movies';
-    const docRef = doc(db, collectionName, id);
-    const snapshot = await getDoc(docRef);
+    await fetchAllContent(); // Ensure cache is populated
     
-    if (snapshot.exists()) {
-      return {
-        id: snapshot.id,
-        ...snapshot.data(),
-        isSeries
-      };
+    if (!categoryIndex.has(category)) {
+      return [];
     }
     
-    // If not found and isSeries flag wasn't specified, try the other collection
-    if (isSeries === false) {
-      return getMovieById(id, true);
-    }
+    const itemIds = Array.from(categoryIndex.get(category));
+    const items = itemIds
+      .map(id => contentCache.get(id))
+      .filter(item => item) // Remove any null/undefined items
+      .slice(0, limitCount);
     
-    return null;
+    return items;
+  } catch (error) {
+    console.error("Error fetching movies by category:", error);
+    return [];
+  }
+};
+
+export const getMoviesByGenre = async (genre, limitCount = 20) => {
+  try {
+    const allContent = await fetchAllContent();
+    const filtered = allContent
+      .filter(item => item.genres.some(g => 
+        g.toLowerCase().includes(genre.toLowerCase())
+      ))
+      .slice(0, limitCount);
+    
+    return filtered;
+  } catch (error) {
+    console.error("Error fetching movies by genre:", error);
+    return [];
+  }
+};
+
+export const getMoviesByYear = async (year, limitCount = 20) => {
+  try {
+    const allContent = await fetchAllContent();
+    const filtered = allContent
+      .filter(item => item.releaseYear === parseInt(year))
+      .slice(0, limitCount);
+    
+    return filtered;
+  } catch (error) {
+    console.error("Error fetching movies by year:", error);
+    return [];
+  }
+};
+
+export const getMoviesByLanguage = async (language, limitCount = 20) => {
+  try {
+    const allContent = await fetchAllContent();
+    const filtered = allContent
+      .filter(item => item.languages.some(lang => 
+        lang.toLowerCase().includes(language.toLowerCase())
+      ))
+      .slice(0, limitCount);
+    
+    return filtered;
+  } catch (error) {
+    console.error("Error fetching movies by language:", error);
+    return [];
+  }
+};
+
+// ---- GET BY ID ----
+export const getMovieById = async (id) => {
+  try {
+    // First check cache
+    await fetchAllContent();
+    if (contentCache.has(id)) {
+      return contentCache.get(id);
+    }
+
+    // If not in cache, try direct database query
+    let { data, error } = await supabase
+      .from('movies')
+      .select('*')
+      .eq('record_id', parseInt(id))
+      .eq('status', 'publish')
+      .single();
+
+    if (error && error.code === 'PGRST116') {
+      const { data: slugData, error: slugError } = await supabase
+        .from('movies')
+        .select('*')
+        .eq('url_slug', id)
+        .eq('status', 'publish')
+        .single();
+      
+      data = slugData;
+      error = slugError;
+    }
+
+    if (error) {
+      console.error(`Error fetching item with ID ${id}:`, error);
+      return null;
+    }
+
+    return transformMovieData(data);
   } catch (error) {
     console.error(`Error fetching item with ID ${id}:`, error);
     return null;
   }
 };
 
-/**
- * Get movies and series for home page sections
- * @param {number} count - Number of items to include in each section
- * @returns {Object} Object containing arrays for each section
- */
+// ---- ENHANCED HOME PAGE SECTIONS ----
 export const getHomePageSections = async (count = 10) => {
   try {
-    const [allMovies, allSeries] = await Promise.all([
-      getAllMovies(),
-      getAllSeries()
-    ]);
+    const allContent = await fetchAllContent();
     
-    // Combine movies and series
-    const allContent = [...allMovies, ...allSeries];
-    
-    // Extract categories from all content
-    const featuredContent = allContent
-      .filter(item => item.category && item.category.includes("Featured"))
-      .slice(0, count);
-      
-    const trendingContent = allContent
-      .filter(item => item.category && item.category.includes("Trending Now"))
-      .slice(0, count);
-      
-    const topRatedContent = allContent
-      .filter(item => item.category && item.category.includes("Top Rated"))
-      .slice(0, count);
-      
-    const newReleaseContent = allContent
-      .filter(item => item.category && item.category.includes("New Release"))
-      .slice(0, count);
-    
-    // Function to get random items
-    const getRandomContent = (n) => {
-      const shuffled = [...allContent].sort(() => 0.5 - Math.random());
-      return shuffled.slice(0, n);
-    };
-    
-    // Fill in sections with at least some content
+    // Separate movies and series
+    const movies = allContent.filter(item => !item.isSeries);
+    const series = allContent.filter(item => item.isSeries);
+
+    // Helper function to get random items
+    const getRandomItems = (arr, n) => 
+      [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
+
+    // Get content by specific categories
+    const featured = allContent.filter(item => 
+      item.categories.some(cat => cat.toLowerCase().includes('featured'))
+    ).slice(0, count);
+
+    const trending = allContent.filter(item => 
+      item.categories.some(cat => cat.toLowerCase().includes('trending'))
+    ).slice(0, count);
+
+    const action = allContent.filter(item => 
+      item.genres.some(genre => genre.toLowerCase().includes('action'))
+    ).slice(0, count);
+
+    const thriller = allContent.filter(item => 
+      item.genres.some(genre => genre.toLowerCase().includes('thriller'))
+    ).slice(0, count);
+
+    // Recent releases (2024-2025)
+    const recentReleases = allContent.filter(item => 
+      item.releaseYear && item.releaseYear >= 2024
+    ).slice(0, count);
+
+    // Hindi content
+    const hindiContent = allContent.filter(item => 
+      item.languages.some(lang => lang.toLowerCase().includes('hindi'))
+    ).slice(0, count);
+
     return {
-      featured: featuredContent.length ? featuredContent : getRandomContent(count),
-      trending: trendingContent.length ? trendingContent : getRandomContent(count),
-      topRated: topRatedContent.length ? topRatedContent : getRandomContent(count),
-      newReleases: newReleaseContent.length ? newReleaseContent : getRandomContent(count),
-      series: allSeries.slice(0, count) // Add a dedicated series section
+      featured: featured.length ? featured : getRandomItems(movies, count),
+      trending: trending.length ? trending : getRandomItems(movies, count),
+      action: action.length ? action : getRandomItems(movies, count),
+      thriller: thriller.length ? thriller : getRandomItems(movies, count),
+      recentReleases: recentReleases.length ? recentReleases : getRandomItems(movies, count),
+      hindiMovies: hindiContent.length ? hindiContent : getRandomItems(movies, count),
+      series: series.slice(0, count),
+      allMovies: movies.slice(0, count * 2) // More items for general browsing
     };
   } catch (error) {
     console.error("Error fetching home page sections:", error);
     return {
       featured: [],
       trending: [],
-      topRated: [],
-      newReleases: [],
-      series: []
+      action: [],
+      thriller: [],
+      recentReleases: [],
+      hindiMovies: [],
+      series: [],
+      allMovies: []
     };
   }
 };
 
-/**
- * Search movies and series by title or category
- * @param {string} searchTerm - The term to search for
- * @param {number} limitCount - Maximum number of results to return
- * @returns {Array} Array of matching movies and series
- */
-export const searchMovies = async (searchTerm, limitCount = 20) => {
-  try {
-    if (!searchTerm || searchTerm.trim().length < 2) {
-      return [];
-    }
-    
-    // Fetch both movies and series
-    const [allMovies, allSeries] = await Promise.all([
-      getAllMovies(100),
-      getAllSeries(100)
-    ]);
-    
-    // Combine movies and series for searching
-    const allContent = [...allMovies, ...allSeries];
-    
-    const searchTermLower = searchTerm.toLowerCase();
-    const results = allContent
-      .filter(item => {
-        // Check title
-        if (item.title && item.title.toLowerCase().includes(searchTermLower)) {
-          return true;
-        }
-        
-        // Check categories
-        if (item.category) {
-          // Handle both string and array categories
-          if (Array.isArray(item.category)) {
-            if (item.category.some(cat => cat.toLowerCase().includes(searchTermLower))) {
-              return true;
-            }
-          } else if (typeof item.category === 'string') {
-            if (item.category.toLowerCase().includes(searchTermLower)) {
-              return true;
-            }
-          }
-        }
-        
-        // For series, also check season information
-        if (item.isSeries) {
-          for (let i = 1; i <= 14; i++) {
-            const seasonKey = `Season ${i}`;
-            if (item[seasonKey] && item[seasonKey].toLowerCase().includes(searchTermLower)) {
-              return true;
-            }
-          }
-        }
-        
-        return false;
-      })
-      .slice(0, limitCount);
-    
-    return results;
-  } catch (error) {
-    console.error(`Error searching content for "${searchTerm}":`, error);
-    return [];
-  }
-};
-
-/**
- * Get all available seasons for a series
- * @param {Object} series - The series object
- * @returns {Array} Array of available season numbers
- */
-export const getAvailableSeasons = (series) => {
-  if (!series || !series.isSeries) {
-    return [];
-  }
-  
-  const availableSeasons = [];
-  for (let i = 1; i <= 14; i++) {
-    const seasonKey = `Season ${i}`;
-    if (series[seasonKey] && series[seasonKey] !== null) {
-      availableSeasons.push(i);
-    }
-  }
-  
-  return availableSeasons;
-};
-
-/**
- * Parse episodes information from a season text
- * @param {string} seasonText - The season text containing episode information
- * @returns {Array} Array of episode objects with links and details
- */
-export const parseEpisodes = (seasonText) => {
-  if (!seasonText) return [];
-  
-  const episodes = [];
-  const lines = seasonText.split('\n');
-  
-  for (const line of lines) {
-    if (line.toLowerCase().includes('episode') && line.includes(':')) {
-      // Extract episode number
-      const episodeMatch = line.match(/Episode\s*(\d+)/i);
-      const episodeNumber = episodeMatch ? parseInt(episodeMatch[1]) : null;
-      
-      if (!episodeNumber) continue;
-      
-      // Extract download links
-      // The format is typically: https://domain.com/path, quality, size
-      const parts = line.split(':');
-      if (parts.length < 3) continue;
-      
-      // First part is "Episode X ", second part is typically empty or has a space
-      // Third part onwards contains the URL and additional info
-      const urlPart = parts.slice(2).join(':').trim();
-      
-      // Extract the URL (it's the first part before a comma)
-      const urlMatch = urlPart.match(/(https?:\/\/[^,\s]+)/);
-      if (!urlMatch) continue;
-      
-      const url = urlMatch[1];
-      
-      // Extract quality info (typically after the URL and before size)
-      // This could be patterns like "720p", "720p 10Bit", etc.
-      const qualityMatch = urlPart.match(/,\s*([\w\s]+p(?:\s+\d+Bit)?)/);
-      const quality = qualityMatch ? qualityMatch[1].trim() : 'Unknown';
-      
-      // Extract file size (typically at the end, patterns like "268.88 MB", "1.63 GB")
-      const sizeMatch = urlPart.match(/,\s*([\d.]+\s*[GMK]B)/);
-      const size = sizeMatch ? sizeMatch[1].trim() : '';
-      
-      episodes.push({
-        number: episodeNumber,
-        link: url,
-        quality,
-        size
-      });
-    }
-  }
-  
-  // Sort episodes by number
-  return episodes.sort((a, b) => a.number - b.number);
-};
-
-/**
- * Parse full season download links
- * @param {string} seasonText - The season text containing download information
- * @returns {Array} Array of download options with quality and size
- */
-export const parseFullSeasonDownloads = (seasonText) => {
-  if (!seasonText) return [];
-  
-  const downloads = [];
-  const lines = seasonText.split('\n');
-  
-  // Look for lines with "Season X :" pattern
-  for (const line of lines) {
-    if (line.match(/Season\s+\d+\s*:/) && !line.toLowerCase().includes('episode')) {
-      // Extract all URLs and their details
-      const parts = line.split(':');
-      if (parts.length < 3) continue;
-      
-      // Starting from part 2, we have the URLs and details
-      const urlPart = parts.slice(2).join(':').trim();
-      
-      // Find all URLs in the line
-      const urlMatches = urlPart.match(/(https?:\/\/[^\s,]+)/g);
-      if (!urlMatches) continue;
-      
-      // Process each URL and associated information
-      for (let i = 0; i < urlMatches.length; i++) {
-        const url = urlMatches[i];
-        // Extract the text following this URL until next URL or end of line
-        const nextUrl = (i < urlMatches.length - 1) ? urlMatches[i + 1] : '';
-        let infoText = '';
-        
-        if (nextUrl) {
-          const startIdx = urlPart.indexOf(url) + url.length;
-          const endIdx = urlPart.indexOf(nextUrl);
-          infoText = urlPart.substring(startIdx, endIdx);
-        } else {
-          const startIdx = urlPart.indexOf(url) + url.length;
-          infoText = urlPart.substring(startIdx);
-        }
-        
-        // Parse quality and size from the info text
-        const qualityMatch = infoText.match(/,\s*([\w\s]+p(?:\s+\d+Bit)?)/);
-        const quality = qualityMatch ? qualityMatch[1].trim() : 'Unknown';
-        
-        const sizeMatch = infoText.match(/,\s*([\d.]+\s*[GMK]B)/);
-        const size = sizeMatch ? sizeMatch[1].trim() : '';
-        
-        downloads.push({
-          url,
-          quality,
-          size
-        });
-      }
-    }
-  }
-  
-  return downloads;
-};
-
-/**
- * Search content by title
- * @param {string} searchQuery - The search query
- * @param {string} contentType - The type of content ('movies' or 'series')
- * @returns {Array} Array of matching content
- */
-export const searchContent = async (searchQuery, contentType = 'movies') => {
-  if (!searchQuery || searchQuery.trim() === '') {
-    // Return empty array for empty queries
-    return [];
-  }
-
-  const trimmedQuery = searchQuery.trim().toLowerCase();
+// ---- ENHANCED SEARCH ----
+export const searchContent = async (searchQuery, filters = {}) => {
+  if (!searchQuery || searchQuery.trim() === '') return [];
   
   try {
-    // Use the existing cached methods for better performance and reliability
-    const allItems = contentType === 'movies' 
-      ? await getAllMovies(500) 
-      : await getAllSeries(500);
+    const trimmedQuery = searchQuery.trim().toLowerCase();
+    const allContent = await fetchAllContent();
     
-    // Filter items where title contains the search query (case insensitive)
-    const results = allItems.filter(item => 
-      item.title && item.title.toLowerCase().includes(trimmedQuery)
-    );
-    
-    // Sort results by relevance (exact matches first)
+    let results = allContent.filter(item => {
+      const titleMatch = item.title.toLowerCase().includes(trimmedQuery);
+      const categoryMatch = item.categories.some(cat => 
+        cat.toLowerCase().includes(trimmedQuery)
+      );
+      const genreMatch = item.genres.some(genre => 
+        genre.toLowerCase().includes(trimmedQuery)
+      );
+      
+      return titleMatch || categoryMatch || genreMatch;
+    });
+
+    // Apply filters
+    if (filters.contentType === 'movies') {
+      results = results.filter(item => !item.isSeries);
+    } else if (filters.contentType === 'series') {
+      results = results.filter(item => item.isSeries);
+    }
+
+    if (filters.genre) {
+      results = results.filter(item => 
+        item.genres.some(genre => 
+          genre.toLowerCase().includes(filters.genre.toLowerCase())
+        )
+      );
+    }
+
+    if (filters.language) {
+      results = results.filter(item => 
+        item.languages.some(lang => 
+          lang.toLowerCase().includes(filters.language.toLowerCase())
+        )
+      );
+    }
+
+    if (filters.year) {
+      results = results.filter(item => item.releaseYear === parseInt(filters.year));
+    }
+
+    // Sort by relevance
     results.sort((a, b) => {
-      const aTitle = (a.title || '').toLowerCase();
-      const bTitle = (b.title || '').toLowerCase();
+      const aTitle = a.title.toLowerCase();
+      const bTitle = b.title.toLowerCase();
       
-      // Exact match at the beginning gets highest priority
+      // Exact title matches first
+      if (aTitle === trimmedQuery && bTitle !== trimmedQuery) return -1;
+      if (aTitle !== trimmedQuery && bTitle === trimmedQuery) return 1;
+      
+      // Title starts with query
       if (aTitle.startsWith(trimmedQuery) && !bTitle.startsWith(trimmedQuery)) return -1;
       if (!aTitle.startsWith(trimmedQuery) && bTitle.startsWith(trimmedQuery)) return 1;
       
-      // Next, exact matches anywhere in the title
+      // Title contains query
       const aIncludes = aTitle.includes(trimmedQuery);
       const bIncludes = bTitle.includes(trimmedQuery);
       if (aIncludes && !bIncludes) return -1;
       if (!aIncludes && bIncludes) return 1;
       
-      // Finally, sort alphabetically
-      return aTitle.localeCompare(bTitle);
+      // Sort by recency if both match similarly
+      return new Date(b.modifiedDate) - new Date(a.modifiedDate);
     });
-    
-    return results;
+
+    return results.slice(0, filters.limit || 50);
   } catch (error) {
     console.error("Error searching content:", error);
     return [];
   }
 };
 
+// ---- UTILITY FUNCTIONS ----
+export const getContentStats = async () => {
+  try {
+    const allContent = await fetchAllContent();
+    const movies = allContent.filter(item => !item.isSeries);
+    const series = allContent.filter(item => item.isSeries);
+    
+    const genreStats = {};
+    const languageStats = {};
+    const yearStats = {};
+    
+    allContent.forEach(item => {
+      // Count genres
+      item.genres.forEach(genre => {
+        genreStats[genre] = (genreStats[genre] || 0) + 1;
+      });
+      
+      // Count languages
+      item.languages.forEach(lang => {
+        languageStats[lang] = (languageStats[lang] || 0) + 1;
+      });
+      
+      // Count years
+      if (item.releaseYear) {
+        yearStats[item.releaseYear] = (yearStats[item.releaseYear] || 0) + 1;
+      }
+    });
+    
+    return {
+      totalContent: allContent.length,
+      totalMovies: movies.length,
+      totalSeries: series.length,
+      genreStats,
+      languageStats,
+      yearStats,
+      categories: Array.from(categoryIndex.keys()).length
+    };
+  } catch (error) {
+    console.error("Error getting content stats:", error);
+    return null;
+  }
+};
+
+// Clear cache function
+export const clearCache = () => {
+  contentCache.clear();
+  categoryIndex.clear();
+  lastCacheUpdate = null;
+};
+
+// Force refresh function
+export const refreshData = async () => {
+  clearCache();
+  return await fetchAllContent();
+};
+
+// Export default object
 export default {
-  getMoviesByCategory,
-  getHomePageSections,
-  getMovieById,
+  // Core functions
   getAllMovies,
   getAllSeries,
-  searchMovies,
-  getAvailableSeasons,
-  parseEpisodes,
-  parseFullSeasonDownloads,
-  searchContent
+  getMovieById,
+  searchContent,
+  
+  // Category functions
+  getAllCategories,
+  getMoviesByCategory,
+  getMoviesByGenre,
+  getMoviesByYear,
+  getMoviesByLanguage,
+  
+  // Special sections
+  getHomePageSections,
+  
+  // Utility functions
+  getContentStats,
+  clearCache,
+  refreshData
 };

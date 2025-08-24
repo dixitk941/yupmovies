@@ -1,30 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { BrowserRouter as Router, Route, Routes, useNavigate } from "react-router-dom";
-
-// Import your pages
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import Home from "./pages/Home";
 import ProtectedPage from "./pages/ProtectedPage";
 import ForbiddenPage from "./pages/ForbiddenPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import { addListener, launch } from "devtools-detector";
-
-// Import jsrsasign for JWT
 import { KJUR, b64utoutf8 } from "jsrsasign";
 
-const SECRET = "hiicine_demo_secret_2025"; // Must match your token GENERATOR
+const SECRET = "hiicine_demo_secret_2025";
 
-// Utility: detect API/bot tools
 function isApiTool() {
   try {
     const userAgent = navigator.userAgent.toLowerCase();
-    const apiTools = [
-      "postman", "insomnia", "curl", "wget", "python-requests", "axios",
-      "hoppscotch", "httpclient", "powershell", "httpie"
-    ];
-    const weirdProps = [
-      "callPhantom","_phantom","phantom","__nightmare","selenium","webdriver",
-      "__selenium_unwrapped","__webdriver_evaluate"
-    ];
+    const apiTools = ["postman", "insomnia", "curl", "wget", "python-requests", "axios", "hoppscotch", "httpclient", "powershell", "httpie"];
+    const weirdProps = ["callPhantom","_phantom","phantom","__nightmare","selenium","webdriver", "__selenium_unwrapped","__webdriver_evaluate"];
     for (const tool of apiTools) { if (userAgent.includes(tool)) return true; }
     for (const p of weirdProps) { if (window[p]) return true; }
     if (navigator.webdriver) return true;
@@ -35,7 +24,6 @@ function isApiTool() {
   }
 }
 
-// Utility: detect localhost for DevTools exception
 function isLocalhost() {
   return (
     window.location.hostname === "localhost" ||
@@ -43,12 +31,10 @@ function isLocalhost() {
   );
 }
 
-// Token gating page
 function EnterTokenPage({ setHasAccess }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -76,10 +62,8 @@ function EnterTokenPage({ setHasAccess }) {
         setLoading(false);
         return;
       }
-      // Valid!
       setHasAccess(true);
       sessionStorage.setItem("hiiCineSessionValidated", "1");
-      navigate("/");
     } catch (err) {
       setError("Token format is invalid or corrupted.");
     } finally {
@@ -89,13 +73,8 @@ function EnterTokenPage({ setHasAccess }) {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#121212]">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-gray-800 p-8 rounded shadow-md w-full max-w-md"
-      >
-        <h1 className="text-3xl mb-4 text-center font-bold text-red-500">
-          Enter Access Token
-        </h1>
+      <form onSubmit={handleSubmit} className="bg-gray-800 p-8 rounded shadow-md w-full max-w-md">
+        <h1 className="text-3xl mb-4 text-center font-bold text-red-500">Enter Access Token</h1>
         <input
           type="text"
           value={input}
@@ -123,12 +102,10 @@ function App() {
   const [isChecking, setIsChecking] = useState(true);
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
 
-  // Block tools/bots immediately
   useEffect(() => {
     if (isApiTool()) setBlock(true);
   }, []);
 
-  // Detect and block DevTools in production ONLY
   useEffect(() => {
     if (!isLocalhost()) {
       const handleDevToolsStatus = (isOpen) => {
@@ -147,7 +124,6 @@ function App() {
     }
   }, []);
 
-  // Session access check
   useEffect(() => {
     if (sessionStorage.getItem("hiiCineSessionValidated") === "1") {
       setHasAccess(true);
@@ -168,7 +144,12 @@ function App() {
   }
 
   return (
-    <Router>
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
       <Routes>
         {hasAccess ? (
           <>
@@ -178,10 +159,7 @@ function App() {
           </>
         ) : (
           <>
-            <Route
-              path="*"
-              element={<EnterTokenPage setHasAccess={setHasAccess} />}
-            />
+            <Route path="*" element={<EnterTokenPage setHasAccess={setHasAccess} />} />
           </>
         )}
       </Routes>
