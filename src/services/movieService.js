@@ -7,8 +7,10 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Enhanced in-memory caches with category indexing
 let contentCache = new Map();
+let seriesCache = new Map();
 let categoryIndex = new Map();
 let lastCacheUpdate = null;
+let lastSeriesCacheUpdate = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Helper function to extract and normalize categories
@@ -56,59 +58,137 @@ const extractLanguageFromName = (name) => {
   return 'Unknown';
 };
 
-// Helper function to calculate total size info
-const calculateTotalSize = (links) => {
-  if (links.length === 0) return { totalSizeMB: 0, sizeRange: 'Unknown' };
+// **NEW: Enhanced series episode parser**
+const parseSeriesEpisodes = (seasonData) => {
+  if (!seasonData || seasonData.trim() === '') return [];
   
-  const sizes = links.map(link => link.sizeInMB).filter(size => size > 0);
-  if (sizes.length === 0) return { totalSizeMB: 0, sizeRange: 'Unknown' };
+  const episodes = [];
   
-  const minSize = Math.min(...sizes);
-  const maxSize = Math.max(...sizes);
-  
-  const formatSize = (mb) => {
-    if (mb >= 1024) {
-      return `${(mb / 1024).toFixed(1)}GB`;
+  try {
+    // Remove the season header (e.g., "Season 1 English 480p Esubs [150MB/E]")
+    let cleanData = seasonData.replace(/^[^{]*{/, '{').replace(/}[^}]*$/, '}');
+    
+    // Extract content between braces
+    const match = cleanData.match(/^{(.*)}$/);
+    if (!match) return [];
+    
+    const content = match[1];
+    
+    // Split by "Episode" keyword to get individual episodes
+    const episodeParts = content.split(/Episode\s+(\d+)\s*:/);
+    
+    for (let i = 1; i < episodeParts.length; i += 2) {
+      const episodeNumber = parseInt(episodeParts[i]);
+      const episodeLinks = episodeParts[i + 1];
+      
+      if (episodeLinks) {
+        // Parse download links for this episode
+        const links = parseEpisodeLinks(episodeLinks, episodeNumber);
+        
+        if (links.length > 0) {
+          episodes.push({
+            episodeNumber,
+            title: `Episode ${episodeNumber}`,
+            downloadLinks: links
+          });
+        }
+      }
     }
-    return `${mb.toFixed(0)}MB`;
-  };
+    
+    // Also parse season-wide download links
+    const seasonMatch = content.match(/Season\s+\d+\s*:\s*([^:]+)/);
+    if (seasonMatch) {
+      const seasonLinks = parseEpisodeLinks(seasonMatch[1], null);
+      if (seasonLinks.length > 0) {
+        episodes.push({
+          episodeNumber: 'complete',
+          title: 'Complete Season',
+          downloadLinks: seasonLinks
+        });
+      }
+    }
+    
+  } catch (error) {
+    console.warn('Error parsing series episodes:', error);
+  }
   
-  return {
-    totalSizeMB: sizes.reduce((a, b) => a + b, 0),
-    sizeRange: minSize === maxSize ? formatSize(minSize) : `${formatSize(minSize)} - ${formatSize(maxSize)}`,
-    smallestSize: formatSize(minSize),
-    largestSize: formatSize(maxSize)
-  };
+  return episodes;
 };
 
-// Helper function to determine content type and extract quality info
-const analyzeContent = (row) => {
+// **NEW: Parse individual episode download links**
+const parseEpisodeLinks = (linkString, episodeNumber) => {
+  if (!linkString) return [];
+  
+  const links = [];
+  
+  try {
+    // Split by " : " to separate different quality options
+    const linkParts = linkString.split(' : ');
+    
+    linkParts.forEach(part => {
+      const trimmed = part.trim();
+      if (trimmed.startsWith('https://')) {
+        // Parse format: URL,quality,size
+        const segments = trimmed.split(',');
+        
+        if (segments.length >= 3) {
+          const url = segments[0].trim();
+          const quality = segments[1].trim();
+          const size = segments[2].trim();
+          
+          // Extract title from URL or use episode info
+          const urlParts = url.split('/');
+          const filename = urlParts[urlParts.length - 1] || '';
+          const cleanTitle = filename.replace(/\.(mkv|mp4|avi)$/, '');
+          
+          links.push({
+            url: url,
+            name: cleanTitle || `Episode ${episodeNumber} - ${quality}`,
+            title: cleanTitle || `Episode ${episodeNumber}`,
+            quality: quality,
+            size: size,
+            sizeInMB: parseSizeToMB(size),
+            language: extractLanguageFromName(cleanTitle || ''),
+            episodeNumber: episodeNumber
+          });
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.warn('Error parsing episode links:', error);
+  }
+  
+  return links;
+};
+
+// **NEW: Transform series data**
+const transformSeriesData = (row) => {
   const categories = parseCategories(row.categories || '');
   
-  // Check for seasons to determine if it's a series
+  // Parse seasons data
+  const seasons = {};
   const seasonColumns = [
     'season_1', 'season_2', 'season_3', 'season_4', 'season_5',
     'season_6', 'season_7', 'season_8', 'season_9', 'season_10'
   ];
   
-  const seasons = {};
-  let hasSeasons = false;
-  
   seasonColumns.forEach((col, index) => {
     if (row[col] && row[col].trim() !== '') {
-      seasons[`season_${index + 1}`] = row[col];
-      hasSeasons = true;
+      const seasonNumber = index + 1;
+      const episodes = parseSeriesEpisodes(row[col]);
+      
+      if (episodes.length > 0) {
+        seasons[`season_${seasonNumber}`] = {
+          seasonNumber,
+          episodes,
+          totalEpisodes: episodes.filter(ep => ep.episodeNumber !== 'complete').length
+        };
+      }
     }
   });
-
-  // Extract quality information from categories
-  const qualities = categories.filter(cat => 
-    ['480p', '720p', '1080p', '4K', 'HD', 'Full HD'].some(quality => 
-      cat.includes(quality)
-    )
-  );
-
-  // Extract genres (excluding technical categories)
+  
+  // Extract genres and other metadata
   const technicalCategories = [
     '480p', '720p', '1080p', '4K', 'HD', 'Full HD',
     'Hindi Dubbed Movies', 'Telugu', 'Tamil', 'Malayalam',
@@ -120,86 +200,23 @@ const analyzeContent = (row) => {
     !technicalCategories.some(tech => cat.includes(tech)) &&
     !cat.match(/^\d{4}$/) // Exclude years
   );
-
-  // Extract year from categories
+  
   const years = categories.filter(cat => cat.match(/^\d{4}$/));
   const releaseYear = years.length > 0 ? parseInt(years[0]) : null;
-
-  // Extract language information
+  
   const languages = categories.filter(cat => 
     ['Hindi', 'Telugu', 'Tamil', 'Malayalam', 'English', 'Punjabi', 'Gujarati'].some(lang =>
       cat.includes(lang)
     )
   );
-
-  return {
-    isSeries: hasSeasons,
-    seasons: hasSeasons ? seasons : null,
-    qualities,
-    genres,
-    languages,
-    releaseYear,
-    allCategories: categories
-  };
-};
-
-// Enhanced transform function with improved link parsing
-const transformMovieData = (row) => {
-  const contentAnalysis = analyzeContent(row);
   
-  // Enhanced link parsing for multiple links with quality, size, and name
-  let downloadLinks = [];
-  if (row.links) {
-    try {
-      // Split links by the pattern: URL,Name,Size
-      const linkEntries = row.links.split('https://').filter(entry => entry.trim());
-      
-      linkEntries.forEach(entry => {
-        if (entry.trim()) {
-          // Add back the https:// prefix and split by comma
-          const fullEntry = 'https://' + entry;
-          const parts = fullEntry.split(',');
-          
-          if (parts.length >= 3) {
-            const url = parts[0].trim();
-            const name = parts[1].trim();
-            const size = parts[2].trim();
-            
-            // Extract quality from the name (480p, 720p, 1080p, etc.)
-            const qualityMatch = name.match(/(480p|720p|1080p|4K|2160p)/i);
-            const quality = qualityMatch ? qualityMatch[1] : 'Unknown';
-            
-            // Extract just the movie title (remove quality and size info)
-            const titleMatch = name.match(/^(.+?)\s*\{.*?\}\s*(480p|720p|1080p|4K|2160p)/i) || 
-                              name.match(/^(.+?)\s*(480p|720p|1080p|4K|2160p)/i);
-            const movieTitle = titleMatch ? titleMatch[1].trim() : name;
-            
-            downloadLinks.push({
-              url: url,
-              name: name,
-              title: movieTitle,
-              quality: quality,
-              size: size,
-              // Additional parsed info
-              sizeInMB: parseSizeToMB(size),
-              language: extractLanguageFromName(name)
-            });
-          }
-        }
-      });
-      
-      // Sort by quality preference (1080p > 720p > 480p)
-      downloadLinks.sort((a, b) => {
-        const qualityOrder = { '1080p': 3, '720p': 2, '480p': 1, '4K': 4, '2160p': 4 };
-        return (qualityOrder[b.quality] || 0) - (qualityOrder[a.quality] || 0);
-      });
-      
-    } catch (error) {
-      console.warn('Error parsing links for movie:', row.title, error);
-    }
-  }
-
-  // Parse content metadata if available
+  const qualities = categories.filter(cat => 
+    ['480p', '720p', '1080p', '4K', 'HD', 'Full HD'].some(quality => 
+      cat.includes(quality)
+    )
+  );
+  
+  // Parse content metadata
   let metadata = {};
   if (row.content) {
     try {
@@ -212,11 +229,173 @@ const transformMovieData = (row) => {
         };
       }
     } catch (error) {
-      // If parsing fails, treat as plain text description
       metadata = { description: row.content };
     }
   }
+  
+  // Calculate total statistics
+  const totalSeasons = Object.keys(seasons).length;
+  const allEpisodes = Object.values(seasons).flatMap(season => season.episodes);
+  const totalEpisodes = allEpisodes.filter(ep => ep.episodeNumber !== 'complete').length;
+  
+  return {
+    id: row.record_id?.toString() || row.url_slug,
+    recordId: row.record_id,
+    title: row.title,
+    slug: row.url_slug,
+    
+    // Media assets
+    featuredImage: row.featured_image,
+    poster: row.poster,
+    
+    // Series-specific data
+    isSeries: true,
+    seasons,
+    totalSeasons,
+    totalEpisodes,
+    
+    // Categories and classification
+    categories,
+    genres,
+    languages,
+    qualities,
+    releaseYear,
+    
+    // Available qualities across all episodes
+    availableQualities: [...new Set(allEpisodes.flatMap(ep => 
+      ep.downloadLinks.map(link => link.quality)
+    ))],
+    
+    // Content and metadata
+    content: metadata,
+    excerpt: row.excerpt,
+    
+    // Publishing info
+    status: row.status,
+    publishDate: row.date,
+    modifiedDate: row.modified_date
+  };
+};
 
+// **UPDATED: Movies transform function (simplified since series are separate)**
+const transformMovieData = (row) => {
+  const categories = parseCategories(row.categories || '');
+  
+  // Enhanced link parsing for movies (same as before)
+  let downloadLinks = [];
+  if (row.links) {
+    try {
+      const linkEntries = row.links.split('https://').filter(entry => entry.trim());
+      
+      linkEntries.forEach(entry => {
+        if (entry.trim()) {
+          const fullEntry = 'https://' + entry;
+          const parts = fullEntry.split(',');
+          
+          if (parts.length >= 3) {
+            const url = parts[0].trim();
+            const name = parts[1].trim();
+            const size = parts[2].trim();
+            
+            const qualityMatch = name.match(/(480p|720p|1080p|4K|2160p)/i);
+            const quality = qualityMatch ? qualityMatch[1] : 'Unknown';
+            
+            const titleMatch = name.match(/^(.+?)\s*\{.*?\}\s*(480p|720p|1080p|4K|2160p)/i) || 
+                              name.match(/^(.+?)\s*(480p|720p|1080p|4K|2160p)/i);
+            const movieTitle = titleMatch ? titleMatch[1].trim() : name;
+            
+            downloadLinks.push({
+              url: url,
+              name: name,
+              title: movieTitle,
+              quality: quality,
+              size: size,
+              sizeInMB: parseSizeToMB(size),
+              language: extractLanguageFromName(name)
+            });
+          }
+        }
+      });
+      
+      downloadLinks.sort((a, b) => {
+        const qualityOrder = { '1080p': 3, '720p': 2, '480p': 1, '4K': 4, '2160p': 4 };
+        return (qualityOrder[b.quality] || 0) - (qualityOrder[a.quality] || 0);
+      });
+      
+    } catch (error) {
+      console.warn('Error parsing links for movie:', row.title, error);
+    }
+  }
+  
+  // Extract metadata
+  const technicalCategories = [
+    '480p', '720p', '1080p', '4K', 'HD', 'Full HD',
+    'Hindi Dubbed Movies', 'Telugu', 'Tamil', 'Malayalam',
+    'English Movies', 'Bollywood', 'Hollywood',
+    'WEB-DL', 'BluRay', 'DVDRip', 'CAMRip'
+  ];
+  
+  const genres = categories.filter(cat => 
+    !technicalCategories.some(tech => cat.includes(tech)) &&
+    !cat.match(/^\d{4}$/)
+  );
+  
+  const years = categories.filter(cat => cat.match(/^\d{4}$/));
+  const releaseYear = years.length > 0 ? parseInt(years[0]) : null;
+  
+  const languages = categories.filter(cat => 
+    ['Hindi', 'Telugu', 'Tamil', 'Malayalam', 'English', 'Punjabi', 'Gujarati'].some(lang =>
+      cat.includes(lang)
+    )
+  );
+  
+  const qualities = categories.filter(cat => 
+    ['480p', '720p', '1080p', '4K', 'HD', 'Full HD'].some(quality => 
+      cat.includes(quality)
+    )
+  );
+  
+  // Parse content metadata
+  let metadata = {};
+  if (row.content) {
+    try {
+      const parsed = JSON.parse(row.content);
+      if (Array.isArray(parsed) && parsed.length >= 3) {
+        metadata = {
+          description: parsed[0],
+          duration: parsed[1],
+          rating: parsed[2]
+        };
+      }
+    } catch (error) {
+      metadata = { description: row.content };
+    }
+  }
+  
+  const calculateTotalSize = (links) => {
+    if (links.length === 0) return { totalSizeMB: 0, sizeRange: 'Unknown' };
+    
+    const sizes = links.map(link => link.sizeInMB).filter(size => size > 0);
+    if (sizes.length === 0) return { totalSizeMB: 0, sizeRange: 'Unknown' };
+    
+    const minSize = Math.min(...sizes);
+    const maxSize = Math.max(...sizes);
+    
+    const formatSize = (mb) => {
+      if (mb >= 1024) {
+        return `${(mb / 1024).toFixed(1)}GB`;
+      }
+      return `${mb.toFixed(0)}MB`;
+    };
+    
+    return {
+      totalSizeMB: sizes.reduce((a, b) => a + b, 0),
+      sizeRange: minSize === maxSize ? formatSize(minSize) : `${formatSize(minSize)} - ${formatSize(maxSize)}`,
+      smallestSize: formatSize(minSize),
+      largestSize: formatSize(maxSize)
+    };
+  };
+  
   return {
     id: row.record_id?.toString() || row.url_slug,
     recordId: row.record_id,
@@ -228,17 +407,16 @@ const transformMovieData = (row) => {
     poster: row.poster,
     
     // Content classification
-    isSeries: contentAnalysis.isSeries,
-    seasons: contentAnalysis.seasons,
+    isSeries: false,
     
     // Categories and classification
-    categories: contentAnalysis.allCategories,
-    genres: contentAnalysis.genres,
-    languages: contentAnalysis.languages,
-    qualities: contentAnalysis.qualities,
-    releaseYear: contentAnalysis.releaseYear,
+    categories,
+    genres,
+    languages,
+    qualities,
+    releaseYear,
     
-    // Enhanced download links
+    // Download links
     downloadLinks,
     availableQualities: [...new Set(downloadLinks.map(link => link.quality))],
     totalSizeInfo: calculateTotalSize(downloadLinks),
@@ -259,6 +437,10 @@ const isCacheValid = () => {
   return lastCacheUpdate && (Date.now() - lastCacheUpdate < CACHE_DURATION);
 };
 
+const isSeriesCacheValid = () => {
+  return lastSeriesCacheUpdate && (Date.now() - lastSeriesCacheUpdate < CACHE_DURATION);
+};
+
 const updateCache = (data) => {
   contentCache.clear();
   categoryIndex.clear();
@@ -267,7 +449,6 @@ const updateCache = (data) => {
     const transformed = transformMovieData(item);
     contentCache.set(transformed.id, transformed);
     
-    // Index by categories for faster filtering
     transformed.categories.forEach(category => {
       if (!categoryIndex.has(category)) {
         categoryIndex.set(category, new Set());
@@ -279,8 +460,27 @@ const updateCache = (data) => {
   lastCacheUpdate = Date.now();
 };
 
-// Core data fetching function
-const fetchAllContent = async () => {
+const updateSeriesCache = (data) => {
+  seriesCache.clear();
+  
+  data.forEach(item => {
+    const transformed = transformSeriesData(item);
+    seriesCache.set(transformed.id, transformed);
+    
+    // Index series by categories as well
+    transformed.categories.forEach(category => {
+      if (!categoryIndex.has(category)) {
+        categoryIndex.set(category, new Set());
+      }
+      categoryIndex.get(category).add(transformed.id);
+    });
+  });
+  
+  lastSeriesCacheUpdate = Date.now();
+};
+
+// **UPDATED: Fetch movies from movies table**
+const fetchAllMovies = async () => {
   if (isCacheValid() && contentCache.size > 0) {
     return Array.from(contentCache.values());
   }
@@ -293,27 +493,51 @@ const fetchAllContent = async () => {
       .order('modified_date', { ascending: false });
 
     if (error) {
-      console.error('Error fetching content:', error);
+      console.error('Error fetching movies:', error);
       return [];
     }
 
     updateCache(data);
     return Array.from(contentCache.values());
   } catch (error) {
-    console.error("Error in fetchAllContent:", error);
+    console.error("Error in fetchAllMovies:", error);
     return [];
   }
 };
 
+// **NEW: Fetch series from series table**
+const fetchAllSeries = async () => {
+  if (isSeriesCacheValid() && seriesCache.size > 0) {
+    return Array.from(seriesCache.values());
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('series')
+      .select('*')
+      .eq('status', 'publish')
+      .order('modified_date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching series:', error);
+      return [];
+    }
+
+    updateSeriesCache(data);
+    return Array.from(seriesCache.values());
+  } catch (error) {
+    console.error("Error in fetchAllSeries:", error);
+    return [];
+  }
+};
+
+// **UPDATED FUNCTIONS**
+
 // ---- MOVIES ----
 export const getAllMovies = async (limitCount = 1000) => {
   try {
-    const allContent = await fetchAllContent();
-    const movies = allContent
-      .filter(item => !item.isSeries)
-      .slice(0, limitCount || allContent.length);
-    
-    return movies;
+    const movies = await fetchAllMovies();
+    return movies.slice(0, limitCount || movies.length);
   } catch (error) {
     console.error("Error fetching movies:", error);
     return [];
@@ -321,108 +545,109 @@ export const getAllMovies = async (limitCount = 1000) => {
 };
 
 // ---- SERIES ----
-export const getAllSeries = async (limitCount = 100) => {
+export const getAllSeries = async (limitCount = 1000) => {
   try {
-    const allContent = await fetchAllContent();
-    const series = allContent
-      .filter(item => item.isSeries)
-      .slice(0, limitCount || allContent.length);
-    
-    return series;
+    const series = await fetchAllSeries();
+    return series.slice(0, limitCount || series.length);
   } catch (error) {
     console.error("Error fetching series:", error);
     return [];
   }
 };
 
-// ---- ENHANCED CATEGORY FUNCTIONS ----
-export const getAllCategories = async () => {
+// **NEW: Series-specific functions**
+export const getSeriesById = async (id) => {
   try {
-    await fetchAllContent(); // Ensure cache is populated
-    return Array.from(categoryIndex.keys()).sort();
-  } catch (error) {
-    console.error("Error fetching categories:", error);
-    return [];
-  }
-};
-
-export const getMoviesByCategory = async (category, limitCount = 20) => {
-  try {
-    await fetchAllContent(); // Ensure cache is populated
-    
-    if (!categoryIndex.has(category)) {
-      return [];
+    // Check cache first
+    await fetchAllSeries();
+    if (seriesCache.has(id)) {
+      return seriesCache.get(id);
     }
-    
-    const itemIds = Array.from(categoryIndex.get(category));
-    const items = itemIds
-      .map(id => contentCache.get(id))
-      .filter(item => item) // Remove any null/undefined items
-      .slice(0, limitCount);
-    
-    return items;
+
+    // Direct database query
+    let { data, error } = await supabase
+      .from('series')
+      .select('*')
+      .eq('record_id', parseInt(id))
+      .eq('status', 'publish')
+      .single();
+
+    if (error && error.code === 'PGRST116') {
+      const { data: slugData, error: slugError } = await supabase
+        .from('series')
+        .select('*')
+        .eq('url_slug', id)
+        .eq('status', 'publish')
+        .single();
+      
+      data = slugData;
+      error = slugError;
+    }
+
+    if (error) {
+      console.error(`Error fetching series with ID ${id}:`, error);
+      return null;
+    }
+
+    return transformSeriesData(data);
   } catch (error) {
-    console.error("Error fetching movies by category:", error);
-    return [];
+    console.error(`Error fetching series with ID ${id}:`, error);
+    return null;
   }
 };
 
-export const getMoviesByGenre = async (genre, limitCount = 20) => {
+export const getSeriesEpisodes = async (seriesId, seasonNumber = null) => {
   try {
-    const allContent = await fetchAllContent();
-    const filtered = allContent
-      .filter(item => item.genres.some(g => 
-        g.toLowerCase().includes(genre.toLowerCase())
-      ))
-      .slice(0, limitCount);
-    
-    return filtered;
+    const series = await getSeriesById(seriesId);
+    if (!series) return [];
+
+    if (seasonNumber) {
+      const season = series.seasons[`season_${seasonNumber}`];
+      return season ? season.episodes : [];
+    }
+
+    // Return all episodes from all seasons
+    return Object.values(series.seasons).flatMap(season => season.episodes);
   } catch (error) {
-    console.error("Error fetching movies by genre:", error);
+    console.error("Error fetching series episodes:", error);
     return [];
   }
 };
 
-export const getMoviesByYear = async (year, limitCount = 20) => {
+export const getEpisodeDownloadLinks = async (seriesId, seasonNumber, episodeNumber) => {
   try {
-    const allContent = await fetchAllContent();
-    const filtered = allContent
-      .filter(item => item.releaseYear === parseInt(year))
-      .slice(0, limitCount);
-    
-    return filtered;
+    const episodes = await getSeriesEpisodes(seriesId, seasonNumber);
+    const episode = episodes.find(ep => ep.episodeNumber === episodeNumber);
+    return episode ? episode.downloadLinks : [];
   } catch (error) {
-    console.error("Error fetching movies by year:", error);
+    console.error("Error fetching episode download links:", error);
     return [];
   }
 };
 
-export const getMoviesByLanguage = async (language, limitCount = 20) => {
+// **UPDATED: Get content by ID (works for both movies and series)**
+export const getContentById = async (id) => {
   try {
-    const allContent = await fetchAllContent();
-    const filtered = allContent
-      .filter(item => item.languages.some(lang => 
-        lang.toLowerCase().includes(language.toLowerCase())
-      ))
-      .slice(0, limitCount);
-    
-    return filtered;
+    // Try movies first
+    const movie = await getMovieById(id);
+    if (movie) return movie;
+
+    // Try series
+    const series = await getSeriesById(id);
+    return series;
   } catch (error) {
-    console.error("Error fetching movies by language:", error);
-    return [];
+    console.error(`Error fetching content with ID ${id}:`, error);
+    return null;
   }
 };
 
-// ---- GET BY ID ----
 export const getMovieById = async (id) => {
   try {
-    // First check cache
-    await fetchAllContent();
+    await fetchAllMovies();
     if (contentCache.has(id)) {
       return contentCache.get(id);
     }
 
-    // If not in cache, try direct database query
     let { data, error } = await supabase
       .from('movies')
       .select('*')
@@ -443,22 +668,114 @@ export const getMovieById = async (id) => {
     }
 
     if (error) {
-      console.error(`Error fetching item with ID ${id}:`, error);
+      console.error(`Error fetching movie with ID ${id}:`, error);
       return null;
     }
 
     return transformMovieData(data);
   } catch (error) {
-    console.error(`Error fetching item with ID ${id}:`, error);
+    console.error(`Error fetching movie with ID ${id}:`, error);
     return null;
   }
 };
 
-// ---- ENHANCED DOWNLOAD FUNCTIONS ----
+// **UPDATED: Enhanced category functions to include both movies and series**
+export const getAllCategories = async () => {
+  try {
+    await fetchAllMovies();
+    await fetchAllSeries();
+    return Array.from(categoryIndex.keys()).sort();
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    return [];
+  }
+};
+
+export const getContentByCategory = async (category, limitCount = 20) => {
+  try {
+    await fetchAllMovies();
+    await fetchAllSeries();
+    
+    if (!categoryIndex.has(category)) {
+      return [];
+    }
+    
+    const itemIds = Array.from(categoryIndex.get(category));
+    const items = itemIds
+      .map(id => contentCache.get(id) || seriesCache.get(id))
+      .filter(item => item)
+      .slice(0, limitCount);
+    
+    return items;
+  } catch (error) {
+    console.error("Error fetching content by category:", error);
+    return [];
+  }
+};
+
+// Keep existing movie-specific functions for backward compatibility
+export const getMoviesByCategory = getContentByCategory;
+
+export const getMoviesByGenre = async (genre, limitCount = 20) => {
+  try {
+    const movies = await fetchAllMovies();
+    const series = await fetchAllSeries();
+    const allContent = [...movies, ...series];
+    
+    const filtered = allContent
+      .filter(item => item.genres.some(g => 
+        g.toLowerCase().includes(genre.toLowerCase())
+      ))
+      .slice(0, limitCount);
+    
+    return filtered;
+  } catch (error) {
+    console.error("Error fetching content by genre:", error);
+    return [];
+  }
+};
+
+export const getMoviesByYear = async (year, limitCount = 20) => {
+  try {
+    const movies = await fetchAllMovies();
+    const series = await fetchAllSeries();
+    const allContent = [...movies, ...series];
+    
+    const filtered = allContent
+      .filter(item => item.releaseYear === parseInt(year))
+      .slice(0, limitCount);
+    
+    return filtered;
+  } catch (error) {
+    console.error("Error fetching content by year:", error);
+    return [];
+  }
+};
+
+export const getMoviesByLanguage = async (language, limitCount = 20) => {
+  try {
+    const movies = await fetchAllMovies();
+    const series = await fetchAllSeries();
+    const allContent = [...movies, ...series];
+    
+    const filtered = allContent
+      .filter(item => item.languages.some(lang => 
+        lang.toLowerCase().includes(language.toLowerCase())
+      ))
+      .slice(0, limitCount);
+    
+    return filtered;
+  } catch (error) {
+    console.error("Error fetching content by language:", error);
+    return [];
+  }
+};
+
+// **UPDATED: Enhanced download functions (movies only)**
 export const getDownloadLinksByQuality = async (movieId, quality) => {
   try {
     const movie = await getMovieById(movieId);
-    if (!movie) return [];
+    if (!movie || movie.isSeries) return [];
     
     return movie.downloadLinks.filter(link => 
       link.quality.toLowerCase() === quality.toLowerCase()
@@ -469,12 +786,12 @@ export const getDownloadLinksByQuality = async (movieId, quality) => {
   }
 };
 
-export const getAvailableQualities = async (movieId) => {
+export const getAvailableQualities = async (contentId) => {
   try {
-    const movie = await getMovieById(movieId);
-    if (!movie) return [];
+    const content = await getContentById(contentId);
+    if (!content) return [];
     
-    return movie.availableQualities || [];
+    return content.availableQualities || [];
   } catch (error) {
     console.error("Error fetching available qualities:", error);
     return [];
@@ -484,9 +801,8 @@ export const getAvailableQualities = async (movieId) => {
 export const getRecommendedDownload = async (movieId) => {
   try {
     const movie = await getMovieById(movieId);
-    if (!movie || !movie.downloadLinks.length) return null;
+    if (!movie || movie.isSeries || !movie.downloadLinks.length) return null;
     
-    // Return the first link (already sorted by quality)
     return movie.downloadLinks[0];
   } catch (error) {
     console.error("Error fetching recommended download:", error);
@@ -494,20 +810,16 @@ export const getRecommendedDownload = async (movieId) => {
   }
 };
 
-// ---- ENHANCED HOME PAGE SECTIONS ----
+// **UPDATED: Enhanced home page sections with series**
 export const getHomePageSections = async (count = 10) => {
   try {
-    const allContent = await fetchAllContent();
+    const movies = await fetchAllMovies();
+    const series = await fetchAllSeries();
+    const allContent = [...movies, ...series];
     
-    // Separate movies and series
-    const movies = allContent.filter(item => !item.isSeries);
-    const series = allContent.filter(item => item.isSeries);
-
-    // Helper function to get random items
     const getRandomItems = (arr, n) => 
       [...arr].sort(() => 0.5 - Math.random()).slice(0, n);
 
-    // Get content by specific categories
     const featured = allContent.filter(item => 
       item.categories.some(cat => cat.toLowerCase().includes('featured'))
     ).slice(0, count);
@@ -524,25 +836,24 @@ export const getHomePageSections = async (count = 10) => {
       item.genres.some(genre => genre.toLowerCase().includes('thriller'))
     ).slice(0, count);
 
-    // Recent releases (2024-2025)
     const recentReleases = allContent.filter(item => 
       item.releaseYear && item.releaseYear >= 2024
     ).slice(0, count);
 
-    // Hindi content
     const hindiContent = allContent.filter(item => 
       item.languages.some(lang => lang.toLowerCase().includes('hindi'))
     ).slice(0, count);
 
     return {
-      featured: featured.length ? featured : getRandomItems(movies, count),
-      trending: trending.length ? trending : getRandomItems(movies, count),
-      action: action.length ? action : getRandomItems(movies, count),
-      thriller: thriller.length ? thriller : getRandomItems(movies, count),
-      recentReleases: recentReleases.length ? recentReleases : getRandomItems(movies, count),
-      hindiMovies: hindiContent.length ? hindiContent : getRandomItems(movies, count),
+      featured: featured.length ? featured : getRandomItems(allContent, count),
+      trending: trending.length ? trending : getRandomItems(allContent, count),
+      action: action.length ? action : getRandomItems(allContent, count),
+      thriller: thriller.length ? thriller : getRandomItems(allContent, count),
+      recentReleases: recentReleases.length ? recentReleases : getRandomItems(allContent, count),
+      hindiMovies: hindiContent.length ? hindiContent : getRandomItems(allContent, count),
       series: series.slice(0, count),
-      allMovies: movies.slice(0, count * 2) // More items for general browsing
+      movies: movies.slice(0, count),
+      allContent: allContent.slice(0, count * 2)
     };
   } catch (error) {
     console.error("Error fetching home page sections:", error);
@@ -554,18 +865,21 @@ export const getHomePageSections = async (count = 10) => {
       recentReleases: [],
       hindiMovies: [],
       series: [],
-      allMovies: []
+      movies: [],
+      allContent: []
     };
   }
 };
 
-// ---- ENHANCED SEARCH ----
+// **UPDATED: Enhanced search with series**
 export const searchContent = async (searchQuery, filters = {}) => {
   if (!searchQuery || searchQuery.trim() === '') return [];
   
   try {
     const trimmedQuery = searchQuery.trim().toLowerCase();
-    const allContent = await fetchAllContent();
+    const movies = await fetchAllMovies();
+    const series = await fetchAllSeries();
+    let allContent = [...movies, ...series];
     
     let results = allContent.filter(item => {
       const titleMatch = item.title.toLowerCase().includes(trimmedQuery);
@@ -611,21 +925,17 @@ export const searchContent = async (searchQuery, filters = {}) => {
       const aTitle = a.title.toLowerCase();
       const bTitle = b.title.toLowerCase();
       
-      // Exact title matches first
       if (aTitle === trimmedQuery && bTitle !== trimmedQuery) return -1;
       if (aTitle !== trimmedQuery && bTitle === trimmedQuery) return 1;
       
-      // Title starts with query
       if (aTitle.startsWith(trimmedQuery) && !bTitle.startsWith(trimmedQuery)) return -1;
       if (!aTitle.startsWith(trimmedQuery) && bTitle.startsWith(trimmedQuery)) return 1;
       
-      // Title contains query
       const aIncludes = aTitle.includes(trimmedQuery);
       const bIncludes = bTitle.includes(trimmedQuery);
       if (aIncludes && !bIncludes) return -1;
       if (!aIncludes && bIncludes) return 1;
       
-      // Sort by recency if both match similarly
       return new Date(b.modifiedDate) - new Date(a.modifiedDate);
     });
 
@@ -636,38 +946,39 @@ export const searchContent = async (searchQuery, filters = {}) => {
   }
 };
 
-// ---- UTILITY FUNCTIONS ----
+// **UPDATED: Content stats with series**
 export const getContentStats = async () => {
   try {
-    const allContent = await fetchAllContent();
-    const movies = allContent.filter(item => !item.isSeries);
-    const series = allContent.filter(item => item.isSeries);
+    const movies = await fetchAllMovies();
+    const series = await fetchAllSeries();
+    const allContent = [...movies, ...series];
     
     const genreStats = {};
     const languageStats = {};
     const yearStats = {};
     
     allContent.forEach(item => {
-      // Count genres
       item.genres.forEach(genre => {
         genreStats[genre] = (genreStats[genre] || 0) + 1;
       });
       
-      // Count languages
       item.languages.forEach(lang => {
         languageStats[lang] = (languageStats[lang] || 0) + 1;
       });
       
-      // Count years
       if (item.releaseYear) {
         yearStats[item.releaseYear] = (yearStats[item.releaseYear] || 0) + 1;
       }
     });
     
+    // Calculate total episodes for series
+    const totalEpisodes = series.reduce((sum, serie) => sum + (serie.totalEpisodes || 0), 0);
+    
     return {
       totalContent: allContent.length,
       totalMovies: movies.length,
       totalSeries: series.length,
+      totalEpisodes,
       genreStats,
       languageStats,
       yearStats,
@@ -679,35 +990,45 @@ export const getContentStats = async () => {
   }
 };
 
-// Clear cache function
+// **UPDATED: Clear cache functions**
 export const clearCache = () => {
   contentCache.clear();
+  seriesCache.clear();
   categoryIndex.clear();
   lastCacheUpdate = null;
+  lastSeriesCacheUpdate = null;
 };
 
-// Force refresh function
 export const refreshData = async () => {
   clearCache();
-  return await fetchAllContent();
+  const movies = await fetchAllMovies();
+  const series = await fetchAllSeries();
+  return { movies, series };
 };
 
-// Export default object
+// Export all functions
 export default {
   // Core functions
   getAllMovies,
   getAllSeries,
   getMovieById,
+  getSeriesById,
+  getContentById,
   searchContent,
+  
+  // Series-specific functions
+  getSeriesEpisodes,
+  getEpisodeDownloadLinks,
   
   // Category functions
   getAllCategories,
+  getContentByCategory,
   getMoviesByCategory,
   getMoviesByGenre,
   getMoviesByYear,
   getMoviesByLanguage,
   
-  // Enhanced download functions
+  // Download functions
   getDownloadLinksByQuality,
   getAvailableQualities,
   getRecommendedDownload,
