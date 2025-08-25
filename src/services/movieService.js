@@ -20,6 +20,67 @@ const parseCategories = (categoriesString) => {
     .filter(cat => cat.length > 0);
 };
 
+// Helper function to parse size to MB for comparison
+const parseSizeToMB = (sizeString) => {
+  if (!sizeString) return 0;
+  
+  const size = parseFloat(sizeString);
+  if (sizeString.toLowerCase().includes('gb')) {
+    return size * 1024; // Convert GB to MB
+  } else if (sizeString.toLowerCase().includes('mb')) {
+    return size;
+  } else if (sizeString.toLowerCase().includes('kb')) {
+    return size / 1024; // Convert KB to MB
+  }
+  return 0;
+};
+
+// Helper function to extract language from name
+const extractLanguageFromName = (name) => {
+  const languagePatterns = [
+    'English with Subtitles',
+    'Hindi Dubbed',
+    'Tamil',
+    'Telugu',
+    'Malayalam',
+    'Punjabi',
+    'English',
+    'Hindi'
+  ];
+  
+  for (let pattern of languagePatterns) {
+    if (name.includes(pattern)) {
+      return pattern;
+    }
+  }
+  return 'Unknown';
+};
+
+// Helper function to calculate total size info
+const calculateTotalSize = (links) => {
+  if (links.length === 0) return { totalSizeMB: 0, sizeRange: 'Unknown' };
+  
+  const sizes = links.map(link => link.sizeInMB).filter(size => size > 0);
+  if (sizes.length === 0) return { totalSizeMB: 0, sizeRange: 'Unknown' };
+  
+  const minSize = Math.min(...sizes);
+  const maxSize = Math.max(...sizes);
+  
+  const formatSize = (mb) => {
+    if (mb >= 1024) {
+      return `${(mb / 1024).toFixed(1)}GB`;
+    }
+    return `${mb.toFixed(0)}MB`;
+  };
+  
+  return {
+    totalSizeMB: sizes.reduce((a, b) => a + b, 0),
+    sizeRange: minSize === maxSize ? formatSize(minSize) : `${formatSize(minSize)} - ${formatSize(maxSize)}`,
+    smallestSize: formatSize(minSize),
+    largestSize: formatSize(maxSize)
+  };
+};
+
 // Helper function to determine content type and extract quality info
 const analyzeContent = (row) => {
   const categories = parseCategories(row.categories || '');
@@ -82,24 +143,57 @@ const analyzeContent = (row) => {
   };
 };
 
-// Enhanced transform function
+// Enhanced transform function with improved link parsing
 const transformMovieData = (row) => {
   const contentAnalysis = analyzeContent(row);
   
-  // Parse links if they exist
+  // Enhanced link parsing for multiple links with quality, size, and name
   let downloadLinks = [];
   if (row.links) {
     try {
-      // Split by comma and parse each link
-      const linkPairs = row.links.split(',');
-      for (let i = 0; i < linkPairs.length; i += 2) {
-        if (linkPairs[i] && linkPairs[i + 1]) {
-          downloadLinks.push({
-            url: linkPairs[i].trim(),
-            quality: linkPairs[i + 1].trim()
-          });
+      // Split links by the pattern: URL,Name,Size
+      const linkEntries = row.links.split('https://').filter(entry => entry.trim());
+      
+      linkEntries.forEach(entry => {
+        if (entry.trim()) {
+          // Add back the https:// prefix and split by comma
+          const fullEntry = 'https://' + entry;
+          const parts = fullEntry.split(',');
+          
+          if (parts.length >= 3) {
+            const url = parts[0].trim();
+            const name = parts[1].trim();
+            const size = parts[2].trim();
+            
+            // Extract quality from the name (480p, 720p, 1080p, etc.)
+            const qualityMatch = name.match(/(480p|720p|1080p|4K|2160p)/i);
+            const quality = qualityMatch ? qualityMatch[1] : 'Unknown';
+            
+            // Extract just the movie title (remove quality and size info)
+            const titleMatch = name.match(/^(.+?)\s*\{.*?\}\s*(480p|720p|1080p|4K|2160p)/i) || 
+                              name.match(/^(.+?)\s*(480p|720p|1080p|4K|2160p)/i);
+            const movieTitle = titleMatch ? titleMatch[1].trim() : name;
+            
+            downloadLinks.push({
+              url: url,
+              name: name,
+              title: movieTitle,
+              quality: quality,
+              size: size,
+              // Additional parsed info
+              sizeInMB: parseSizeToMB(size),
+              language: extractLanguageFromName(name)
+            });
+          }
         }
-      }
+      });
+      
+      // Sort by quality preference (1080p > 720p > 480p)
+      downloadLinks.sort((a, b) => {
+        const qualityOrder = { '1080p': 3, '720p': 2, '480p': 1, '4K': 4, '2160p': 4 };
+        return (qualityOrder[b.quality] || 0) - (qualityOrder[a.quality] || 0);
+      });
+      
     } catch (error) {
       console.warn('Error parsing links for movie:', row.title, error);
     }
@@ -144,10 +238,14 @@ const transformMovieData = (row) => {
     qualities: contentAnalysis.qualities,
     releaseYear: contentAnalysis.releaseYear,
     
+    // Enhanced download links
+    downloadLinks,
+    availableQualities: [...new Set(downloadLinks.map(link => link.quality))],
+    totalSizeInfo: calculateTotalSize(downloadLinks),
+    
     // Content and metadata
     content: metadata,
     excerpt: row.excerpt,
-    downloadLinks,
     
     // Publishing info
     status: row.status,
@@ -208,7 +306,7 @@ const fetchAllContent = async () => {
 };
 
 // ---- MOVIES ----
-export const getAllMovies = async (limitCount = 100) => {
+export const getAllMovies = async (limitCount = 1000) => {
   try {
     const allContent = await fetchAllContent();
     const movies = allContent
@@ -352,6 +450,46 @@ export const getMovieById = async (id) => {
     return transformMovieData(data);
   } catch (error) {
     console.error(`Error fetching item with ID ${id}:`, error);
+    return null;
+  }
+};
+
+// ---- ENHANCED DOWNLOAD FUNCTIONS ----
+export const getDownloadLinksByQuality = async (movieId, quality) => {
+  try {
+    const movie = await getMovieById(movieId);
+    if (!movie) return [];
+    
+    return movie.downloadLinks.filter(link => 
+      link.quality.toLowerCase() === quality.toLowerCase()
+    );
+  } catch (error) {
+    console.error("Error fetching download links by quality:", error);
+    return [];
+  }
+};
+
+export const getAvailableQualities = async (movieId) => {
+  try {
+    const movie = await getMovieById(movieId);
+    if (!movie) return [];
+    
+    return movie.availableQualities || [];
+  } catch (error) {
+    console.error("Error fetching available qualities:", error);
+    return [];
+  }
+};
+
+export const getRecommendedDownload = async (movieId) => {
+  try {
+    const movie = await getMovieById(movieId);
+    if (!movie || !movie.downloadLinks.length) return null;
+    
+    // Return the first link (already sorted by quality)
+    return movie.downloadLinks[0];
+  } catch (error) {
+    console.error("Error fetching recommended download:", error);
     return null;
   }
 };
@@ -568,6 +706,11 @@ export default {
   getMoviesByGenre,
   getMoviesByYear,
   getMoviesByLanguage,
+  
+  // Enhanced download functions
+  getDownloadLinksByQuality,
+  getAvailableQualities,
+  getRecommendedDownload,
   
   // Special sections
   getHomePageSections,
