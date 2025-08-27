@@ -56,22 +56,6 @@ const parseSeriesEpisodes = (seasonData) => {
       }
     }
     
-    // Look for season-wide download links (Season 1 : URL, Season 2 : URL, etc.)
-    const seasonMatch = seasonData.match(/Season\s+\d+\s*:\s*([^Episode]+)/);
-    if (seasonMatch) {
-      console.log('🎯 Found season download section:', seasonMatch[1].substring(0, 100) + '...');
-      const seasonLinks = parseEpisodeLinks(seasonMatch[1], 'complete');
-      if (seasonLinks.length > 0) {
-        episodes.push({
-          id: 'complete_season',
-          episodeNumber: 'complete',
-          title: 'Complete Season',
-          downloadLinks: seasonLinks
-        });
-        console.log(`✅ Added Complete Season with ${seasonLinks.length} links`);
-      }
-    }
-    
   } catch (error) {
     console.error('💥 Error parsing series episodes:', error);
   }
@@ -80,7 +64,7 @@ const parseSeriesEpisodes = (seasonData) => {
   return episodes;
 };
 
-// UPDATED: Parse individual episode download links for your format
+// UPDATED: Parse individual episode download links - now only handles episode streaming files
 const parseEpisodeLinks = (linkString, episodeNumber) => {
   if (!linkString) return [];
   
@@ -131,7 +115,8 @@ const parseEpisodeLinks = (linkString, episodeNumber) => {
         // Clean up the URL (remove any trailing text)
         const cleanUrl = url.split('?')[0] + (url.includes('?') ? '?' + url.split('?')[1].split(',')[0] : '');
         
-        links.push({
+        // Create episode streaming link entry
+        const linkEntry = {
           url: cleanUrl,
           name: `Episode ${episodeNumber} - ${quality}`,
           title: `Episode ${episodeNumber}`,
@@ -139,12 +124,17 @@ const parseEpisodeLinks = (linkString, episodeNumber) => {
           size: size,
           sizeInMB: parseSizeToMB(size),
           language: extractLanguageFromName(trimmed),
-          episodeNumber: episodeNumber
-        });
+          episodeNumber: episodeNumber,
+          isPackage: false, // Episode streaming files are never packages
+          downloadType: 'episode' // Clear categorization
+        };
         
-        console.log(`✅ Parsed link ${index + 1}:`, {
+        links.push(linkEntry);
+        
+        console.log(`✅ Parsed episode link ${index + 1}:`, {
           quality,
           size,
+          downloadType: linkEntry.downloadType,
           url: cleanUrl.substring(0, 50) + '...'
         });
       }
@@ -152,6 +142,89 @@ const parseEpisodeLinks = (linkString, episodeNumber) => {
     
   } catch (error) {
     console.error('💥 Error parsing episode links:', error);
+  }
+  
+  return links;
+};
+
+// NEW: Parse season zip/package links from season_zip column
+const parseSeasonZipLinks = (seasonZipData) => {
+  if (!seasonZipData || seasonZipData.trim() === '') return [];
+  
+  const links = [];
+  
+  try {
+    console.log('📦 Parsing season zip data:', seasonZipData.substring(0, 200) + '...');
+    
+    // Split by " : " to separate different package options
+    const zipParts = seasonZipData.split(' : ');
+    console.log(`📦 Found ${zipParts.length} zip parts`);
+    
+    zipParts.forEach((part, index) => {
+      const trimmed = part.trim();
+      
+      // Look for URLs in square brackets or direct URLs
+      const urlMatch = trimmed.match(/\[([^\]]+)\]|^(https?:\/\/[^\s,]+)/);
+      if (urlMatch) {
+        const url = urlMatch[1] || urlMatch[2];
+        
+        // Extract quality and size from the remaining text
+        const remainingText = trimmed.replace(/\[[^\]]+\]/, '').replace(/^https?:\/\/[^\s,]+/, '');
+        
+        // Parse quality and size from format like ",720p,1.63 GB" or ",1080p,5.1 GB"
+        const qualityMatch = remainingText.match(/,([^,]*(?:p|bit|K|Season)[^,]*),([^,\n\r]+)/i) || 
+                            remainingText.match(/,([^,]*),([^,\n\r]+)/);
+        
+        let quality = 'Package';
+        let size = 'Unknown';
+        
+        if (qualityMatch) {
+          quality = qualityMatch[1].trim() || 'Package';
+          size = qualityMatch[2].trim() || 'Unknown';
+        } else {
+          // Fallback: try to extract quality from the text
+          const qualityFallback = remainingText.match(/(480p|720p|1080p|4K|2160p|Season)/i);
+          if (qualityFallback) {
+            quality = qualityFallback[1];
+          }
+          
+          // Fallback: try to extract size
+          const sizeFallback = remainingText.match(/(\d+(?:\.\d+)?\s*(?:MB|GB|KB))/i);
+          if (sizeFallback) {
+            size = sizeFallback[1];
+          }
+        }
+        
+        // Clean up the URL (remove any trailing text)
+        const cleanUrl = url.split('?')[0] + (url.includes('?') ? '?' + url.split('?')[1].split(',')[0] : '');
+        
+        // Create package link entry
+        const linkEntry = {
+          url: cleanUrl,
+          name: `Season Package - ${quality}`,
+          title: `Season Package`,
+          quality: quality,
+          size: size,
+          sizeInMB: parseSizeToMB(size),
+          language: extractLanguageFromName(trimmed),
+          episodeNumber: 'package', // Special identifier for packages
+          isPackage: true, // Season packages are always packages
+          downloadType: 'package' // Clear categorization
+        };
+        
+        links.push(linkEntry);
+        
+        console.log(`✅ Parsed package link ${index + 1}:`, {
+          quality,
+          size,
+          downloadType: linkEntry.downloadType,
+          url: cleanUrl.substring(0, 50) + '...'
+        });
+      }
+    });
+    
+  } catch (error) {
+    console.error('💥 Error parsing season zip links:', error);
   }
   
   return links;
@@ -188,6 +261,14 @@ const transformSeriesData = (row) => {
     }
   });
   
+  // UPDATED: Parse season zip packages from season_zip column
+  let seasonZipLinks = [];
+  if (row.season_zip && row.season_zip.trim() !== '') {
+    console.log('📦 Processing season zip packages');
+    seasonZipLinks = parseSeasonZipLinks(row.season_zip);
+    console.log(`✅ Parsed ${seasonZipLinks.length} season package links`);
+  }
+  
   const genres = extractGenres(categories);
   const releaseYear = extractReleaseYear(categories);
   const languages = extractLanguages(categories);
@@ -203,6 +284,7 @@ const transformSeriesData = (row) => {
     title: row.title,
     totalSeasons,
     totalEpisodes,
+    seasonZipLinks: seasonZipLinks.length,
     availableSeasons: Object.keys(seasons)
   });
   
@@ -221,6 +303,7 @@ const transformSeriesData = (row) => {
     seasons,
     totalSeasons,
     totalEpisodes,
+    seasonZipLinks, // NEW: Add season package links
     
     // Categories and classification
     categories,
@@ -292,7 +375,7 @@ const fetchAllSeries = async () => {
   }
 };
 
-// Rest of the exports remain the same...
+// All export functions
 export const getAllSeries = async (limitCount = 1000) => {
   try {
     const series = await fetchAllSeries();
@@ -305,13 +388,11 @@ export const getAllSeries = async (limitCount = 1000) => {
 
 export const getSeriesById = async (id) => {
   try {
-    // Check cache first
     await fetchAllSeries();
     if (seriesCache.has(id)) {
       return seriesCache.get(id);
     }
 
-    // Direct database query
     let { data, error } = await supabase
       .from('series')
       .select('*')
@@ -353,7 +434,6 @@ export const getSeriesEpisodes = async (seriesId, seasonNumber = null) => {
       return season ? season.episodes : [];
     }
 
-    // Return all episodes from all seasons
     return Object.values(series.seasons).flatMap(season => season.episodes);
   } catch (error) {
     console.error("Error fetching series episodes:", error);
@@ -372,7 +452,7 @@ export const getEpisodeDownloadLinks = async (seriesId, seasonNumber, episodeNum
   }
 };
 
-// ... rest of the exports remain the same
+// Rest of export functions...
 export const getSeriesByCategory = async (category, limitCount = 20) => {
   try {
     await fetchAllSeries();

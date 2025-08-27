@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info, Play, ChevronDown } from 'lucide-react';
+import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info, Play, ChevronDown, Package, Archive } from 'lucide-react';
 import CryptoJS from 'crypto-js';
-// Updated imports to match new service structure
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
 
 const SECURITY_KEY = "6f1d8a3b9c5e7f2a4d6b8e0f1a3c7d9e2b4f6a8c1d3e5f7a0b2c4d6e8f0a1b3";
@@ -40,13 +39,12 @@ const SeriesDetail = ({ series, onClose }) => {
     return yearMatch ? yearMatch[1] : '';
   }, [seriesData?.title, series?.title]);
   
-  // Helper function to safely get categories as array - UPDATED for new structure
+  // Helper function to safely get categories as array
   const getCategories = useCallback(() => {
     const currentSeriesData = seriesData || series;
     console.log('🏷️ Getting categories from:', currentSeriesData?.categories);
     
     if (!currentSeriesData?.categories) {
-      // Fallback to genres if categories not available
       return currentSeriesData?.genres || [];
     }
     
@@ -140,16 +138,13 @@ const SeriesDetail = ({ series, onClose }) => {
       setIsLoadingSeasons(true);
       
       try {
-        // Determine series identifier - updated for new structure
         const seriesId = series.id || series.recordId || series.record_id || series;
         console.log('🔍 Using series ID:', seriesId);
         
-        // If series is already fully loaded (from new service), use it directly
         if (series.isSeries && series.seasons && Object.keys(series.seasons).length > 0) {
           console.log('✅ Series data already loaded, using directly');
           setSeriesData(series);
           
-          // Convert seasons object to array format
           const seasons = [];
           Object.entries(series.seasons).forEach(([seasonKey, seasonData]) => {
             console.log(`🎬 Processing season: ${seasonKey}`, seasonData);
@@ -173,7 +168,6 @@ const SeriesDetail = ({ series, onClose }) => {
             setSeasonEpisodes(seasons[0].episodes);
           }
         } else {
-          // Try fetching from service
           console.log('🔄 Fetching fresh series data from service...');
           const fetchedSeries = await getSeriesById(seriesId);
           console.log('✅ Fetched series data from service:', fetchedSeries);
@@ -181,7 +175,6 @@ const SeriesDetail = ({ series, onClose }) => {
           if (fetchedSeries && fetchedSeries.seasons) {
             setSeriesData(fetchedSeries);
             
-            // Convert seasons object to array format
             const seasons = [];
             Object.entries(fetchedSeries.seasons).forEach(([seasonKey, seasonData]) => {
               console.log(`🎬 Processing season: ${seasonKey}`, seasonData);
@@ -222,7 +215,7 @@ const SeriesDetail = ({ series, onClose }) => {
     fetchSeriesData();
   }, [series]);
   
-  // Handle season change - UPDATED for new service structure
+  // Handle season change
   const handleSeasonChange = useCallback(async (season) => {
     console.log('🎯 Changing to season:', season);
     setActiveSeason(season);
@@ -230,12 +223,10 @@ const SeriesDetail = ({ series, onClose }) => {
     setIsLoadingEpisodes(true);
     
     try {
-      // Use cached episodes if available
       if (season.episodes && season.episodes.length > 0) {
         console.log('📺 Using cached episodes for season', season.seasonNumber);
         setSeasonEpisodes(season.episodes);
       } else {
-        // Try to fetch fresh episode data from new service
         const seriesId = seriesData?.id || seriesData?.recordId || series?.id || series?.recordId;
         console.log('📺 Fetching fresh episodes for series:', seriesId, 'season:', season.seasonNumber);
         
@@ -253,24 +244,21 @@ const SeriesDetail = ({ series, onClose }) => {
     }
   }, [seriesData, series]);
   
-  // Parse screenshots from poster field - UPDATED for new structure
+  // Parse screenshots from poster field
   useEffect(() => {
     console.log('🖼️ Parsing screenshots from poster field...');
     const currentSeriesData = seriesData || series;
     if (!currentSeriesData) return;
     
     try {
-      // Check for featuredImage first (new structure)
       if (currentSeriesData.featuredImage) {
         console.log('🖼️ Using featuredImage from new structure');
         setScreenshots([currentSeriesData.featuredImage]);
         return;
       }
       
-      // Fallback to poster parsing
       if (currentSeriesData.poster && typeof currentSeriesData.poster === 'string') {
         console.log('🖼️ Poster field contains string, parsing HTML...');
-        // Parse image URLs from HTML string
         const imgRegex = /<img[^>]+src="([^">]+)"/g;
         const extracted = [];
         let match;
@@ -382,31 +370,31 @@ const SeriesDetail = ({ series, onClose }) => {
     setActiveScreenshot((prev) => (prev === 0 ? screenshots.length - 1 : prev - 1));
   }, [screenshots.length]);
   
-  // UPDATED: Handle download with new service structure
-  const handleDownload = useCallback(async (episode, linkIndex = 0, episodeNumber = null, isFullSeason = false) => {
-    console.log('⬇️ Download initiated:', { episode, linkIndex, episodeNumber, isFullSeason });
+  // Handle download with direct download capability
+  const handleDownload = useCallback(async (episode, linkIndex = 0, episodeNumber = null, isFullSeason = false, isPackageDownload = false) => {
+    console.log('⬇️ Download initiated:', { episode, linkIndex, episodeNumber, isFullSeason, isPackageDownload });
     
-    let downloadUrl, quality, size;
+    let downloadUrl, quality, size, isPackage = false;
     const currentSeriesData = seriesData || series;
     
     if (typeof episode === 'string') {
-      // Old format - direct link
-      console.log('⬇️ Using string format');
       downloadUrl = episode;
       quality = 'HD';
       size = '';
     } else if (episode && episode.downloadLinks && episode.downloadLinks.length > 0) {
-      // New format - episode object with downloadLinks array
-      console.log('⬇️ Using new format with downloadLinks');
       const link = episode.downloadLinks[linkIndex] || episode.downloadLinks[0];
       downloadUrl = link.url;
       quality = link.quality || 'HD';
       size = link.size || '';
+      isPackage = link.isPackage || false;
       episodeNumber = episode.episodeNumber || episode.number;
-      console.log('⬇️ Selected link:', { url: downloadUrl?.substring(0, 50) + '...', quality, size });
+      console.log('⬇️ Selected link:', { 
+        url: downloadUrl?.substring(0, 50) + '...', 
+        quality, 
+        size, 
+        isPackage 
+      });
     } else if (episode && episode.url) {
-      // Fallback to episode.url from service
-      console.log('⬇️ Using service format episode.url');
       downloadUrl = episode.url;
       quality = episode.quality || 'HD';
       size = episode.size || '';
@@ -434,13 +422,11 @@ const SeriesDetail = ({ series, onClose }) => {
         n: currentSeriesData?.title,
       };
       
-      // Add episode number if downloading a single episode
-      if (episodeNumber !== null && episodeNumber !== 'complete') {
+      if (episodeNumber !== null && episodeNumber !== 'complete' && episodeNumber !== 'package') {
         downloadPayload.e = episodeNumber;
       }
       
-      // Mark as full season download if applicable
-      if (isFullSeason || episodeNumber === 'complete') {
+      if (isFullSeason || episodeNumber === 'complete' || isPackage || isPackageDownload) {
         downloadPayload.fs = true;
       }
       
@@ -468,12 +454,14 @@ const SeriesDetail = ({ series, onClose }) => {
       window.open(redirectUrl, '_blank');
       
       // Show appropriate toast message
-      if (isFullSeason || episodeNumber === 'complete') {
-        showToast(`Starting download for ${currentSeriesData?.title} Season ${activeSeason?.seasonNumber} (${quality})`);
+      if (isPackage || isPackageDownload) {
+        showToast(`Starting download: ${currentSeriesData?.title} Season Package (${quality})`);
+      } else if (isFullSeason || episodeNumber === 'complete') {
+        showToast(`Starting download: ${currentSeriesData?.title} Season ${activeSeason?.seasonNumber} (${quality})`);
       } else if (episodeNumber !== null) {
-        showToast(`Starting download for ${currentSeriesData?.title} S${activeSeason?.seasonNumber}E${episodeNumber} (${quality})`);
+        showToast(`Starting download: ${currentSeriesData?.title} S${activeSeason?.seasonNumber}E${episodeNumber} (${quality})`);
       } else {
-        showToast(`Starting download for ${currentSeriesData?.title} (${quality})`);
+        showToast(`Starting download: ${currentSeriesData?.title} (${quality})`);
       }
       
       // Log download activity
@@ -482,7 +470,8 @@ const SeriesDetail = ({ series, onClose }) => {
         quality: quality,
         season: activeSeason?.seasonNumber,
         episode: episodeNumber,
-        fullSeason: isFullSeason || episodeNumber === 'complete'
+        fullSeason: isFullSeason || episodeNumber === 'complete',
+        isPackage: isPackage || isPackageDownload
       });
     } catch (error) {
       console.error('💥 Download error:', error);
@@ -503,7 +492,8 @@ const SeriesDetail = ({ series, onClose }) => {
     activeSeason: activeSeason?.seasonNumber,
     seasonEpisodes: seasonEpisodes.length,
     activeTab,
-    seriesData: !!seriesData
+    seriesData: !!seriesData,
+    seasonZipLinks: currentSeriesData?.seasonZipLinks?.length || 0
   });
 
   return (
@@ -730,16 +720,6 @@ const SeriesDetail = ({ series, onClose }) => {
                 {/* EPISODES TAB */}
                 {activeTab === 'episodes' && (
                   <div className="animate-fadeIn">
-                    {/* Debug info */}
-                    <div className="mb-4 p-2 bg-blue-900/20 border border-blue-500/30 rounded text-sm">
-                      🐛 DEBUG: Loading: {isLoadingSeasons ? 'YES' : 'NO'} | 
-                      Seasons: {availableSeasons.length} | 
-                      Active: {activeSeason?.seasonNumber || 'NONE'} | 
-                      Episodes: {seasonEpisodes.length} |
-                      SeriesData: {seriesData ? 'LOADED' : 'NULL'} |
-                      HasSeasons: {currentSeriesData?.seasons && Object.keys(currentSeriesData.seasons).length > 0 ? 'YES' : 'NO'}
-                    </div>
-
                     {/* Loading states */}
                     {isLoadingSeasons && (
                       <div className="text-center py-6 text-gray-400">
@@ -753,14 +733,6 @@ const SeriesDetail = ({ series, onClose }) => {
                       <div className="text-center py-8 text-gray-400">
                         <Info size={40} className="mx-auto mb-4 text-gray-600" />
                         <p>No seasons available for this series</p>
-                        <div className="mt-4 text-xs bg-red-900/20 border border-red-500/30 rounded p-2">
-                          🐛 DEBUG: Check console logs for parsing errors. 
-                          Series ID: {currentSeriesData.id || currentSeriesData.recordId}
-                          <br />
-                          Service Response: {seriesData ? 'Received' : 'None'}
-                          <br />
-                          Has Seasons Object: {currentSeriesData?.seasons ? 'YES' : 'NO'}
-                        </div>
                       </div>
                     )}
 
@@ -810,7 +782,7 @@ const SeriesDetail = ({ series, onClose }) => {
                           </div>
                         )}
 
-                        {/* Episodes list */}
+                        {/* UPDATED: Episodes list with package separation */}
                         {!isLoadingEpisodes && seasonEpisodes && seasonEpisodes.length > 0 && (
                           <div className="space-y-2.5">
                             {seasonEpisodes.map((episode, index) => (
@@ -828,32 +800,69 @@ const SeriesDetail = ({ series, onClose }) => {
                                         {episode.episodeNumber === 'complete' ? 'Complete Season' : `Episode ${episode.episodeNumber || episode.number}`}
                                       </h4>
                                       <div className="text-sm text-gray-400 flex items-center mt-1">
-                                        <span className="mr-3">{episode.downloadLinks?.length || 1} quality options</span>
+                                        <span className="mr-3">{episode.downloadLinks?.length || 1} download options</span>
+                                        <span className="px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-xs">Direct Download</span>
                                       </div>
                                     </div>
                                   </div>
                                 </div>
                                 
-                                {/* Download buttons for each quality */}
+                                {/* Episode streaming downloads */}
                                 {episode.downloadLinks && episode.downloadLinks.length > 0 && (
-                                  <div className="flex flex-wrap gap-2 mt-2">
-                                    {episode.downloadLinks.map((link, linkIndex) => (
-                                      <button
-                                        key={linkIndex}
-                                        onClick={() => {
-                                          console.log(`⬇️ Download clicked for episode ${episode.episodeNumber || episode.number}, link ${linkIndex}:`, link);
-                                          handleDownload(episode, linkIndex);
-                                        }}
-                                        className="bg-[#252525] hover:bg-[#303030] px-3 py-1.5 rounded text-sm transition-all duration-300 hover:scale-105 flex items-center gap-2"
-                                      >
-                                        <Download size={14} />
-                                        {link.quality} ({link.size})
-                                      </button>
-                                    ))}
+                                  <div>
+                                    <div className="text-xs text-gray-500 mb-2 flex items-center">
+                                      <Play size={12} className="mr-1" />
+                                      Episode Streaming Files
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                      {episode.downloadLinks.map((link, linkIndex) => (
+                                        <button
+                                          key={linkIndex}
+                                          onClick={() => {
+                                            console.log(`⬇️ Episode download clicked:`, link);
+                                            handleDownload(episode, linkIndex);
+                                          }}
+                                          className="bg-[#252525] hover:bg-green-600/20 border hover:border-green-500/50 px-3 py-1.5 rounded text-sm transition-all duration-300 hover:scale-105 flex items-center gap-2"
+                                        >
+                                          <Download size={14} />
+                                          {link.quality} ({link.size})
+                                          <span className="text-xs text-green-400">Direct</span>
+                                        </button>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
                               </div>
                             ))}
+                          </div>
+                        )}
+
+                        {/* UPDATED: Season zip packages section */}
+                        {currentSeriesData?.seasonZipLinks && currentSeriesData.seasonZipLinks.length > 0 && (
+                          <div className="mt-6 p-4 bg-gradient-to-r from-blue-900/20 via-purple-900/20 to-blue-900/20 border border-blue-500/30 rounded-lg">
+                            <div className="text-sm text-gray-400 mb-3 flex items-center">
+                              <Package size={14} className="mr-2 text-blue-400" />
+                              Season Packages (Zip/Archive Files)
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {currentSeriesData.seasonZipLinks.map((zipLink, zipIndex) => (
+                                <button
+                                  key={zipIndex}
+                                  onClick={() => {
+                                    console.log(`⬇️ Package download clicked:`, zipLink);
+                                    handleDownload(zipLink, 0, 'package', false, true);
+                                  }}
+                                  className="bg-blue-900/20 hover:bg-blue-600/20 border border-blue-500/30 hover:border-blue-500/50 px-3 py-1.5 rounded text-sm transition-all duration-300 hover:scale-105 flex items-center gap-2"
+                                >
+                                  <Archive size={14} />
+                                  {zipLink.quality} ({zipLink.size})
+                                  <span className="text-xs text-blue-400">Package</span>
+                                </button>
+                              ))}
+                            </div>
+                            <div className="mt-2 text-xs text-gray-500">
+                              📦 Package files contain multiple episodes in compressed format
+                            </div>
                           </div>
                         )}
 
@@ -935,6 +944,26 @@ const SeriesDetail = ({ series, onClose }) => {
                         </div>
                       </div>
                     )}
+
+                    {/* Download Options Notice */}
+                    <div className="p-4 bg-gradient-to-r from-green-900/20 via-blue-900/20 to-purple-900/20 border border-gray-700/50 rounded-lg mb-5">
+                      <div className="flex items-center mb-2">
+                        <Download size={16} className="text-green-400 mr-2" />
+                        <h4 className="text-sm font-medium text-white">Download Options Available</h4>
+                      </div>
+                      <div className="text-sm text-gray-300 space-y-1">
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                          <span>Individual episode downloads for streaming</span>
+                        </div>
+                        {currentSeriesData?.seasonZipLinks && currentSeriesData.seasonZipLinks.length > 0 && (
+                          <div className="flex items-center">
+                            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                            <span>Season packages (ZIP/Archive) for bulk download</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
                     {/* Quick link to episodes */}
                     <div className="p-4 bg-[#1a1a1a] rounded-lg border border-gray-800/30">
