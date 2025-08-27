@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info, Play, ChevronDown, Package, Archive } from 'lucide-react';
-import CryptoJS from 'crypto-js';
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
-
-const SECURITY_KEY = "6f1d8a3b9c5e7f2a4d6b8e0f1a3c7d9e2b4f6a8c1d3e5f7a0b2c4d6e8f0a1b3";
 
 const SeriesDetail = ({ series, onClose }) => {
   console.log('🚀 SeriesDetail mounted with series:', series);
@@ -68,16 +65,6 @@ const SeriesDetail = ({ series, onClose }) => {
     e.target.onerror = null;
   };
   
-  // Generate user token
-  const generateUserToken = () => {
-    const browserInfo = 
-      navigator.userAgent.substring(0, 10) + 
-      window.screen.width + 
-      window.screen.height;
-    
-    return CryptoJS.SHA256(browserInfo).toString().substring(0, 16);
-  };
-  
   // Generate unique ID from series title
   const generateUniqueId = (title) => {
     if (!title) return Math.random().toString(36).substring(2, 10);
@@ -100,11 +87,9 @@ const SeriesDetail = ({ series, onClose }) => {
         timestamp: new Date().toISOString()
       };
       
-      navigator.sendBeacon && 
-        navigator.sendBeacon(
-          'https://my-blog-five-amber-64.vercel.app/api/log-activity', 
-          JSON.stringify(activityData)
-        );
+      // Optional: Send to analytics endpoint
+      console.log('📊 Activity logged:', activityData);
+      
     } catch (e) {
       // Silent fail for analytics
     }
@@ -370,13 +355,14 @@ const SeriesDetail = ({ series, onClose }) => {
     setActiveScreenshot((prev) => (prev === 0 ? screenshots.length - 1 : prev - 1));
   }, [screenshots.length]);
   
-  // Handle download with direct download capability
+  // UPDATED: Handle direct download without redirect
   const handleDownload = useCallback(async (episode, linkIndex = 0, episodeNumber = null, isFullSeason = false, isPackageDownload = false) => {
-    console.log('⬇️ Download initiated:', { episode, linkIndex, episodeNumber, isFullSeason, isPackageDownload });
+    console.log('⬇️ Direct download initiated:', { episode, linkIndex, episodeNumber, isFullSeason, isPackageDownload });
     
-    let downloadUrl, quality, size, isPackage = false;
+    let downloadUrl, quality, size, isPackage = false, fileName = '';
     const currentSeriesData = seriesData || series;
     
+    // Extract download information
     if (typeof episode === 'string') {
       downloadUrl = episode;
       quality = 'HD';
@@ -388,12 +374,6 @@ const SeriesDetail = ({ series, onClose }) => {
       size = link.size || '';
       isPackage = link.isPackage || false;
       episodeNumber = episode.episodeNumber || episode.number;
-      console.log('⬇️ Selected link:', { 
-        url: downloadUrl?.substring(0, 50) + '...', 
-        quality, 
-        size, 
-        isPackage 
-      });
     } else if (episode && episode.url) {
       downloadUrl = episode.url;
       quality = episode.quality || 'HD';
@@ -411,71 +391,85 @@ const SeriesDetail = ({ series, onClose }) => {
       return;
     }
 
+    // Generate appropriate filename
+    if (isPackage || isPackageDownload) {
+      fileName = `${currentSeriesData?.title} - Season ${activeSeason?.seasonNumber} Package (${quality}).zip`;
+    } else if (episodeNumber !== null && episodeNumber !== 'complete') {
+      fileName = `${currentSeriesData?.title} - S${activeSeason?.seasonNumber}E${episodeNumber} (${quality}).mkv`;
+    } else {
+      fileName = `${currentSeriesData?.title} - Season ${activeSeason?.seasonNumber} (${quality}).mkv`;
+    }
+    
+    // Clean filename for filesystem compatibility
+    fileName = fileName.replace(/[<>:"/\\|?*]/g, '_');
+
     try {
-      // Create download payload with episode/season information
-      const downloadPayload = {
-        m: currentSeriesData?.recordId || currentSeriesData?.id || generateUniqueId(currentSeriesData?.title),
-        q: quality,
-        u: generateUserToken(),
-        t: Date.now(),
-        s: activeSeason?.seasonNumber,
-        n: currentSeriesData?.title,
-      };
+      // Method 1: Try HTML5 download attribute (works for same-origin and some cross-origin)
+      const anchor = document.createElement('a');
+      anchor.href = downloadUrl;
+      anchor.download = fileName;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
       
-      if (episodeNumber !== null && episodeNumber !== 'complete' && episodeNumber !== 'package') {
-        downloadPayload.e = episodeNumber;
-      }
+      // Style the anchor to be invisible
+      anchor.style.display = 'none';
       
-      if (isFullSeason || episodeNumber === 'complete' || isPackage || isPackageDownload) {
-        downloadPayload.fs = true;
-      }
+      document.body.appendChild(anchor);
       
-      console.log('⬇️ Download payload:', downloadPayload);
-      
-      // Convert payload to JSON string
-      const jsonPayload = JSON.stringify(downloadPayload);
-      
-      // Encrypt the payload using AES with the security key
-      const encryptedToken = CryptoJS.AES.encrypt(jsonPayload, SECURITY_KEY).toString();
-      
-      // URL-safe Base64 encoding
-      const safeToken = encryptedToken
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-      
-      // Create the secure download URL with the encrypted token and link
-      const safeLink = encodeURIComponent(CryptoJS.AES.encrypt(downloadUrl, SECURITY_KEY).toString());
-      const redirectUrl = `https://my-blog-five-amber-64.vercel.app/secure-download?t=${encodeURIComponent(safeToken)}&r=${safeLink}`;
-      
-      console.log('⬇️ Opening download URL:', redirectUrl.substring(0, 100) + '...');
-      
-      // Open in new tab
-      window.open(redirectUrl, '_blank');
-      
-      // Show appropriate toast message
-      if (isPackage || isPackageDownload) {
-        showToast(`Starting download: ${currentSeriesData?.title} Season Package (${quality})`);
-      } else if (isFullSeason || episodeNumber === 'complete') {
-        showToast(`Starting download: ${currentSeriesData?.title} Season ${activeSeason?.seasonNumber} (${quality})`);
-      } else if (episodeNumber !== null) {
-        showToast(`Starting download: ${currentSeriesData?.title} S${activeSeason?.seasonNumber}E${episodeNumber} (${quality})`);
+      // Check if the download attribute is supported
+      if ('download' in anchor) {
+        console.log('✅ Using HTML5 download attribute');
+        anchor.click();
       } else {
-        showToast(`Starting download: ${currentSeriesData?.title} (${quality})`);
+        console.log('⚠️ HTML5 download not supported, opening in new tab');
+        window.open(downloadUrl, '_blank', 'noopener,noreferrer');
       }
       
-      // Log download activity
-      logActivity('download_initiated', { 
+      document.body.removeChild(anchor);
+      
+      // Show success message
+      if (isPackage || isPackageDownload) {
+        showToast(`📦 Downloading: ${currentSeriesData?.title} Season Package (${quality})`);
+      } else if (episodeNumber !== null && episodeNumber !== 'complete') {
+        showToast(`📺 Downloading: S${activeSeason?.seasonNumber}E${episodeNumber} (${quality})`);
+      } else {
+        showToast(`📺 Downloading: Season ${activeSeason?.seasonNumber} (${quality})`);
+      }
+      
+      console.log('✅ Direct download initiated successfully');
+      
+      // Log activity
+      logActivity('direct_download_success', { 
         title: currentSeriesData?.title,
-        quality: quality,
+        quality,
         season: activeSeason?.seasonNumber,
         episode: episodeNumber,
-        fullSeason: isFullSeason || episodeNumber === 'complete',
-        isPackage: isPackage || isPackageDownload
+        isPackage: isPackage || isPackageDownload,
+        method: 'direct_download'
       });
+      
     } catch (error) {
-      console.error('💥 Download error:', error);
-      showToast("Unable to process download request");
+      console.error('💥 Direct download failed:', error);
+      
+      // Ultimate fallback: Copy URL to clipboard and notify user
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(downloadUrl);
+          showToast("📋 Download URL copied to clipboard - paste in browser address bar");
+        } else {
+          // Fallback for older browsers
+          const textArea = document.createElement('textarea');
+          textArea.value = downloadUrl;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          showToast("📋 Download URL copied to clipboard");
+        }
+      } catch (clipboardError) {
+        console.error('💥 Clipboard fallback failed:', clipboardError);
+        showToast("❌ Unable to start download. Please try again.");
+      }
     }
   }, [seriesData, series, activeSeason]);
 
@@ -954,7 +948,7 @@ const SeriesDetail = ({ series, onClose }) => {
                       <div className="text-sm text-gray-300 space-y-1">
                         <div className="flex items-center">
                           <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                          <span>Individual episode downloads for streaming</span>
+                          <span>Direct download for individual episodes</span>
                         </div>
                         {currentSeriesData?.seasonZipLinks && currentSeriesData.seasonZipLinks.length > 0 && (
                           <div className="flex items-center">
@@ -962,6 +956,10 @@ const SeriesDetail = ({ series, onClose }) => {
                             <span>Season packages (ZIP/Archive) for bulk download</span>
                           </div>
                         )}
+                        <div className="flex items-center">
+                          <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                          <span>No redirects - downloads start immediately</span>
+                        </div>
                       </div>
                     </div>
 
