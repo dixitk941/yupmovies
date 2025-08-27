@@ -4,7 +4,10 @@ import { platforms } from '../data/mockData';
 import MovieCard from './MovieCard';
 import MovieDetails from './MovieDetails';
 import SeriesDetail from './SeriesDetail';
-import movieService from '../services/movieService';
+
+// Updated imports - using named imports instead of default
+import { getAllMovies } from '../services/movieService';
+import { getAllSeries } from '../services/seriesService';
 
 function Home() {
   const [contentType, setContentType] = useState('movies');
@@ -46,22 +49,70 @@ function Home() {
     return () => window.removeEventListener('scroll', controlNavbar);
   }, []);
 
+  // Updated data fetching using named imports
   useEffect(() => {
     setIsLoading(true);
-    Promise.all([movieService.getAllMovies(), movieService.getAllSeries()])
+    console.log('Starting to fetch movies and series...');
+    
+    Promise.all([getAllMovies(), getAllSeries()])
       .then(([movies, series]) => {
+        console.log('Movies loaded:', movies.length);
+        console.log('Series loaded:', series.length);
+        console.log('Sample movie:', movies[0]);
+        console.log('Sample series:', series[0]);
+        
         setAllMovies(movies);
         setAllSeries(series);
         setTimeout(() => setIsLoading(false), 800);
-      }).catch(() => setIsLoading(false));
+      })
+      .catch((error) => {
+        console.error('Error loading data:', error);
+        setIsLoading(false);
+      });
   }, []);
+
+  // Enhanced series detection function
+  const isSeriesContent = (content) => {
+    if (!content) return false;
+    
+    // Check explicit series flag
+    if (content.isSeries === true) return true;
+    
+    // Check for seasons object
+    if (content.seasons && Object.keys(content.seasons).length > 0) return true;
+    
+    // Check for old season format (Season 1, Season 2, etc.)
+    const hasSeasonKeys = Object.keys(content).some(key => 
+      key.startsWith('Season ') || key.startsWith('season_')
+    );
+    if (hasSeasonKeys) return true;
+    
+    // Check categories for series indicator
+    if (content.categories && Array.isArray(content.categories)) {
+      const hasSeriesCategory = content.categories.some(cat => 
+        cat.toLowerCase().includes('series') || 
+        cat.toLowerCase().includes('show')
+      );
+      if (hasSeriesCategory) return true;
+    }
+    
+    return false;
+  };
+
+  // Debug wrapper for content selection
+  const handleContentSelect = (content) => {
+    console.log('🎬 Content selected:', content.title, content.isSeries ? 'Series' : 'Movie');
+    console.log('🎬 Content data:', content);
+    console.log('🎬 Is series check result:', isSeriesContent(content));
+    setSelectedMovie(content);
+  };
 
   const handleSearchChange = (value) => {
     setSearchQuery(value);
-    setCurrentPage(1); // Reset page when searching
+    setCurrentPage(1);
   };
 
-  // Group content by platforms/categories
+  // Group content by platforms/categories - UPDATED for new data structure
   const getGroupedContent = () => {
     const currentContent = contentType === 'movies' ? allMovies : allSeries;
     
@@ -72,20 +123,22 @@ function Home() {
       return [{ title: 'Search Results', items: filtered }];
     }
 
-    // Create sections for trending, recently added
     const sections = [];
 
-    // Trending section (first 15 items with highest ratings)
+    // Trending section
     const trending = currentContent
-      .filter(item => item.rating && parseFloat(item.rating) > 7)
+      .filter(item => {
+        const rating = item.content?.rating || item.rating;
+        return rating && parseFloat(rating) > 7;
+      })
       .slice(0, 15);
     if (trending.length > 0) {
       sections.push({ title: 'Trending', items: trending, showNumbers: true });
     }
 
-    // Recently Added (most recent 15 items)
+    // Recently Added
     const recentlyAdded = [...currentContent]
-      .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+      .sort((a, b) => new Date(b.modifiedDate || b.date || 0) - new Date(a.modifiedDate || a.date || 0))
       .slice(0, 15);
     if (recentlyAdded.length > 0) {
       sections.push({ title: 'Recently Added', items: recentlyAdded });
@@ -93,10 +146,15 @@ function Home() {
 
     // Platform-specific sections
     platformList.forEach(platform => {
-      const platformContent = currentContent.filter(item =>
-        item.category && 
-        item.category.toLowerCase().includes(platform.name.toLowerCase())
-      ).slice(0, 15);
+      const platformContent = currentContent.filter(item => {
+        if (item.categories && Array.isArray(item.categories)) {
+          return item.categories.some(cat => 
+            cat.toLowerCase().includes(platform.name.toLowerCase())
+          );
+        }
+        return item.category && 
+               item.category.toLowerCase().includes(platform.name.toLowerCase());
+      }).slice(0, 15);
       
       if (platformContent.length > 0) {
         sections.push({
@@ -158,11 +216,11 @@ function Home() {
           className="flex space-x-2 md:space-x-4 overflow-x-auto scrollbar-hide pb-4 px-4 md:px-8"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {items.map((movie, idx) => (
-            <div key={movie.id || idx} className="flex-shrink-0">
+          {items.map((content, idx) => (
+            <div key={content.id || idx} className="flex-shrink-0">
               <MovieCard
-                movie={movie}
-                onClick={setSelectedMovie}
+                movie={content}
+                onClick={handleContentSelect}
                 index={idx}
                 showNumber={showNumbers}
               />
@@ -194,19 +252,17 @@ function Home() {
           {contentType === 'movies' ? 'All Movies' : 'All TV Shows'}
         </h2>
         
-        {/* Vertical Grid */}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 md:gap-4 mb-6">
-          {paginatedMovies.map((movie, idx) => (
+          {paginatedMovies.map((content, idx) => (
             <MovieCard
-              key={movie.id || idx}
-              movie={movie}
-              onClick={setSelectedMovie}
+              key={content.id || idx}
+              movie={content}
+              onClick={handleContentSelect}
               index={startIndex + idx}
             />
           ))}
         </div>
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex justify-center items-center gap-3 md:gap-4">
             <button
@@ -246,12 +302,69 @@ function Home() {
     );
   };
 
+  // UPDATED: Enhanced render detail component with better debugging and fallback
   const renderDetailComponent = () => {
-    if (!selectedMovie) return null;
-    const isSeries = selectedMovie.isSeries || Object.keys(selectedMovie).some(key => key.startsWith('Season ') && selectedMovie[key]);
-    return isSeries
-      ? <SeriesDetail series={selectedMovie} onClose={() => setSelectedMovie(null)} />
-      : <MovieDetails movie={selectedMovie} onClose={() => setSelectedMovie(null)} />;
+    console.log('🎬 renderDetailComponent called, selectedMovie:', selectedMovie);
+    
+    if (!selectedMovie) {
+      console.log('❌ No selected movie, returning null');
+      return null;
+    }
+    
+    const isSeries = isSeriesContent(selectedMovie);
+    console.log('🎯 Enhanced series check result:', isSeries);
+    console.log('🎯 selectedMovie.isSeries:', selectedMovie.isSeries);
+    console.log('🎯 selectedMovie.seasons:', selectedMovie.seasons);
+    console.log('🎯 categories:', selectedMovie.categories);
+
+    // Add error boundary fallback
+    try {
+      if (isSeries) {
+        console.log('📺 Rendering SeriesDetail component');
+        return <SeriesDetail series={selectedMovie} onClose={() => setSelectedMovie(null)} />;
+      } else {
+        console.log('🎬 Rendering MovieDetails component');
+        
+        // Check if MovieDetails component exists and can be rendered
+        if (!MovieDetails) {
+          console.error('❌ MovieDetails component not found or not imported properly');
+          return (
+            <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+              <div className="bg-white text-black p-8 rounded">
+                <h2>Movie Details</h2>
+                <p>Movie: {selectedMovie.title}</p>
+                <p>Error: MovieDetails component not available</p>
+                <button 
+                  onClick={() => setSelectedMovie(null)}
+                  className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          );
+        }
+        
+        return <MovieDetails movie={selectedMovie} onClose={() => setSelectedMovie(null)} />;
+      }
+    } catch (error) {
+      console.error('💥 Error rendering detail component:', error);
+      return (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+          <div className="bg-white text-black p-8 rounded">
+            <h2>Error</h2>
+            <p>Failed to render detail view for: {selectedMovie.title}</p>
+            <p>Error: {error.message}</p>
+            <button 
+              onClick={() => setSelectedMovie(null)}
+              className="mt-4 px-4 py-2 bg-red-500 text-white rounded"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      );
+    }
   };
 
   // Bottom navigation bar (mobile)
@@ -288,9 +401,9 @@ function Home() {
         className="fixed top-0 w-full bg-black bg-opacity-0 z-50 transition-all duration-300 transform"
       >
         <div className="flex items-center justify-between px-4 md:px-8 py-4">
-          {/* Left side - Navigation */}
           <div className="flex items-center space-x-8">
             <div className="text-red-600 text-2xl font-bold">
+              StreamFlix
             </div>
             <div className="hidden md:flex items-center space-x-6">
               <button
@@ -315,7 +428,6 @@ function Home() {
             </div>
           </div>
 
-          {/* Right side - Search */}
           <div className="flex items-center space-x-4">
             <div className="relative">
               <input
@@ -341,21 +453,16 @@ function Home() {
 
       {/* MAIN CONTENT */}
       <main className="pt-20 pb-20">
-        {/* HERO SECTION (Featured Content) */}
+        {/* HERO SECTION */}
         {!searchQuery && !isLoading && groupedContent[0]?.items[0] && (
           <div className="relative h-[40vh] md:h-[50vh] mb-8 overflow-hidden">
-            {groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image ? (
+            {groupedContent[0].items[0].featuredImage || groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image ? (
               <img
-                src={groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image}
+                src={groupedContent[0].items[0].featuredImage || groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image}
                 alt={groupedContent[0].items[0].title}
                 width={1920}
                 height={1080}
                 className="w-full h-full object-cover"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover'
-                }}
                 onError={(e) => {
                   e.target.style.display = 'none';
                 }}
@@ -375,18 +482,18 @@ function Home() {
                 {groupedContent[0].items[0].title?.replace(/\(\d{4}\)/, '').trim()}
               </h1>
               <p className="text-md md:text-lg text-gray-300 mb-6 line-clamp-3">
-                {groupedContent[0].items[0].excerpt || "Discover amazing content and enjoy unlimited streaming."}
+                {groupedContent[0].items[0].content?.description || groupedContent[0].items[0].excerpt || "Discover amazing content and enjoy unlimited streaming."}
               </p>
               <div className="flex items-center space-x-4">
                 <button
-                  onClick={() => setSelectedMovie(groupedContent[0].items[0])}
+                  onClick={() => handleContentSelect(groupedContent[0].items[0])}
                   className="flex items-center space-x-2 bg-white text-black px-6 py-3 rounded hover:bg-gray-200 transition-colors"
                 >
                   <Play size={20} fill="currentColor" />
                   <span className="font-medium">Play</span>
                 </button>
                 <button
-                  onClick={() => setSelectedMovie(groupedContent[0].items[0])}
+                  onClick={() => handleContentSelect(groupedContent[0].items[0])}
                   className="flex items-center space-x-2 bg-gray-600/70 text-white px-6 py-3 rounded hover:bg-gray-600 transition-colors"
                 >
                   <span className="font-medium">More Info</span>
@@ -413,7 +520,6 @@ function Home() {
             </div>
           ) : (
             <>
-              {/* Horizontal Scrolling Sections */}
               {groupedContent.length > 0 && groupedContent.map((section, index) => (
                 <ScrollableRow
                   key={index}
@@ -423,10 +529,8 @@ function Home() {
                 />
               ))}
 
-              {/* All Movies Vertical Grid (only if not searching) */}
               {!searchQuery && <AllMoviesSection />}
 
-              {/* No Content Message */}
               {groupedContent.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16">
                   <div className="text-6xl mb-4">😕</div>
@@ -448,6 +552,36 @@ function Home() {
           )}
         </div>
       </main>
+
+      {/* Debug Test Button - Remove in production */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed top-20 right-4 z-50 flex flex-col gap-2">
+          <button 
+            className="bg-red-500 text-white px-4 py-2 rounded text-xs"
+            onClick={() => {
+              const testContent = allMovies[0] || allSeries[0];
+              if (testContent) {
+                handleContentSelect(testContent);
+              }
+            }}
+          >
+            Test Detail View
+          </button>
+          <button 
+            className="bg-blue-500 text-white px-4 py-2 rounded text-xs"
+            onClick={() => {
+              console.log('🔍 Current state:', {
+                selectedMovie: !!selectedMovie,
+                selectedTitle: selectedMovie?.title,
+                allMovies: allMovies.length,
+                allSeries: allSeries.length
+              });
+            }}
+          >
+            Debug State
+          </button>
+        </div>
+      )}
 
       {selectedMovie && renderDetailComponent()}
       <BottomBar />

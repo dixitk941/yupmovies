@@ -9,8 +9,8 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
 
   // Image selection with fallback
   const imageSrc = 
-    movie?.featured_image || 
-    movie?.featuredImage ||
+    movie?.featuredImage || 
+    movie?.featured_image ||
     movie?.poster || 
     movie?.posterUrl || 
     movie?.image;
@@ -34,7 +34,15 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
     cleanTitle = movie.title.replace(yearMatch[0], '').trim();
   }
 
-  const hasDownloads = !!(movie.links && typeof movie.links === 'string' && movie.links.trim() !== '');
+  const hasDownloads = !!(movie.downloadLinks && movie.downloadLinks.length > 0);
+
+  // CRITICAL FIX: Proper click handler that prevents page reload
+  const handleClick = (e) => {
+    e.preventDefault(); // Prevent default browser behavior (navigation, form submit, etc.)
+    e.stopPropagation(); // Stop event bubbling
+    console.log('MovieCard clicked:', movie.title); // Debug log
+    onClick(movie); // Call the parent's onClick handler
+  };
 
   // Handle image error
   const handleImageError = (e) => {
@@ -76,7 +84,7 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
         </div>
       )}
 
-      {/* Main Card - 30% SMALLER SIZE (112px width) */}
+      {/* Main Card - FIXED: Added proper click handler */}
       <div
         className={`
           relative cursor-pointer rounded-lg overflow-hidden bg-black/80 backdrop-blur-sm
@@ -87,7 +95,7 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
             : `transform ${isHovered ? 'scale-110 z-40 shadow-2xl shadow-black/60' : 'hover:scale-105'}`
           }
         `}
-        onClick={() => onClick(movie)}
+        onClick={handleClick} // CRITICAL FIX: Use proper click handler
         onMouseEnter={() => !isMobile && setIsHovered(true)}
         onMouseLeave={() => !isMobile && setIsHovered(false)}
         role="button"
@@ -148,9 +156,9 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
               </h3>
               <div className="flex items-center justify-between">
                 <span className="text-gray-300 text-[10px]">{year}</span>
-                {movie.rating && (
+                {movie.content?.rating && (
                   <span className="text-yellow-400 text-[10px] font-medium">
-                    ★ {movie.rating}
+                    ★ {movie.content.rating}
                   </span>
                 )}
               </div>
@@ -187,9 +195,9 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
                 
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-gray-300 text-[10px]">{year}</span>
-                  {movie.rating && (
+                  {movie.content?.rating && (
                     <span className="text-yellow-400 text-[10px] font-medium">
-                      ★ {movie.rating}
+                      ★ {movie.content.rating}
                     </span>
                   )}
                 </div>

@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info, Play, ChevronDown } from 'lucide-react';
 import CryptoJS from 'crypto-js';
-import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/movieService'; // Import the service functions
+// Updated imports to match new service structure
+import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
 
 const SECURITY_KEY = "6f1d8a3b9c5e7f2a4d6b8e0f1a3c7d9e2b4f6a8c1d3e5f7a0b2c4d6e8f0a1b3";
 
 const SeriesDetail = ({ series, onClose }) => {
   console.log('🚀 SeriesDetail mounted with series:', series);
-
+  
   const [isLoaded, setIsLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
@@ -39,11 +40,15 @@ const SeriesDetail = ({ series, onClose }) => {
     return yearMatch ? yearMatch[1] : '';
   }, [seriesData?.title, series?.title]);
   
-  // Helper function to safely get categories as array
+  // Helper function to safely get categories as array - UPDATED for new structure
   const getCategories = useCallback(() => {
     const currentSeriesData = seriesData || series;
     console.log('🏷️ Getting categories from:', currentSeriesData?.categories);
-    if (!currentSeriesData?.categories) return [];
+    
+    if (!currentSeriesData?.categories) {
+      // Fallback to genres if categories not available
+      return currentSeriesData?.genres || [];
+    }
     
     if (typeof currentSeriesData.categories === 'string') {
       const cats = currentSeriesData.categories.split(',').map(cat => cat.trim());
@@ -53,10 +58,10 @@ const SeriesDetail = ({ series, onClose }) => {
       console.log('🏷️ Categories already array:', currentSeriesData.categories);
       return currentSeriesData.categories;
     } else {
-      console.log('🏷️ No categories found');
-      return [];
+      console.log('🏷️ No categories found, trying genres');
+      return currentSeriesData?.genres || [];
     }
-  }, [seriesData?.categories, series?.categories]);
+  }, [seriesData?.categories, seriesData?.genres, series?.categories, series?.genres]);
   
   // Create a helper function for image error handling
   const handleImageError = (e) => {
@@ -64,80 +69,6 @@ const SeriesDetail = ({ series, onClose }) => {
     e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjQ1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjQ1MCIgZmlsbD0iIzMzMzMzMyIvPjx0ZXh0IHg9IjQwMCIgeT0iMjI1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMzIiIGZpbGw9IiM5OTk5OTkiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIEltYWdlIEF2YWlsYWJsZTwvdGV4dD48L3N2Zz4=';
     e.target.onerror = null;
   };
-  
-  // CRITICAL: Parse season episodes from your specific database format (fallback for when service doesn't work)
-  const parseSeasonEpisodes = useCallback((seasonData, seasonNumber) => {
-    console.log(`🎬 Parsing season ${seasonNumber} data:`, seasonData);
-    
-    if (!seasonData || seasonData.trim() === '') {
-      console.log(`❌ No data for season ${seasonNumber}`);
-      return [];
-    }
-    
-    const episodes = [];
-    
-    try {
-      // Split by "Episode " and process each part
-      const episodeParts = seasonData.split('Episode ');
-      console.log(`📺 Found ${episodeParts.length - 1} episode parts`);
-      
-      for (let i = 1; i < episodeParts.length; i++) {
-        const episodeData = episodeParts[i];
-        console.log(`📺 Processing episode part ${i}:`, episodeData.substring(0, 100) + '...');
-        
-        // Extract episode number from the beginning
-        const episodeMatch = episodeData.match(/^(\d+)/);
-        if (!episodeMatch) {
-          console.log(`❌ No episode number found in part ${i}`);
-          continue;
-        }
-        
-        const episodeNumber = parseInt(episodeMatch[1]);
-        console.log(`📺 Found episode ${episodeNumber}`);
-        
-        // Parse download links using regex: URL,quality,size
-        const linkRegex = /(https:\/\/[^\s,]+\?download),([^:,]+),([^:]+)/g;
-        const downloadLinks = [];
-        let match;
-        
-        while ((match = linkRegex.exec(episodeData)) !== null) {
-          const [, url, quality, size] = match;
-          console.log(`🔗 Found download link:`, { url: url.substring(0, 50) + '...', quality: quality.trim(), size: size.trim() });
-          
-          downloadLinks.push({
-            url: url.trim(),
-            quality: quality.trim(),
-            size: size.trim()
-          });
-        }
-        
-        if (downloadLinks.length > 0) {
-          const episode = {
-            id: `s${seasonNumber}e${episodeNumber}`,
-            episodeNumber: episodeNumber,
-            number: episodeNumber,
-            title: `Episode ${episodeNumber}`,
-            downloadLinks: downloadLinks,
-            // For backward compatibility
-            link: downloadLinks[0]?.url,
-            quality: downloadLinks[0]?.quality,
-            size: downloadLinks[0]?.size
-          };
-          
-          console.log(`✅ Created episode:`, episode);
-          episodes.push(episode);
-        } else {
-          console.log(`❌ No download links found for episode ${episodeNumber}`);
-        }
-      }
-    } catch (error) {
-      console.error('💥 Error parsing season episodes:', error);
-    }
-    
-    const sortedEpisodes = episodes.sort((a, b) => a.number - b.number);
-    console.log(`🎬 Final episodes for season ${seasonNumber}:`, sortedEpisodes);
-    return sortedEpisodes;
-  }, []);
   
   // Generate user token
   const generateUserToken = () => {
@@ -195,7 +126,7 @@ const SeriesDetail = ({ series, onClose }) => {
     }, 3000);
   };
   
-  // HYBRID APPROACH: Try service first, fallback to direct parsing
+  // UPDATED: Fetch series data using new service structure
   useEffect(() => {
     console.log('🔄 Starting series data fetch...');
     
@@ -209,23 +140,49 @@ const SeriesDetail = ({ series, onClose }) => {
       setIsLoadingSeasons(true);
       
       try {
-        // Determine series identifier
+        // Determine series identifier - updated for new structure
         const seriesId = series.id || series.recordId || series.record_id || series;
-        
         console.log('🔍 Using series ID:', seriesId);
         
-        // Try fetching from service first
-        const fetchedSeries = await getSeriesById(seriesId);
-        console.log('✅ Fetched series data from service:', fetchedSeries);
-        
-        if (fetchedSeries) {
-          setSeriesData(fetchedSeries);
+        // If series is already fully loaded (from new service), use it directly
+        if (series.isSeries && series.seasons && Object.keys(series.seasons).length > 0) {
+          console.log('✅ Series data already loaded, using directly');
+          setSeriesData(series);
           
-          // Check if service returned valid seasons
-          if (fetchedSeries.seasons && Object.keys(fetchedSeries.seasons).length > 0) {
-            console.log('🎯 Using seasons from service');
-            const seasons = [];
+          // Convert seasons object to array format
+          const seasons = [];
+          Object.entries(series.seasons).forEach(([seasonKey, seasonData]) => {
+            console.log(`🎬 Processing season: ${seasonKey}`, seasonData);
             
+            const seasonObj = {
+              id: seasonKey,
+              season: seasonData.seasonNumber,
+              seasonNumber: seasonData.seasonNumber,
+              episodes: seasonData.episodes || [],
+              totalEpisodes: seasonData.totalEpisodes || seasonData.episodes?.length || 0
+            };
+            
+            seasons.push(seasonObj);
+          });
+          
+          seasons.sort((a, b) => a.seasonNumber - b.seasonNumber);
+          setAvailableSeasons(seasons);
+          
+          if (seasons.length > 0) {
+            setActiveSeason(seasons[0]);
+            setSeasonEpisodes(seasons[0].episodes);
+          }
+        } else {
+          // Try fetching from service
+          console.log('🔄 Fetching fresh series data from service...');
+          const fetchedSeries = await getSeriesById(seriesId);
+          console.log('✅ Fetched series data from service:', fetchedSeries);
+          
+          if (fetchedSeries && fetchedSeries.seasons) {
+            setSeriesData(fetchedSeries);
+            
+            // Convert seasons object to array format
+            const seasons = [];
             Object.entries(fetchedSeries.seasons).forEach(([seasonKey, seasonData]) => {
               console.log(`🎬 Processing season: ${seasonKey}`, seasonData);
               
@@ -234,7 +191,7 @@ const SeriesDetail = ({ series, onClose }) => {
                 season: seasonData.seasonNumber,
                 seasonNumber: seasonData.seasonNumber,
                 episodes: seasonData.episodes || [],
-                totalEpisodes: seasonData.totalEpisodes || 0
+                totalEpisodes: seasonData.totalEpisodes || seasonData.episodes?.length || 0
               };
               
               seasons.push(seasonObj);
@@ -248,92 +205,24 @@ const SeriesDetail = ({ series, onClose }) => {
               setSeasonEpisodes(seasons[0].episodes);
             }
           } else {
-            console.log('🔄 Service returned no seasons, trying fallback parsing...');
-            // Fallback to original parsing method
-            await tryFallbackParsing();
+            console.log('❌ No valid series data returned from service');
+            setAvailableSeasons([]);
           }
-        } else {
-          console.log('🔄 Service returned no data, trying fallback parsing...');
-          // If service fails, try direct parsing from series prop
-          await tryFallbackParsing();
         }
-        
       } catch (error) {
         console.error('💥 Error fetching series data:', error);
-        console.log('🔄 Trying fallback parsing due to error...');
-        await tryFallbackParsing();
+        showToast('Error loading series data');
+        setAvailableSeasons([]);
       } finally {
         console.log('✅ Series data fetch complete');
         setIsLoadingSeasons(false);
       }
     };
-
-    // Fallback parsing method using the original series prop
-    const tryFallbackParsing = async () => {
-      console.log('🎬 Starting fallback season parsing...');
-      
-      try {
-        const seasons = [];
-        
-        // Check for season data in the original series object (season_1, season_2, etc.)
-        console.log('🔍 Checking for season fields in original series object...');
-        for (let i = 1; i <= 10; i++) {
-          const seasonKey = `season_${i}`;
-          const seasonData = series[seasonKey];
-          console.log(`🔍 Checking ${seasonKey}:`, seasonData ? 'HAS DATA' : 'NO DATA');
-          
-          if (seasonData && seasonData.trim() !== '') {
-            console.log(`✅ Found season ${i} with data length:`, seasonData.length);
-            
-            // Parse episodes for this season using original method
-            const episodes = parseSeasonEpisodes(seasonData, i);
-            console.log(`📺 Parsed ${episodes.length} episodes for season ${i}`);
-            
-            if (episodes.length > 0) {
-              const seasonObj = {
-                id: seasonKey,
-                season: i,
-                seasonNumber: i,
-                episodes: episodes,
-                totalEpisodes: episodes.length
-              };
-              
-              console.log(`✅ Adding season ${i} to seasons array:`, seasonObj);
-              seasons.push(seasonObj);
-            } else {
-              console.log(`❌ No valid episodes found for season ${i}`);
-            }
-          }
-        }
-        
-        console.log('🎬 Fallback seasons array:', seasons);
-        setAvailableSeasons(seasons);
-        
-        // Set default active season to the first one
-        if (seasons.length > 0) {
-          console.log('🎯 Setting active season to:', seasons[0]);
-          setActiveSeason(seasons[0]);
-          setSeasonEpisodes(seasons[0].episodes);
-          console.log('📺 Set season episodes to:', seasons[0].episodes);
-        } else {
-          console.log('❌ No seasons found in fallback parsing');
-          setActiveSeason(null);
-          setSeasonEpisodes([]);
-        }
-        
-      } catch (error) {
-        console.error('💥 Error in fallback parsing:', error);
-        showToast('Error loading seasons data');
-        setAvailableSeasons([]);
-        setActiveSeason(null);
-        setSeasonEpisodes([]);
-      }
-    };
     
     fetchSeriesData();
-  }, [series, parseSeasonEpisodes]);
+  }, [series]);
   
-  // Handle season change
+  // Handle season change - UPDATED for new service structure
   const handleSeasonChange = useCallback(async (season) => {
     console.log('🎯 Changing to season:', season);
     setActiveSeason(season);
@@ -341,16 +230,18 @@ const SeriesDetail = ({ series, onClose }) => {
     setIsLoadingEpisodes(true);
     
     try {
-      // If we have episodes in the season object already, use them
+      // Use cached episodes if available
       if (season.episodes && season.episodes.length > 0) {
         console.log('📺 Using cached episodes for season', season.seasonNumber);
         setSeasonEpisodes(season.episodes);
       } else {
-        // Try to fetch fresh episode data
+        // Try to fetch fresh episode data from new service
         const seriesId = seriesData?.id || seriesData?.recordId || series?.id || series?.recordId;
-        const episodes = await getSeriesEpisodes(seriesId, season.seasonNumber);
+        console.log('📺 Fetching fresh episodes for series:', seriesId, 'season:', season.seasonNumber);
         
+        const episodes = await getSeriesEpisodes(seriesId, season.seasonNumber);
         console.log('📺 Fetched fresh episodes for season', season.seasonNumber, ':', episodes);
+        
         setSeasonEpisodes(episodes.length > 0 ? episodes : []);
       }
     } catch (error) {
@@ -362,13 +253,21 @@ const SeriesDetail = ({ series, onClose }) => {
     }
   }, [seriesData, series]);
   
-  // Parse screenshots from poster field
+  // Parse screenshots from poster field - UPDATED for new structure
   useEffect(() => {
     console.log('🖼️ Parsing screenshots from poster field...');
     const currentSeriesData = seriesData || series;
     if (!currentSeriesData) return;
     
     try {
+      // Check for featuredImage first (new structure)
+      if (currentSeriesData.featuredImage) {
+        console.log('🖼️ Using featuredImage from new structure');
+        setScreenshots([currentSeriesData.featuredImage]);
+        return;
+      }
+      
+      // Fallback to poster parsing
       if (currentSeriesData.poster && typeof currentSeriesData.poster === 'string') {
         console.log('🖼️ Poster field contains string, parsing HTML...');
         // Parse image URLs from HTML string
@@ -405,7 +304,7 @@ const SeriesDetail = ({ series, onClose }) => {
       setIsMobile(mobile);
       setIsTablet(tablet);
     };
-
+    
     handleResize();
     window.addEventListener('resize', handleResize);
     
@@ -483,7 +382,7 @@ const SeriesDetail = ({ series, onClose }) => {
     setActiveScreenshot((prev) => (prev === 0 ? screenshots.length - 1 : prev - 1));
   }, [screenshots.length]);
   
-  // UPDATED: Handle download with proper episode data structure
+  // UPDATED: Handle download with new service structure
   const handleDownload = useCallback(async (episode, linkIndex = 0, episodeNumber = null, isFullSeason = false) => {
     console.log('⬇️ Download initiated:', { episode, linkIndex, episodeNumber, isFullSeason });
     
@@ -669,7 +568,7 @@ const SeriesDetail = ({ series, onClose }) => {
               
               <div ref={backdropRef} className="absolute inset-0 overflow-hidden">
                 <img 
-                  src={currentSeriesData.featuredImage || currentSeriesData.featured_image || currentSeriesData.image} 
+                  src={currentSeriesData.featuredImage || currentSeriesData.featured_image || currentSeriesData.poster || currentSeriesData.image} 
                   alt={currentSeriesData.title} 
                   className={`w-full h-full ${isMobile ? 'object-cover' : 'object-cover md:object-contain'} transition-opacity duration-700 opacity-0 onload-visible`}
                   onLoad={(e) => {
@@ -838,7 +737,7 @@ const SeriesDetail = ({ series, onClose }) => {
                       Active: {activeSeason?.seasonNumber || 'NONE'} | 
                       Episodes: {seasonEpisodes.length} |
                       SeriesData: {seriesData ? 'LOADED' : 'NULL'} |
-                      FallbackMode: {seriesData?.seasons && Object.keys(seriesData.seasons).length > 0 ? 'NO' : 'YES'}
+                      HasSeasons: {currentSeriesData?.seasons && Object.keys(currentSeriesData.seasons).length > 0 ? 'YES' : 'NO'}
                     </div>
 
                     {/* Loading states */}
@@ -860,7 +759,7 @@ const SeriesDetail = ({ series, onClose }) => {
                           <br />
                           Service Response: {seriesData ? 'Received' : 'None'}
                           <br />
-                          Fallback Parsing: {seriesData?.seasons ? 'Service had seasons' : 'Used original series object'}
+                          Has Seasons Object: {currentSeriesData?.seasons ? 'YES' : 'NO'}
                         </div>
                       </div>
                     )}
@@ -1005,14 +904,14 @@ const SeriesDetail = ({ series, onClose }) => {
                     )}
 
                     {/* Description */}
-                    {(currentSeriesData?.content?.description || currentSeriesData?.content) && (
+                    {(currentSeriesData?.content?.description || currentSeriesData?.excerpt) && (
                       <div className="mb-5">
                         <h4 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
                           <span className="w-1 h-4 bg-gradient-to-b from-green-500 to-green-600 rounded-full mr-2"></span>
                           Description
                         </h4>
                         <p className="text-gray-300 text-sm leading-relaxed">
-                          {typeof currentSeriesData.content === 'object' ? currentSeriesData.content.description : currentSeriesData.content}
+                          {currentSeriesData?.content?.description || currentSeriesData?.excerpt}
                         </p>
                       </div>
                     )}
