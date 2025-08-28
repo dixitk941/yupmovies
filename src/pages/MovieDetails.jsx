@@ -19,7 +19,7 @@ const MovieDetails = ({ movie, onClose }) => {
   const screenshotTimerRef = useRef(null);
   const backdropRef = useRef(null);
   
-  // FIXED: Parse download links from your specific database format
+  // Keep your original parseDownloadLinks function
   const parseDownloadLinks = useCallback((linksString) => {
     if (!linksString || typeof linksString !== 'string') return [];
     
@@ -84,8 +84,8 @@ const MovieDetails = ({ movie, onClose }) => {
       return [];
     }
   }, []);
-  
-  // Enhanced data extraction with fallbacks
+
+  // Keep your original extractMovieData function
   const extractMovieData = useCallback(() => {
     if (!movie) return {};
     
@@ -197,9 +197,9 @@ const MovieDetails = ({ movie, onClose }) => {
       modifiedDate: movie.modified_date
     };
   }, [movie, parseDownloadLinks]);
-  
+
   const movieData = extractMovieData();
-  
+
   // Screen size detection
   useEffect(() => {
     const checkScreenSize = () => {
@@ -212,7 +212,7 @@ const MovieDetails = ({ movie, onClose }) => {
     window.addEventListener('resize', checkScreenSize);
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
-  
+
   // Track scroll position
   useEffect(() => {
     const handleScroll = () => {
@@ -227,7 +227,7 @@ const MovieDetails = ({ movie, onClose }) => {
       return () => contentElement.removeEventListener('scroll', handleScroll);
     }
   }, []);
-  
+
   // Component initialization
   useEffect(() => {
     setTimeout(() => setIsLoaded(true), 50);
@@ -246,7 +246,7 @@ const MovieDetails = ({ movie, onClose }) => {
       document.body.style.overflow = 'auto';
     };
   }, []);
-  
+
   // Handle escape key
   useEffect(() => {
     const handleEscKey = (e) => {
@@ -270,7 +270,7 @@ const MovieDetails = ({ movie, onClose }) => {
     
     return () => clearTimeout(screenshotTimerRef.current);
   }, [activeTab, activeScreenshot, movieData.screenshots, isMobile]);
-  
+
   // Direct download handler - No redirects, direct file download
   const handleDirectDownload = async (linkData, index) => {
     if (!linkData || !linkData.url) {
@@ -328,7 +328,7 @@ const MovieDetails = ({ movie, onClose }) => {
       }, 3000);
     }
   };
-  
+
   // Helper function to get file extension from URL
   const getFileExtension = (url) => {
     if (!url) return 'mp4'; // Default extension
@@ -344,21 +344,21 @@ const MovieDetails = ({ movie, onClose }) => {
     // Default to mp4 if no extension found
     return 'mp4';
   };
-  
-  // Enhanced quality badge component
-  const QualityBadge = ({ quality, size, isDownloading, index }) => {
-    // Ensure we always have a quality value
+
+  // IMPROVED: Compact Quality Badge with full details
+  const CompactQualityBadge = ({ quality, size, description, isDownloading, index }) => {
     const displayQuality = quality || 'HD';
     const displaySize = size || 'Unknown';
+    const displayDescription = description || '';
     
     const getQualityColor = (qual) => {
       switch (qual) {
-        case '480P': return 'from-yellow-600 to-orange-600 border-yellow-500/30 text-yellow-300';
-        case '720P': return 'from-blue-600 to-cyan-600 border-blue-500/30 text-blue-300';
-        case '1080P': return 'from-green-600 to-emerald-600 border-green-500/30 text-green-300';
-        case '4K': return 'from-purple-600 to-pink-600 border-purple-500/30 text-purple-300';
-        case 'HD': return 'from-blue-600 to-cyan-600 border-blue-500/30 text-blue-300';
-        default: return 'from-gray-600 to-gray-700 border-gray-500/30 text-gray-300';
+        case '480P': return 'from-yellow-500 to-orange-500 text-white';
+        case '720P': return 'from-blue-500 to-cyan-500 text-white';
+        case '1080P': return 'from-green-500 to-emerald-500 text-white';
+        case '4K': return 'from-purple-500 to-pink-500 text-white';
+        case 'HD': return 'from-blue-500 to-cyan-500 text-white';
+        default: return 'from-gray-500 to-gray-600 text-white';
       }
     };
     
@@ -372,46 +372,65 @@ const MovieDetails = ({ movie, onClose }) => {
         default: return 'HD';
       }
     };
-    
-    // Extract just the size number and unit for cleaner display
+
+    // Clean size display
     const cleanSize = (sizeStr) => {
       if (!sizeStr || sizeStr === 'Unknown') return '?';
-      
-      // Extract size with unit
       const match = sizeStr.match(/(\d+(?:\.\d+)?)(MB|GB)/i);
       if (match) {
         return `${match[1]}${match[2].toUpperCase()}`;
       }
-      
-      // If it's already clean, return as is
-      if (sizeStr.length <= 8) return sizeStr;
-      
-      // Truncate if too long
-      return sizeStr.substring(0, 8) + '...';
+      return sizeStr.length <= 8 ? sizeStr : sizeStr.substring(0, 8) + '...';
     };
-    
+
+    // Extract format info from description
+    const getFormatInfo = (desc) => {
+      if (!desc) return '';
+      const formatMatch = desc.match(/(WEB-DL|BluRay|Blu-Ray|WEBRip|HDRip|DVDRip)/i);
+      return formatMatch ? formatMatch[1].toUpperCase() : '';
+    };
+
+    const formatInfo = getFormatInfo(displayDescription);
+
     return (
-      <div className="flex flex-col items-center text-center min-w-0">
+      <div className="flex items-center justify-between w-full text-left">
         {/* Quality Badge */}
-        <div className={`bg-gradient-to-br ${getQualityColor(displayQuality)} rounded-md px-2 py-1 text-xs font-bold mb-1 border backdrop-blur-sm min-w-[40px]`}>
+        <div className={`bg-gradient-to-r ${getQualityColor(displayQuality)} rounded-md px-2 py-1 text-xs font-bold flex-shrink-0`}>
           {getQualityIcon(displayQuality)}
         </div>
         
-        {/* File Size */}
-        <div className="text-xs text-gray-300 font-medium truncate max-w-[70px]">
-          {cleanSize(displaySize)}
-        </div>
-        
-        {/* Download Status */}
-        {isDownloading && (
-          <div className="text-xs text-green-400 animate-pulse mt-1">
-            Starting...
+        {/* Details */}
+        <div className="flex-1 ml-3 min-w-0">
+          <div className="flex items-center justify-between">
+            <span className="text-white font-medium text-sm truncate">
+              {displayQuality} Quality
+            </span>
+            <span className="text-gray-300 text-xs font-medium ml-2">
+              {cleanSize(displaySize)}
+            </span>
           </div>
-        )}
+          {formatInfo && (
+            <div className="text-xs text-gray-400 mt-0.5">
+              {formatInfo}
+            </div>
+          )}
+        </div>
+
+        {/* Download Status/Icon */}
+        <div className="flex-shrink-0 ml-3">
+          {isDownloading ? (
+            <div className="flex items-center text-green-400">
+              <div className="w-3 h-3 border border-green-400 border-t-transparent rounded-full animate-spin mr-1"></div>
+              <span className="text-xs">Starting...</span>
+            </div>
+          ) : (
+            <Download size={16} className="text-gray-300" />
+          )}
+        </div>
       </div>
     );
   };
-  
+
   const logActivity = (action, data) => {
     try {
       const activityData = {
@@ -432,7 +451,7 @@ const MovieDetails = ({ movie, onClose }) => {
       // Silent fail for analytics
     }
   };
-  
+
   // Enhanced toast notification with types
   const showToast = (message, type = 'info') => {
     const existingToast = document.querySelector('.download-toast');
@@ -472,13 +491,13 @@ const MovieDetails = ({ movie, onClose }) => {
       }, 300);
     }, 4000);
   };
-  
+
   const nextScreenshot = useCallback(() => {
     if (movieData.screenshots && movieData.screenshots.length > 0) {
       setActiveScreenshot((prev) => (prev + 1) % movieData.screenshots.length);
     }
   }, [movieData.screenshots]);
-  
+
   const prevScreenshot = useCallback(() => {
     if (movieData.screenshots && movieData.screenshots.length > 0) {
       setActiveScreenshot((prev) => (prev - 1 + movieData.screenshots.length) % movieData.screenshots.length);
@@ -524,22 +543,6 @@ const MovieDetails = ({ movie, onClose }) => {
       {/* Background effects */}
       <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-[#100818]/30 to-black/40 animate-gradient-shift"></div>
       
-      {/* Particles effect */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {[...Array(20)].map((_, i) => (
-          <div 
-            key={i}
-            className="absolute w-1 h-1 rounded-full bg-white opacity-30 animate-float"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDuration: `${Math.random() * 10 + 10}s`,
-              animationDelay: `${Math.random() * 5}s`
-            }}
-          ></div>
-        ))}
-      </div>
-      
       {/* Main modal container */}
       <div 
         ref={modalRef}
@@ -573,7 +576,7 @@ const MovieDetails = ({ movie, onClose }) => {
             </button>
           </div>
         </div>
-        
+
         {/* Mobile layout */}
         {isMobile && (
           <>
@@ -659,48 +662,35 @@ const MovieDetails = ({ movie, onClose }) => {
               </div>
             </div>
 
-            {/* DOWNLOAD SECTION - Shows when links are available */}
+            {/* IMPROVED MOBILE DOWNLOAD SECTION */}
             {movieData.downloadLinks && movieData.downloadLinks.length > 0 && (
-              <div className="relative z-20 bg-gradient-to-r from-red-900/40 via-purple-900/30 to-red-900/40 border-y border-red-500/30 py-4 px-4">
+              <div className="relative z-20 bg-gradient-to-r from-red-900/40 via-purple-900/30 to-red-900/40 border-y border-red-500/30 py-3 px-4">
                 <div className="flex flex-col gap-3">
                   <div className="text-sm text-white font-medium flex items-center">
-                    <Download size={18} className="mr-2 text-red-400" />
-                    <span>Direct Download Available:</span>
-                    <span className="text-xs text-gray-400 ml-2">({movieData.downloadLinks.length} options)</span>
+                    <Download size={16} className="mr-2 text-red-400" />
+                    <span>Download Options ({movieData.downloadLinks.length})</span>
                   </div>
                   
-                  {/* Download buttons with quality info */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {movieData.downloadLinks.map((link, index) => {
-                      return (
-                        <button
-                          key={index}
-                          onClick={() => handleDirectDownload(link, index)}
-                          disabled={downloadingLinks.has(index)}
-                          className={`relative overflow-hidden group transform transition-all duration-300 hover:scale-105 focus:scale-105 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
-                            downloadingLinks.has(index) ? 'animate-pulse' : ''
-                          }`}
-                        >
-                          <div className="bg-gradient-to-br from-red-600 to-purple-600 rounded-lg px-3 py-3 text-white shadow-lg shadow-red-900/30 border border-red-500/30">
-                            <div className="flex flex-col items-center text-center gap-2">
-                              <QualityBadge 
-                                quality={link.quality} 
-                                size={link.size} 
-                                isDownloading={downloadingLinks.has(index)}
-                                index={index}
-                              />
-                              <div className="flex items-center gap-1">
-                                <Download size={12} className="text-white" />
-                                <span className="text-xs font-medium">
-                                  {downloadingLinks.has(index) ? 'Starting...' : 'Download'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 group-active:opacity-20 transition-opacity duration-300 rounded-lg"></div>
-                        </button>
-                      );
-                    })}
+                  {/* Compact Download List */}
+                  <div className="space-y-2">
+                    {movieData.downloadLinks.map((link, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleDirectDownload(link, index)}
+                        disabled={downloadingLinks.has(index)}
+                        className={`w-full p-3 bg-gradient-to-r from-slate-800/80 to-slate-900/80 hover:from-red-600/80 hover:to-purple-600/80 rounded-lg border border-gray-700/50 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${
+                          downloadingLinks.has(index) ? 'animate-pulse' : ''
+                        }`}
+                      >
+                        <CompactQualityBadge 
+                          quality={link.quality} 
+                          size={link.size}
+                          description={link.description}
+                          isDownloading={downloadingLinks.has(index)}
+                          index={index}
+                        />
+                      </button>
+                    ))}
                   </div>
                   
                   {/* Additional info */}
@@ -759,7 +749,7 @@ const MovieDetails = ({ movie, onClose }) => {
             </div>
           </>
         )}
-        
+
         {/* Desktop layout */}
         {!isMobile && (
           <div className="flex flex-col h-full md:flex-row">
@@ -816,30 +806,6 @@ const MovieDetails = ({ movie, onClose }) => {
                   <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
                 </button>
               </div>
-              
-              {/* Screenshots preview */}
-              {movieData.screenshots && movieData.screenshots.length > 0 && (
-                <div className="absolute left-4 right-4 bottom-16 hidden md:block">
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {movieData.screenshots.slice(0, 5).map((screenshot, index) => (
-                      <button
-                        key={index}
-                        className={`rounded overflow-hidden transition-all duration-200 ${
-                          activeScreenshot === index ? 'ring-2 ring-red-600 scale-105' : 'opacity-60 hover:opacity-100 hover:scale-105'
-                        }`}
-                        onClick={() => setActiveScreenshot(index)}
-                      >
-                        <img 
-                          src={screenshot}
-                          alt={`Thumbnail ${index + 1}`}
-                          className="w-full h-12 object-cover"
-                          loading="lazy"
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Right side - Details */}
@@ -895,48 +861,38 @@ const MovieDetails = ({ movie, onClose }) => {
                     </div>
                   </div>
 
-                  {/* DESKTOP DOWNLOAD BUTTONS */}
+                  {/* IMPROVED DESKTOP DOWNLOAD BUTTONS */}
                   {movieData.downloadLinks && movieData.downloadLinks.length > 0 && (
                     <div className="bg-gradient-to-r from-red-900/20 via-purple-900/15 to-red-900/20 border border-red-500/20 rounded-xl p-4">
                       <div className="flex flex-col gap-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-white font-medium flex items-center">
                             <Download size={16} className="mr-2 text-red-400" />
-                            Direct Download Available:
+                            Download Options
                           </span>
                           <div className="flex items-center gap-1 text-xs text-gray-400">
                             <HardDrive size={12} />
-                            <span>No redirects</span>
+                            <span>Direct • No redirects</span>
                           </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="space-y-2">
                           {movieData.downloadLinks.map((link, index) => (
                             <button
                               key={index}
                               onClick={() => handleDirectDownload(link, index)}
                               disabled={downloadingLinks.has(index)}
-                              className={`relative overflow-hidden group transform transition-all duration-300 hover:scale-105 focus:scale-105 focus:outline-none disabled:opacity-60 disabled:cursor-not-allowed ${
+                              className={`w-full p-3 bg-gradient-to-r from-slate-800/60 to-slate-900/60 hover:from-red-600/60 hover:to-purple-600/60 rounded-lg border border-gray-700/40 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${
                                 downloadingLinks.has(index) ? 'animate-pulse' : ''
                               }`}
                             >
-                              <div className="bg-gradient-to-br from-red-600 to-purple-600 rounded-lg px-4 py-3 text-white shadow-lg shadow-red-900/30 border border-red-500/30">
-                                <div className="flex flex-col items-center text-center gap-2">
-                                  <QualityBadge 
-                                    quality={link.quality} 
-                                    size={link.size} 
-                                    isDownloading={downloadingLinks.has(index)}
-                                    index={index}
-                                  />
-                                  <div className="flex items-center gap-1.5">
-                                    <Download size={14} className="text-white" />
-                                    <span className="text-sm font-medium">
-                                      {downloadingLinks.has(index) ? 'Starting...' : 'Download'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-15 group-active:opacity-25 transition-opacity duration-300 rounded-lg"></div>
+                              <CompactQualityBadge 
+                                quality={link.quality} 
+                                size={link.size}
+                                description={link.description}
+                                isDownloading={downloadingLinks.has(index)}
+                                index={index}
+                              />
                             </button>
                           ))}
                         </div>
@@ -946,9 +902,9 @@ const MovieDetails = ({ movie, onClose }) => {
                 </div>
               </div>
 
-              {/* Scrollable content area */}
+              {/* Scrollable content area with bottom padding */}
               <div ref={contentRef} className="flex-1 overflow-y-auto">
-                <div className="p-4 md:p-6">
+                <div className="p-4 md:p-6 pb-20"> {/* Added bottom padding */}
                   {/* Description */}
                   <div className="mb-6">
                     <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
@@ -1045,7 +1001,7 @@ const MovieDetails = ({ movie, onClose }) => {
                   
                   {/* Screenshots */}
                   {movieData.screenshots && movieData.screenshots.length > 0 && (
-                    <div className="mb-6">
+                    <div className="mb-8"> {/* Added extra bottom margin */}
                       <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
                         <span className="w-1 h-4 bg-gradient-to-b from-yellow-500 to-yellow-600 rounded-full mr-2"></span>
                         Screenshots
@@ -1090,13 +1046,13 @@ const MovieDetails = ({ movie, onClose }) => {
           </div>
         )}
 
-        {/* Mobile content based on active tab */}
+        {/* Mobile content based on active tab with bottom padding */}
         {isMobile && (
           <div 
             ref={contentRef}
             className="flex-1 overflow-y-auto bg-black"
           >
-            <div className="p-4">
+            <div className="p-4 pb-24"> {/* Added extra bottom padding for mobile */}
               {activeTab === 'details' && (
                 <>
                   {/* Description */}
@@ -1132,7 +1088,7 @@ const MovieDetails = ({ movie, onClose }) => {
 
                   {/* Languages */}
                   {movieData.languages && movieData.languages.length > 0 && (
-                    <div className="mb-6">
+                    <div className="mb-8"> {/* Added extra bottom margin */}
                       <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
                         <span className="w-1 h-4 bg-gradient-to-b from-green-500 to-green-600 rounded-full mr-2"></span>
                         Languages
@@ -1153,7 +1109,7 @@ const MovieDetails = ({ movie, onClose }) => {
               )}
 
               {activeTab === 'seasons' && movieData.isSeries && movieData.seasons && (
-                <div className="mb-6">
+                <div className="mb-8"> {/* Added extra bottom margin */}
                   <h3 className="text-lg font-bold text-white mb-4">Available Seasons</h3>
                   <div className="space-y-3">
                     {Object.entries(movieData.seasons)
@@ -1176,7 +1132,7 @@ const MovieDetails = ({ movie, onClose }) => {
               )}
 
               {activeTab === 'screenshots' && movieData.screenshots && movieData.screenshots.length > 0 && (
-                <div className="mb-6">
+                <div className="mb-8"> {/* Added extra bottom margin */}
                   <h3 className="text-lg font-bold text-white mb-4">Screenshots</h3>
                   <div className="relative rounded-lg overflow-hidden shadow-xl mb-4">
                     <img 
