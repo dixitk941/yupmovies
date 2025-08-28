@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   X, Download, Star, Heart, ChevronLeft, ChevronRight, Calendar, 
   Clock, Globe, Bookmark, Share2, Info, Play, ChevronDown, 
-  Package, Archive, Image, Tv, Eye, Users, Award 
+  Package, Archive, Image, Tv, Eye, Users, Award, HardDrive 
 } from 'lucide-react';
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
 
@@ -24,6 +24,7 @@ const SeriesDetail = ({ series, onClose }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [downloadingLinks, setDownloadingLinks] = useState(new Set());
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [episodeQualities, setEpisodeQualities] = useState({});
   
   const modalRef = useRef(null);
   const contentRef = useRef(null);
@@ -57,93 +58,83 @@ const SeriesDetail = ({ series, onClose }) => {
     e.target.onerror = null;
   };
   
-  // COMPACT DOWNLOAD BUTTON COMPONENT - Same as Movies
-  const CompactDownloadButton = ({ link, onClick, isDownloading, description }) => {
-    const getQualityColor = (quality) => {
-      switch (quality) {
-        case '480P': return 'from-yellow-500 to-orange-500 text-white shadow-yellow-500/25';
-        case '720P': return 'from-blue-500 to-cyan-500 text-white shadow-blue-500/25';
-        case '1080P': return 'from-emerald-500 to-green-500 text-white shadow-emerald-500/25';
-        case '4K': return 'from-purple-500 to-pink-500 text-white shadow-purple-500/25';
-        case 'HD': return 'from-blue-500 to-cyan-500 text-white shadow-blue-500/25';
-        default: return 'from-gray-500 to-gray-600 text-white shadow-gray-500/25';
+  // SINGLE DOWNLOAD BUTTON WITH QUALITY SELECTOR - Like in the image
+  const EpisodeDownloadSelector = ({ episode, onDownload, isDownloading }) => {
+    const episodeId = episode.id || episode.episodeNumber;
+    const selectedQuality = episodeQualities[episodeId] || '';
+    
+    const setSelectedQuality = (quality) => {
+      setEpisodeQualities(prev => ({
+        ...prev,
+        [episodeId]: quality
+      }));
+    };
+
+    const handleDownloadClick = () => {
+      if (!selectedQuality) {
+        showToast('Please select a quality to download', 'error');
+        return;
+      }
+      
+      const linkIndex = episode.downloadLinks.findIndex(link => link.quality === selectedQuality);
+      if (linkIndex !== -1) {
+        onDownload(episode, linkIndex);
       }
     };
 
     const getQualityDisplay = (quality) => {
-      switch (quality) {
-        case '4K': return '4K';
-        case '1080P': return 'FHD';
-        case '720P': return 'HD';
-        case '480P': return 'SD';
-        case 'HD': return 'HD';
-        default: return 'HD';
-      }
+      const map = {
+        '480P': '480p',
+        '720P': '720p',
+        '1080P': '1080p',
+        '4K': '4K',
+        'HD': 'HD',
+        'SD': 'SD'
+      };
+      return map[quality] || quality || 'HD';
     };
-
-    // Clean size display
-    const cleanSize = (sizeStr) => {
-      if (!sizeStr || sizeStr === 'Unknown') return '?';
-      const match = sizeStr.match(/(\d+(?:\.\d+)?)(MB|GB)/i);
-      if (match) {
-        return `${match[1]}${match[2].toUpperCase()}`;
-      }
-      return sizeStr.length <= 8 ? sizeStr : sizeStr.substring(0, 8) + '...';
-    };
-
-    // Extract format info from description
-    const getFormatInfo = (desc) => {
-      if (!desc) return '';
-      const formatMatch = desc.match(/(WEB-DL|BluRay|Blu-Ray|WEBRip|HDRip|DVDRip)/i);
-      return formatMatch ? formatMatch[1].toUpperCase() : '';
-    };
-
-    const formatInfo = getFormatInfo(description);
 
     return (
-      <button
-        onClick={onClick}
-        disabled={isDownloading}
-        className={`w-full p-3 bg-gradient-to-r from-slate-800/80 to-slate-900/80 hover:from-red-600/80 hover:to-purple-600/80 rounded-lg border border-gray-700/50 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${
-          isDownloading ? 'animate-pulse' : ''
-        }`}
-      >
-        <div className="flex items-center justify-between w-full text-left">
-          {/* Quality Badge */}
-          <div className={`bg-gradient-to-r ${getQualityColor(link.quality)} rounded-md px-2 py-1 text-xs font-bold flex-shrink-0`}>
-            {getQualityDisplay(link.quality)}
-          </div>
-          
-          {/* Details */}
-          <div className="flex-1 ml-3 min-w-0">
-            <div className="flex items-center justify-between">
-              <span className="text-white font-medium text-sm truncate">
-                {link.quality} Quality
-              </span>
-              <span className="text-gray-300 text-xs font-medium ml-2">
-                {cleanSize(link.size)}
-              </span>
-            </div>
-            {formatInfo && (
-              <div className="text-xs text-gray-400 mt-0.5">
-                {formatInfo}
-              </div>
-            )}
-          </div>
-
-          {/* Download Status/Icon */}
-          <div className="flex-shrink-0 ml-3">
-            {isDownloading ? (
-              <div className="flex items-center text-green-400">
-                <div className="w-3 h-3 border border-green-400 border-t-transparent rounded-full animate-spin mr-1"></div>
-                <span className="text-xs">Starting...</span>
-              </div>
-            ) : (
-              <Download size={16} className="text-gray-300" />
-            )}
+      <div className="flex items-center space-x-2 mt-2">
+        {/* Quality Selector Dropdown - Exactly like in the image */}
+        <div className="relative">
+          <select
+            value={selectedQuality}
+            onChange={(e) => setSelectedQuality(e.target.value)}
+            className="bg-slate-800 text-white border border-orange-600 rounded px-3 py-1.5 text-sm appearance-none cursor-pointer pr-8 hover:border-orange-500 focus:outline-none focus:border-orange-400 transition-colors"
+            style={{ minWidth: '140px' }}
+          >
+            <option value="" disabled className="bg-slate-800">
+              select quality
+            </option>
+            {episode.downloadLinks?.map((link, index) => (
+              <option key={index} value={link.quality} className="bg-slate-800">
+                {getQualityDisplay(link.quality)}
+                {link.size && ` (${link.size})`}
+              </option>
+            ))}
+          </select>
+          {/* Custom dropdown arrow */}
+          <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+            <ChevronDown size={16} className="text-gray-400" />
           </div>
         </div>
-      </button>
+
+        {/* Single Download Button - Exactly like in the image */}
+        <button
+          onClick={handleDownloadClick}
+          disabled={isDownloading || !selectedQuality}
+          className={`px-4 py-1.5 rounded text-sm font-semibold transition-all duration-200 ${
+            isDownloading 
+              ? 'bg-gray-600 text-gray-300 cursor-not-allowed' 
+              : selectedQuality
+                ? 'bg-orange-600 hover:bg-orange-700 text-white shadow-md hover:shadow-lg'
+                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          {isDownloading ? 'Downloading...' : 'Click here'}
+        </button>
+      </div>
     );
   };
   
@@ -197,7 +188,7 @@ const SeriesDetail = ({ series, onClose }) => {
     return () => window.removeEventListener('keydown', handleEscKey);
   }, [onClose]);
 
-  // Simplified data fetching
+  // Data fetching
   useEffect(() => {
     if (!series) return;
     
@@ -319,7 +310,7 @@ const SeriesDetail = ({ series, onClose }) => {
 
   const tabs = [
     { id: 'episodes', label: 'Episodes', icon: Play },
-    { id: 'packages', label: 'Packages', icon: Package },
+    { id: 'packages', label: 'Season Zips', icon: Package },
     { id: 'details', label: 'Details', icon: Info },
     ...(screenshots.length > 0 ? [{ id: 'screenshots', label: 'Gallery', icon: Image }] : [])
   ];
@@ -344,8 +335,8 @@ const SeriesDetail = ({ series, onClose }) => {
         </button>
 
         <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} h-full`}>
-          {/* Left Panel */}
-          <div className={`${isMobile ? 'h-48' : 'w-80'} relative flex-shrink-0`}>
+          {/* Left Panel - COMPACT */}
+          <div className={`${isMobile ? 'h-40' : 'w-72'} relative flex-shrink-0`}>
             {/* Hero Image */}
             <div className="relative h-full overflow-hidden">
               <img 
@@ -358,41 +349,41 @@ const SeriesDetail = ({ series, onClose }) => {
               
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
               
-              {/* Series Info */}
+              {/* Series Info - COMPACT */}
               <div className="absolute bottom-0 left-0 right-0 p-3">
-                <div className="space-y-2">
-                  <div className="inline-flex items-center space-x-1 bg-purple-600/30 px-2 py-1 rounded-full text-xs">
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center space-x-1 bg-purple-600/30 px-2 py-0.5 rounded-full text-xs">
                     <Tv size={10} />
                     <span>TV Series</span>
                   </div>
                   
-                  <h1 className="text-lg font-bold text-white leading-tight">
+                  <h1 className="text-base font-bold text-white leading-tight">
                     {currentSeriesData.title}
                   </h1>
                   
-                  <div className="flex items-center space-x-3 text-xs text-gray-300">
+                  <div className="flex items-center space-x-2 text-xs text-gray-300">
                     {year && <span>{year}</span>}
                     {availableSeasons.length > 0 && <span>{availableSeasons.length} Seasons</span>}
                   </div>
                   
-                  {/* Action Buttons */}
-                  <div className="flex items-center space-x-2 mt-2">
+                  {/* Action Buttons - SMALLER */}
+                  <div className="flex items-center space-x-1.5 mt-1.5">
                     <button 
                       onClick={() => { setIsLiked(!isLiked); showToast(isLiked ? 'Removed from favorites' : 'Added to favorites', 'success'); }}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all ${
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all ${
                         isLiked ? 'bg-red-600/80 text-white' : 'bg-white/20 text-white hover:bg-white/30'
                       }`}
                     >
-                      <Heart size={12} className={isLiked ? 'fill-current' : ''} />
+                      <Heart size={10} className={isLiked ? 'fill-current' : ''} />
                     </button>
                     
                     <button 
                       onClick={() => { setIsBookmarked(!isBookmarked); showToast(isBookmarked ? 'Removed from watchlist' : 'Added to watchlist', 'success'); }}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all ${
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs transition-all ${
                         isBookmarked ? 'bg-blue-600/80 text-white' : 'bg-white/20 text-white hover:bg-white/30'
                       }`}
                     >
-                      <Bookmark size={12} className={isBookmarked ? 'fill-current' : ''} />
+                      <Bookmark size={10} className={isBookmarked ? 'fill-current' : ''} />
                     </button>
                     
                     <button 
@@ -404,9 +395,9 @@ const SeriesDetail = ({ series, onClose }) => {
                           showToast('Link copied', 'success');
                         }
                       }}
-                      className="w-7 h-7 rounded-full bg-white/20 text-white hover:bg-white/30 flex items-center justify-center transition-all"
+                      className="w-6 h-6 rounded-full bg-white/20 text-white hover:bg-white/30 flex items-center justify-center transition-all"
                     >
-                      <Share2 size={12} />
+                      <Share2 size={10} />
                     </button>
                   </div>
                 </div>
@@ -416,50 +407,51 @@ const SeriesDetail = ({ series, onClose }) => {
 
           {/* Right Panel */}
           <div className="flex-1 flex flex-col bg-black/30 min-h-0">
-            {/* Tab Navigation */}
+            {/* Tab Navigation - COMPACT */}
             <div className="flex-shrink-0 border-b border-white/20 bg-black/50">
               <div className="flex overflow-x-auto">
                 {tabs.map(tab => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center space-x-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-all ${
+                    className={`flex items-center space-x-1.5 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-all ${
                       activeTab === tab.id 
                         ? 'text-white border-b-2 border-purple-500 bg-purple-500/20' 
                         : 'text-gray-400 hover:text-white hover:bg-white/10'
                     }`}
                   >
-                    <tab.icon size={16} />
+                    <tab.icon size={14} />
                     <span>{tab.label}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Content Area */}
+            {/* Content Area - FIXED WITH EXTRA BOTTOM PADDING */}
             <div 
               className="flex-1 overflow-y-auto overscroll-contain" 
               ref={contentRef}
               style={{ 
-                maxHeight: isMobile ? 'calc(100vh - 12rem)' : 'calc(100vh - 8rem)',
-                WebkitOverflowScrolling: 'touch'
+                maxHeight: isMobile ? 'calc(100vh - 10rem)' : 'calc(100vh - 6rem)',
+                WebkitOverflowScrolling: 'touch',
+                paddingBottom: isMobile ? '120px' : '80px' // ADDED EXTRA BOTTOM PADDING
               }}
             >
-              <div className="p-4 space-y-4 pb-6">
+              <div className="p-3 space-y-3 pb-24"> {/* INCREASED bottom padding from pb-6 to pb-24 */}
                 
-                {/* EPISODES TAB */}
+                {/* EPISODES TAB - WITH QUALITY SELECTOR + SINGLE BUTTON */}
                 {activeTab === 'episodes' && (
-                  <div className="space-y-4">
-                    {/* Season Selector */}
+                  <div className="space-y-3">
+                    {/* Season Selector - SMALLER */}
                     {!isLoadingSeasons && availableSeasons.length > 0 && (
                       <div className="relative" ref={seasonDropdownRef}>
                         <button
                           onClick={() => setShowSeasonDropdown(!showSeasonDropdown)}
-                          className="flex items-center justify-between w-full p-3 bg-white/10 rounded-lg border border-white/20 hover:border-purple-500/50 transition-all"
+                          className="flex items-center justify-between w-full p-2.5 bg-white/10 rounded-lg border border-white/20 hover:border-purple-500/50 transition-all"
                         >
-                          <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-                              <Tv size={14} className="text-white" />
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-7 h-7 bg-purple-600 rounded-lg flex items-center justify-center">
+                              <Tv size={12} className="text-white" />
                             </div>
                             <div className="text-left">
                               <div className="text-white font-medium text-sm">
@@ -471,18 +463,18 @@ const SeriesDetail = ({ series, onClose }) => {
                             </div>
                           </div>
                           <ChevronDown 
-                            size={16} 
+                            size={14} 
                             className={`text-gray-400 transition-transform ${showSeasonDropdown ? 'rotate-180' : ''}`} 
                           />
                         </button>
                         
                         {showSeasonDropdown && (
-                          <div className="absolute z-20 mt-1 w-full bg-slate-800 rounded-lg border border-white/20 shadow-xl max-h-48 overflow-y-auto">
+                          <div className="absolute z-20 mt-1 w-full bg-slate-800 rounded-lg border border-white/20 shadow-xl max-h-40 overflow-y-auto">
                             {availableSeasons.map(season => (
                               <button
                                 key={season.id}
                                 onClick={() => handleSeasonChange(season)}
-                                className={`w-full text-left p-3 hover:bg-white/10 flex items-center space-x-3 transition-all text-sm ${
+                                className={`w-full text-left p-2.5 hover:bg-white/10 flex items-center space-x-2.5 transition-all text-sm ${
                                   activeSeason?.id === season.id ? 'bg-purple-600/30 border-l-2 border-purple-500' : ''
                                 }`}
                               >
@@ -498,77 +490,69 @@ const SeriesDetail = ({ series, onClose }) => {
                       </div>
                     )}
 
-                    {/* Episodes List with Movie-Style Download Buttons */}
+                    {/* Episodes List - WITH QUALITY SELECTOR LIKE THE IMAGE AND EXTRA MARGIN FOR LAST ITEM */}
                     {!isLoadingEpisodes && seasonEpisodes?.length > 0 ? (
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {seasonEpisodes.map((episode, index) => (
                           <div 
                             key={episode.id || `episode-${index}`} 
-                            className="bg-white/5 rounded-lg p-4 border border-white/10 hover:border-purple-500/30 transition-all"
+                            className={`bg-white/5 rounded-lg p-3 border border-white/10 hover:border-purple-500/30 transition-all ${
+                              index === seasonEpisodes.length - 1 ? 'mb-20' : '' // EXTRA MARGIN FOR LAST EPISODE
+                            }`}
                           >
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">
                                   {episode.episodeNumber === 'complete' ? 'S' : episode.episodeNumber || episode.number}
                                 </div>
                                 <div>
                                   <h4 className="text-white font-medium text-sm">
                                     {episode.episodeNumber === 'complete' ? 'Complete Season' : `Episode ${episode.episodeNumber || episode.number}`}
                                   </h4>
-                                  <div className="flex items-center space-x-2 mt-1">
-                                    <span className="text-gray-400 text-xs">{episode.downloadLinks?.length || 1} options</span>
-                                    <div className="bg-green-600/30 px-2 py-0.5 rounded text-green-300 text-xs">
-                                      Direct Download
+                                  <div className="flex items-center space-x-2 mt-0.5">
+                                    <span className="text-gray-400 text-xs">{episode.downloadLinks?.length || 1} qualities</span>
+                                    <div className="bg-green-600/30 px-1.5 py-0.5 rounded text-green-300 text-xs flex items-center">
+                                      <HardDrive size={8} className="mr-0.5" />
+                                      Direct
                                     </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
                             
-                            {/* Movie-Style Download Buttons */}
+                            {/* Quality Selector + Single Download Button - EXACTLY LIKE THE IMAGE */}
                             {episode.downloadLinks?.length > 0 && (
-                              <div className="space-y-2">
-                                {episode.downloadLinks.map((link, linkIndex) => {
-                                  const downloadKey = `${episode.id || episode.episodeNumber}-${linkIndex}`;
-                                  const isDownloading = downloadingLinks.has(downloadKey);
-                                  
-                                  return (
-                                    <CompactDownloadButton
-                                      key={linkIndex}
-                                      link={link}
-                                      onClick={() => handleDownload(episode, linkIndex)}
-                                      isDownloading={isDownloading}
-                                      description={link.description}
-                                    />
-                                  );
-                                })}
-                              </div>
+                              <EpisodeDownloadSelector
+                                episode={episode}
+                                onDownload={handleDownload}
+                                isDownloading={downloadingLinks.has(`${episode.id || episode.episodeNumber}-0`)}
+                              />
                             )}
                           </div>
                         ))}
                       </div>
                     ) : isLoadingEpisodes ? (
-                      <div className="text-center py-8">
-                        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                      <div className="text-center py-6">
+                        <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                         <p className="text-gray-400 text-sm">Loading episodes...</p>
                       </div>
                     ) : (
-                      <div className="text-center py-8">
-                        <Tv size={32} className="mx-auto mb-2 text-gray-600" />
+                      <div className="text-center py-6 mb-20"> {/* EXTRA MARGIN FOR EMPTY STATE */}
+                        <Tv size={24} className="mx-auto mb-2 text-gray-600" />
                         <p className="text-gray-400">No episodes available</p>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* PACKAGES TAB */}
+                {/* PACKAGES TAB - ALSO WITH EXTRA PADDING */}
                 {activeTab === 'packages' && (
-                  <div className="space-y-4">
-                    <div className="text-center py-4">
-                      <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                        <Package size={24} className="text-white" />
+                  <div className="space-y-3">
+                    <div className="text-center py-3">
+                      <div className="w-10 h-10 bg-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-2">
+                        <Package size={20} className="text-white" />
                       </div>
-                      <h2 className="text-lg font-bold text-white mb-1">Season Packages</h2>
+                      <h2 className="text-base font-bold text-white mb-1">Season Packages</h2>
                       <p className="text-gray-400 text-sm">Download complete seasons</p>
                     </div>
 
@@ -581,53 +565,53 @@ const SeriesDetail = ({ series, onClose }) => {
                           return (
                             <div 
                               key={zipIndex}
-                              className="bg-blue-600/10 rounded-lg p-4 border border-blue-500/30 hover:border-blue-500/50 transition-all"
+                              className={`bg-blue-600/10 rounded-lg p-3 border border-blue-500/30 hover:border-blue-500/50 transition-all ${
+                                zipIndex === currentSeriesData.seasonZipLinks.length - 1 ? 'mb-20' : '' // EXTRA MARGIN FOR LAST PACKAGE
+                              }`}
                             >
-                              <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-3">
-                                  <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                                    <Archive size={20} className="text-white" />
+                                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                                    <Archive size={16} className="text-white" />
                                   </div>
                                   <div>
-                                    <h3 className="text-white font-medium">
+                                    <h3 className="text-white font-medium text-sm">
                                       Season {activeSeason?.seasonNumber || ''} Archive
                                     </h3>
                                     <div className="flex items-center space-x-2 mt-1">
-                                      <div className={`bg-gradient-to-r ${zipLink.quality === '4K' ? 'from-purple-500 to-pink-500' : zipLink.quality === '1080P' ? 'from-emerald-500 to-green-500' : 'from-blue-500 to-cyan-500'} rounded px-2 py-1`}>
+                                      <div className={`bg-gradient-to-r ${zipLink.quality === '4K' ? 'from-purple-500 to-pink-500' : zipLink.quality === '1080P' ? 'from-emerald-500 to-green-500' : 'from-blue-500 to-cyan-500'} rounded px-2 py-0.5`}>
                                         <span className="text-white text-xs font-bold">
-                                          {zipLink.quality === '1080P' ? 'FHD' : zipLink.quality}
+                                          {zipLink.quality === '1080P' ? '1080p' : zipLink.quality === '720P' ? '720p' : zipLink.quality === '480P' ? '480p' : zipLink.quality}
                                         </span>
                                       </div>
-                                      <span className="text-gray-300 text-sm">{zipLink.size}</span>
+                                      <span className="text-gray-300 text-xs">{zipLink.size}</span>
                                     </div>
-                                    <p className="text-gray-400 text-xs mt-1">
-                                      All episodes in compressed file
-                                    </p>
+                                    <p className="text-gray-400 text-xs mt-1">All episodes compressed</p>
                                   </div>
                                 </div>
+                                
+                                <button
+                                  onClick={() => {
+                                    setDownloadingLinks(prev => new Set([...prev, downloadKey]));
+                                    handleDownload(zipLink, 0, true);
+                                  }}
+                                  disabled={isDownloading}
+                                  className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded px-4 py-2 text-white text-sm font-medium transition-all"
+                                >
+                                  {isDownloading ? 'Downloading...' : 'Click here'}
+                                </button>
                               </div>
-
-                              {/* Movie-Style Download Button for Package */}
-                              <CompactDownloadButton
-                                link={zipLink}
-                                onClick={() => {
-                                  setDownloadingLinks(prev => new Set([...prev, downloadKey]));
-                                  handleDownload(zipLink, 0, true);
-                                }}
-                                isDownloading={isDownloading}
-                                description="Season Package"
-                              />
                             </div>
                           );
                         })}
                       </div>
                     ) : (
-                      <div className="text-center py-8">
-                        <Package size={32} className="mx-auto mb-3 text-gray-600" />
+                      <div className="text-center py-6 mb-20"> {/* EXTRA MARGIN FOR EMPTY STATE */}
+                        <Package size={24} className="mx-auto mb-2 text-gray-600" />
                         <p className="text-gray-400 mb-2">No packages available</p>
                         <button
                           onClick={() => setActiveTab('episodes')}
-                          className="bg-purple-600 hover:bg-purple-700 rounded-lg px-4 py-2 text-white text-sm font-medium transition-all"
+                          className="bg-purple-600 hover:bg-purple-700 rounded-lg px-4 py-1.5 text-white text-sm font-medium transition-all"
                         >
                           Browse Episodes
                         </button>
@@ -636,17 +620,17 @@ const SeriesDetail = ({ series, onClose }) => {
                   </div>
                 )}
 
-                {/* DETAILS TAB - COMPACT */}
+                {/* DETAILS TAB - ALSO WITH EXTRA PADDING */}
                 {activeTab === 'details' && (
-                  <div className="space-y-4">
-                    {/* Synopsis */}
+                  <div className="space-y-3 mb-20"> {/* EXTRA BOTTOM MARGIN */}
+                    {/* Same details content as before */}
                     {(currentSeriesData?.content?.description || currentSeriesData?.excerpt) && (
                       <div className="space-y-2">
-                        <h3 className="text-white font-bold flex items-center">
-                          <div className="w-1 h-4 bg-purple-500 rounded-full mr-2"></div>
+                        <h3 className="text-white font-bold flex items-center text-sm">
+                          <div className="w-1 h-3 bg-purple-500 rounded-full mr-2"></div>
                           Synopsis
                         </h3>
-                        <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                        <div className="bg-white/5 rounded-lg p-2.5 border border-white/10">
                           <p className="text-gray-300 text-sm leading-relaxed">
                             {currentSeriesData?.content?.description || currentSeriesData?.excerpt}
                           </p>
@@ -657,15 +641,15 @@ const SeriesDetail = ({ series, onClose }) => {
                     {/* Genres */}
                     {getCategories().length > 0 && (
                       <div className="space-y-2">
-                        <h3 className="text-white font-bold flex items-center">
-                          <div className="w-1 h-4 bg-pink-500 rounded-full mr-2"></div>
+                        <h3 className="text-white font-bold flex items-center text-sm">
+                          <div className="w-1 h-3 bg-pink-500 rounded-full mr-2"></div>
                           Genres
                         </h3>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5">
                           {getCategories().slice(0, expandGenres ? getCategories().length : 6).map((category, index) => (
                             <span 
                               key={index}
-                              className="px-3 py-1 bg-purple-600/20 text-purple-300 rounded-full text-xs font-medium border border-purple-500/30"
+                              className="px-2.5 py-1 bg-purple-600/20 text-purple-300 rounded-full text-xs font-medium border border-purple-500/30"
                             >
                               {category}
                             </span>
@@ -673,7 +657,7 @@ const SeriesDetail = ({ series, onClose }) => {
                           {!expandGenres && getCategories().length > 6 && (
                             <button 
                               onClick={() => setExpandGenres(true)}
-                              className="px-3 py-1 bg-white/10 text-gray-300 rounded-full text-xs font-medium border border-white/20 hover:bg-white/20"
+                              className="px-2.5 py-1 bg-white/10 text-gray-300 rounded-full text-xs font-medium border border-white/20 hover:bg-white/20"
                             >
                               +{getCategories().length - 6} more
                             </button>
@@ -684,21 +668,21 @@ const SeriesDetail = ({ series, onClose }) => {
 
                     {/* Series Stats */}
                     <div className="space-y-2">
-                      <h3 className="text-white font-bold flex items-center">
-                        <div className="w-1 h-4 bg-green-500 rounded-full mr-2"></div>
+                      <h3 className="text-white font-bold flex items-center text-sm">
+                        <div className="w-1 h-3 bg-green-500 rounded-full mr-2"></div>
                         Information
                       </h3>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2">
                         {[
                           { label: 'Seasons', value: availableSeasons.length, icon: Tv },
                           { label: 'Episodes', value: currentSeriesData.totalEpisodes || 'TBA', icon: Play },
                           { label: 'Year', value: year || 'TBA', icon: Calendar },
                           { label: 'Quality', value: 'HD', icon: Award }
                         ].map((stat, index) => (
-                          <div key={index} className="bg-white/5 rounded-lg p-3 border border-white/10 text-center">
-                            <stat.icon size={20} className="mx-auto mb-1 text-purple-400" />
+                          <div key={index} className="bg-white/5 rounded-lg p-2 border border-white/10 text-center">
+                            <stat.icon size={14} className="mx-auto mb-1 text-purple-400" />
                             <div className="text-gray-400 text-xs">{stat.label}</div>
-                            <div className="text-white font-bold">{stat.value}</div>
+                            <div className="text-white font-bold text-xs">{stat.value}</div>
                           </div>
                         ))}
                       </div>
@@ -706,11 +690,11 @@ const SeriesDetail = ({ series, onClose }) => {
                   </div>
                 )}
 
-                {/* SCREENSHOTS TAB */}
+                {/* SCREENSHOTS TAB - ALSO WITH EXTRA PADDING */}
                 {activeTab === 'screenshots' && screenshots.length > 0 && (
-                  <div className="space-y-4">
+                  <div className="space-y-3 mb-20"> {/* EXTRA BOTTOM MARGIN */}
                     <div className="text-center">
-                      <h2 className="text-lg font-bold text-white mb-1">Gallery</h2>
+                      <h2 className="text-base font-bold text-white mb-1">Gallery</h2>
                       <p className="text-gray-400 text-sm">Series screenshots</p>
                     </div>
                     
@@ -725,19 +709,19 @@ const SeriesDetail = ({ series, onClose }) => {
                         
                         {screenshots.length > 1 && (
                           <>
-                            <div className="absolute inset-0 flex items-center justify-between px-3 opacity-0 hover:opacity-100 transition-opacity">
+                            <div className="absolute inset-0 flex items-center justify-between px-2 opacity-0 hover:opacity-100 transition-opacity">
                               <button 
                                 onClick={() => setActiveScreenshot((prev) => (prev - 1 + screenshots.length) % screenshots.length)}
-                                className="w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/80"
+                                className="w-7 h-7 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/80"
                               >
-                                <ChevronLeft size={16} />
+                                <ChevronLeft size={14} />
                               </button>
                               
                               <button 
                                 onClick={() => setActiveScreenshot((prev) => (prev + 1) % screenshots.length)}
-                                className="w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/80"
+                                className="w-7 h-7 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/80"
                               >
-                                <ChevronRight size={16} />
+                                <ChevronRight size={14} />
                               </button>
                             </div>
                             
@@ -750,21 +734,21 @@ const SeriesDetail = ({ series, onClose }) => {
 
                       {/* Thumbnail Grid */}
                       {screenshots.length > 1 && (
-                        <div className="flex space-x-2 mt-3 overflow-x-auto pb-2">
+                        <div className="flex space-x-1.5 mt-2.5 overflow-x-auto pb-1">
                           {screenshots.map((screenshot, index) => (
                             <button
                               key={index}
                               onClick={() => setActiveScreenshot(index)}
                               className={`flex-shrink-0 rounded overflow-hidden transition-all ${
                                 activeScreenshot === index 
-                                  ? 'ring-2 ring-purple-500' 
+                                  ? 'ring-1 ring-purple-500' 
                                   : 'opacity-60 hover:opacity-100'
                               }`}
                             >
                               <img 
                                 src={screenshot}
                                 alt={`Thumbnail ${index + 1}`}
-                                className="w-16 h-10 object-cover"
+                                className="w-12 h-8 object-cover"
                               />
                             </button>
                           ))}
@@ -773,6 +757,7 @@ const SeriesDetail = ({ series, onClose }) => {
                     </div>
                   </div>
                 )}
+                
               </div>
             </div>
           </div>
