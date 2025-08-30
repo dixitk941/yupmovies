@@ -36,12 +36,33 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
 
   const hasDownloads = !!(movie.downloadLinks && movie.downloadLinks.length > 0);
 
+  // Date formatting function
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric'
+      });
+    } catch {
+      return dateString.split(' ')[0]; // fallback to just date part
+    }
+  };
+
+  // Get display date (prioritize date over modified_date)
+  const getDisplayDate = () => {
+    return movie.date || movie.modified_date || '';
+  };
+
+  const displayDate = formatDate(getDisplayDate());
+
   // CRITICAL FIX: Proper click handler that prevents page reload
   const handleClick = (e) => {
-    e.preventDefault(); // Prevent default browser behavior (navigation, form submit, etc.)
-    e.stopPropagation(); // Stop event bubbling
-    console.log('MovieCard clicked:', movie.title); // Debug log
-    onClick(movie); // Call the parent's onClick handler
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('MovieCard clicked:', movie.title);
+    onClick(movie);
   };
 
   // Handle image error
@@ -84,7 +105,7 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
         </div>
       )}
 
-      {/* Main Card - FIXED: Added proper click handler */}
+      {/* Main Card */}
       <div
         className={`
           relative cursor-pointer rounded-lg overflow-hidden bg-black/80 backdrop-blur-sm
@@ -95,7 +116,7 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
             : `transform ${isHovered ? 'scale-110 z-40 shadow-2xl shadow-black/60' : 'hover:scale-105'}`
           }
         `}
-        onClick={handleClick} // CRITICAL FIX: Use proper click handler
+        onClick={handleClick}
         onMouseEnter={() => !isMobile && setIsHovered(true)}
         onMouseLeave={() => !isMobile && setIsHovered(false)}
         role="button"
@@ -154,7 +175,7 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
               <h3 className="text-white font-bold text-xs mb-1 line-clamp-2 leading-tight">
                 {cleanTitle.length > 15 ? cleanTitle.substring(0, 15) + '...' : cleanTitle}
               </h3>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-1">
                 <span className="text-gray-300 text-[10px]">{year}</span>
                 {movie.content?.rating && (
                   <span className="text-yellow-400 text-[10px] font-medium">
@@ -162,6 +183,18 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
                   </span>
                 )}
               </div>
+              {/* Date display for mobile */}
+              {displayDate && (
+                <div className="text-gray-400 text-[9px] mb-1">
+                  {displayDate}
+                </div>
+              )}
+              {/* Excerpt at bottom for mobile */}
+              {movie.excerpt && (
+                <div className="bg-blue-600/80 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium">
+                  {movie.excerpt.length > 15 ? movie.excerpt.substring(0, 15) + '...' : movie.excerpt}
+                </div>
+              )}
             </div>
           )}
 
@@ -201,6 +234,20 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
                     </span>
                   )}
                 </div>
+
+                {/* Date display for desktop */}
+                {displayDate && (
+                  <div className="text-gray-400 text-[9px] mb-1">
+                    {displayDate}
+                  </div>
+                )}
+
+                {/* Excerpt at bottom for desktop */}
+                {movie.excerpt && (
+                  <div className="bg-blue-600/80 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium mb-2">
+                    {movie.excerpt.length > 15 ? movie.excerpt.substring(0, 15) + '...' : movie.excerpt}
+                  </div>
+                )}
 
                 {/* Action Buttons */}
                 <div className="flex items-center space-x-1">

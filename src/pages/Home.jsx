@@ -1,19 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronLeft, ChevronRight, X, Film, Tv, Play } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, X, Film, Tv, Play, Star } from 'lucide-react';
 import { platforms } from '../data/mockData';
 import MovieCard from './MovieCard';
 import MovieDetails from './MovieDetails';
 import SeriesDetail from './SeriesDetail';
 
-// Updated imports - using named imports instead of default
+// Updated imports - including anime service
 import { getAllMovies } from '../services/movieService';
 import { getAllSeries } from '../services/seriesService';
+import { getAllAnime } from '../services/animeService'; // New import
 
 function Home() {
   const [contentType, setContentType] = useState('movies');
   const [searchQuery, setSearchQuery] = useState('');
   const [allMovies, setAllMovies] = useState([]);
   const [allSeries, setAllSeries] = useState([]);
+  const [allAnime, setAllAnime] = useState([]); // New state
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -49,20 +51,23 @@ function Home() {
     return () => window.removeEventListener('scroll', controlNavbar);
   }, []);
 
-  // Updated data fetching using named imports
+  // Updated data fetching to include anime
   useEffect(() => {
     setIsLoading(true);
-    console.log('Starting to fetch movies and series...');
+    console.log('Starting to fetch movies, series, and anime...');
     
-    Promise.all([getAllMovies(), getAllSeries()])
-      .then(([movies, series]) => {
+    Promise.all([getAllMovies(), getAllSeries(), getAllAnime()]) // Added getAllAnime()
+      .then(([movies, series, anime]) => {
         console.log('Movies loaded:', movies.length);
         console.log('Series loaded:', series.length);
+        console.log('Anime loaded:', anime.length); // New log
         console.log('Sample movie:', movies[0]);
         console.log('Sample series:', series[0]);
+        console.log('Sample anime:', anime[0]); // New log
         
         setAllMovies(movies);
         setAllSeries(series);
+        setAllAnime(anime); // New state update
         setTimeout(() => setIsLoading(false), 800);
       })
       .catch((error) => {
@@ -71,12 +76,12 @@ function Home() {
       });
   }, []);
 
-  // Enhanced series detection function
+  // Enhanced content detection function to include anime
   const isSeriesContent = (content) => {
     if (!content) return false;
     
-    // Check explicit series flag
-    if (content.isSeries === true) return true;
+    // Check explicit series or anime flag
+    if (content.isSeries === true || content.isAnime === true) return true;
     
     // Check for seasons object
     if (content.seasons && Object.keys(content.seasons).length > 0) return true;
@@ -87,11 +92,12 @@ function Home() {
     );
     if (hasSeasonKeys) return true;
     
-    // Check categories for series indicator
+    // Check categories for series/anime indicator
     if (content.categories && Array.isArray(content.categories)) {
       const hasSeriesCategory = content.categories.some(cat => 
         cat.toLowerCase().includes('series') || 
-        cat.toLowerCase().includes('show')
+        cat.toLowerCase().includes('show') ||
+        cat.toLowerCase().includes('anime')
       );
       if (hasSeriesCategory) return true;
     }
@@ -101,9 +107,10 @@ function Home() {
 
   // Debug wrapper for content selection
   const handleContentSelect = (content) => {
-    console.log('🎬 Content selected:', content.title, content.isSeries ? 'Series' : 'Movie');
+    console.log('🎬 Content selected:', content.title, 
+      content.isSeries ? 'Series' : content.isAnime ? 'Anime' : 'Movie');
     console.log('🎬 Content data:', content);
-    console.log('🎬 Is series check result:', isSeriesContent(content));
+    console.log('🎬 Is series/anime check result:', isSeriesContent(content));
     setSelectedMovie(content);
   };
 
@@ -112,9 +119,23 @@ function Home() {
     setCurrentPage(1);
   };
 
-  // Group content by platforms/categories - UPDATED for new data structure
+  // Updated to get current content based on type (including anime)
+  const getCurrentContent = () => {
+    switch (contentType) {
+      case 'movies':
+        return allMovies;
+      case 'series':
+        return allSeries;
+      case 'anime':
+        return allAnime;
+      default:
+        return allMovies;
+    }
+  };
+
+  // Group content by platforms/categories - UPDATED for all content types
   const getGroupedContent = () => {
-    const currentContent = contentType === 'movies' ? allMovies : allSeries;
+    const currentContent = getCurrentContent();
     
     if (searchQuery.trim()) {
       const filtered = currentContent.filter(item =>
@@ -144,25 +165,51 @@ function Home() {
       sections.push({ title: 'Recently Added', items: recentlyAdded });
     }
 
-    // Platform-specific sections
-    platformList.forEach(platform => {
-      const platformContent = currentContent.filter(item => {
-        if (item.categories && Array.isArray(item.categories)) {
-          return item.categories.some(cat => 
-            cat.toLowerCase().includes(platform.name.toLowerCase())
-          );
+    // Content-specific sections
+    if (contentType === 'anime') {
+      // Anime-specific categories
+      const animeGenres = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Romance', 'Thriller'];
+      animeGenres.forEach(genre => {
+        const genreContent = currentContent.filter(item => {
+          if (item.genres && Array.isArray(item.genres)) {
+            return item.genres.some(g => g.toLowerCase().includes(genre.toLowerCase()));
+          }
+          if (item.categories && Array.isArray(item.categories)) {
+            return item.categories.some(cat => 
+              cat.toLowerCase().includes(genre.toLowerCase())
+            );
+          }
+          return false;
+        }).slice(0, 15);
+        
+        if (genreContent.length > 0) {
+          sections.push({
+            title: `${genre} Anime`,
+            items: genreContent
+          });
         }
-        return item.category && 
-               item.category.toLowerCase().includes(platform.name.toLowerCase());
-      }).slice(0, 15);
-      
-      if (platformContent.length > 0) {
-        sections.push({
-          title: platform.name,
-          items: platformContent
-        });
-      }
-    });
+      });
+    } else {
+      // Platform-specific sections for movies and series
+      platformList.forEach(platform => {
+        const platformContent = currentContent.filter(item => {
+          if (item.categories && Array.isArray(item.categories)) {
+            return item.categories.some(cat => 
+              cat.toLowerCase().includes(platform.name.toLowerCase())
+            );
+          }
+          return item.category && 
+                 item.category.toLowerCase().includes(platform.name.toLowerCase());
+        }).slice(0, 15);
+        
+        if (platformContent.length > 0) {
+          sections.push({
+            title: platform.name,
+            items: platformContent
+          });
+        }
+      });
+    }
 
     return sections;
   };
@@ -231,13 +278,13 @@ function Home() {
     );
   };
 
-  // All Movies Vertical Grid with Pagination
-  const AllMoviesSection = () => {
-    const currentContent = contentType === 'movies' ? allMovies : allSeries;
+  // Updated All Content Section to handle all types
+  const AllContentSection = () => {
+    const currentContent = getCurrentContent();
     const totalPages = Math.ceil(currentContent.length / MOVIES_PER_PAGE);
     const startIndex = (currentPage - 1) * MOVIES_PER_PAGE;
     const endIndex = startIndex + MOVIES_PER_PAGE;
-    const paginatedMovies = currentContent.slice(startIndex, endIndex);
+    const paginatedContent = currentContent.slice(startIndex, endIndex);
 
     const handlePageChange = (page) => {
       setCurrentPage(page);
@@ -246,14 +293,28 @@ function Home() {
 
     if (currentContent.length === 0) return null;
 
+    // Get section title based on content type
+    const getSectionTitle = () => {
+      switch (contentType) {
+        case 'movies':
+          return 'All Movies';
+        case 'series':
+          return 'All TV Shows';
+        case 'anime':
+          return 'All Anime';
+        default:
+          return 'All Content';
+      }
+    };
+
     return (
       <div className="mb-8 px-4 md:px-8">
         <h2 className="text-xl md:text-2xl font-bold text-white mb-4">
-          {contentType === 'movies' ? 'All Movies' : 'All TV Shows'}
+          {getSectionTitle()}
         </h2>
         
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 md:gap-4 mb-6">
-          {paginatedMovies.map((content, idx) => (
+          {paginatedContent.map((content, idx) => (
             <MovieCard
               key={content.id || idx}
               movie={content}
@@ -302,25 +363,27 @@ function Home() {
     );
   };
 
-  // UPDATED: Enhanced render detail component with better debugging and fallback
+  // Enhanced render detail component to handle anime as series
   const renderDetailComponent = () => {
     console.log('🎬 renderDetailComponent called, selectedMovie:', selectedMovie);
     
     if (!selectedMovie) {
-      console.log('❌ No selected movie, returning null');
+      console.log('❌ No selected content, returning null');
       return null;
     }
     
     const isSeries = isSeriesContent(selectedMovie);
-    console.log('🎯 Enhanced series check result:', isSeries);
+    console.log('🎯 Enhanced series/anime check result:', isSeries);
     console.log('🎯 selectedMovie.isSeries:', selectedMovie.isSeries);
+    console.log('🎯 selectedMovie.isAnime:', selectedMovie.isAnime);
     console.log('🎯 selectedMovie.seasons:', selectedMovie.seasons);
     console.log('🎯 categories:', selectedMovie.categories);
 
     // Add error boundary fallback
     try {
       if (isSeries) {
-        console.log('📺 Rendering SeriesDetail component');
+        console.log('📺 Rendering SeriesDetail component (for series or anime)');
+        // Use SeriesDetail for both series and anime since they have the same structure
         return <SeriesDetail series={selectedMovie} onClose={() => setSelectedMovie(null)} />;
       } else {
         console.log('🎬 Rendering MovieDetails component');
@@ -367,7 +430,7 @@ function Home() {
     }
   };
 
-  // Bottom navigation bar (mobile)
+  // Updated Bottom navigation bar to include anime
   const BottomBar = () => (
     <nav className="fixed z-50 bottom-0 left-0 right-0 bg-black/90 backdrop-blur-md border-t border-gray-800 flex md:hidden items-center justify-around h-16">
       <button
@@ -388,6 +451,15 @@ function Home() {
         <Tv size={20} />
         <span className="text-xs mt-1">Series</span>
       </button>
+      <button
+        className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
+          contentType === 'anime' ? 'text-red-500' : 'text-gray-400'
+        }`}
+        onClick={() => setContentType('anime')}
+      >
+        <Star size={20} />
+        <span className="text-xs mt-1">Anime</span>
+      </button>
     </nav>
   );
 
@@ -395,7 +467,7 @@ function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* NETFLIX-STYLE HEADER */}
+      {/* NETFLIX-STYLE HEADER - Updated to include anime tab */}
       <header 
         ref={headerRef} 
         className="fixed top-0 w-full bg-black bg-opacity-0 z-50 transition-all duration-300 transform"
@@ -421,6 +493,14 @@ function Home() {
                 onClick={() => setContentType('series')}
               >
                 TV Shows
+              </button>
+              <button
+                className={`text-sm font-medium transition-colors ${
+                  contentType === 'anime' ? 'text-white' : 'text-gray-400 hover:text-white'
+                }`}
+                onClick={() => setContentType('anime')}
+              >
+                Anime
               </button>
               <button className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
                 My List
@@ -470,7 +550,9 @@ function Home() {
             ) : (
               <div className="w-full h-full bg-gradient-to-r from-gray-900 to-gray-700 flex items-center justify-center">
                 <div className="text-center text-gray-400">
-                  <div className="text-6xl mb-4">🎬</div>
+                  <div className="text-6xl mb-4">
+                    {contentType === 'anime' ? '🌟' : '🎬'}
+                  </div>
                   <h2 className="text-2xl font-bold">Featured Content</h2>
                 </div>
               </div>
@@ -529,14 +611,14 @@ function Home() {
                 />
               ))}
 
-              {!searchQuery && <AllMoviesSection />}
+              {!searchQuery && <AllContentSection />}
 
               {groupedContent.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16">
                   <div className="text-6xl mb-4">😕</div>
                   <p className="text-gray-400 text-center mb-2">No content found</p>
                   <p className="text-gray-500 text-sm text-center max-w-md">
-                    We couldn't find any content that matches your search.
+                    We couldn't find any {contentType} that matches your search.
                   </p>
                   {searchQuery && (
                     <button
@@ -559,7 +641,7 @@ function Home() {
           <button 
             className="bg-red-500 text-white px-4 py-2 rounded text-xs"
             onClick={() => {
-              const testContent = allMovies[0] || allSeries[0];
+              const testContent = allMovies[0] || allSeries[0] || allAnime[0];
               if (testContent) {
                 handleContentSelect(testContent);
               }
@@ -574,7 +656,9 @@ function Home() {
                 selectedMovie: !!selectedMovie,
                 selectedTitle: selectedMovie?.title,
                 allMovies: allMovies.length,
-                allSeries: allSeries.length
+                allSeries: allSeries.length,
+                allAnime: allAnime.length,
+                contentType: contentType
               });
             }}
           >
