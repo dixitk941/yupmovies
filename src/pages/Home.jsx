@@ -8,16 +8,28 @@ import SeriesDetail from './SeriesDetail';
 // Updated imports - including anime service
 import { getAllMovies } from '../services/movieService';
 import { getAllSeries } from '../services/seriesService';
-import { getAllAnime } from '../services/animeService'; // New import
+import { getAllAnime } from '../services/animeService';
 
 function Home() {
   const [contentType, setContentType] = useState('movies');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Separate loading states for each content type
   const [allMovies, setAllMovies] = useState([]);
   const [allSeries, setAllSeries] = useState([]);
-  const [allAnime, setAllAnime] = useState([]); // New state
+  const [allAnime, setAllAnime] = useState([]);
+  
+  // Individual loading states
+  const [moviesLoading, setMoviesLoading] = useState(true);
+  const [seriesLoading, setSeriesLoading] = useState(false);
+  const [animeLoading, setAnimeLoading] = useState(false);
+  
+  // Track which data has been fetched
+  const [moviesLoaded, setMoviesLoaded] = useState(false);
+  const [seriesLoaded, setSeriesLoaded] = useState(false);
+  const [animeLoaded, setAnimeLoaded] = useState(false);
+  
   const [selectedMovie, setSelectedMovie] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const headerRef = useRef(null);
   const lastScrollY = useRef(0);
@@ -51,30 +63,90 @@ function Home() {
     return () => window.removeEventListener('scroll', controlNavbar);
   }, []);
 
-  // Updated data fetching to include anime
+  // Fetch movies on initial load (default tab)
   useEffect(() => {
-    setIsLoading(true);
-    console.log('Starting to fetch movies, series, and anime...');
+    if (!moviesLoaded) {
+      fetchMovies();
+    }
+  }, [moviesLoaded]);
+
+  // Fetch data when switching content type
+  useEffect(() => {
+    setCurrentPage(1); // Reset pagination when switching types
     
-    Promise.all([getAllMovies(), getAllSeries(), getAllAnime()]) // Added getAllAnime()
-      .then(([movies, series, anime]) => {
-        console.log('Movies loaded:', movies.length);
-        console.log('Series loaded:', series.length);
-        console.log('Anime loaded:', anime.length); // New log
-        console.log('Sample movie:', movies[0]);
-        console.log('Sample series:', series[0]);
-        console.log('Sample anime:', anime[0]); // New log
-        
-        setAllMovies(movies);
-        setAllSeries(series);
-        setAllAnime(anime); // New state update
-        setTimeout(() => setIsLoading(false), 800);
-      })
-      .catch((error) => {
-        console.error('Error loading data:', error);
-        setIsLoading(false);
-      });
-  }, []);
+    switch (contentType) {
+      case 'movies':
+        if (!moviesLoaded) {
+          fetchMovies();
+        }
+        break;
+      case 'series':
+        if (!seriesLoaded) {
+          fetchSeries();
+        }
+        break;
+      case 'anime':
+        if (!animeLoaded) {
+          fetchAnime();
+        }
+        break;
+    }
+  }, [contentType, moviesLoaded, seriesLoaded, animeLoaded]);
+
+  // Optimized fetch functions
+  const fetchMovies = async () => {
+    if (moviesLoaded) return;
+    
+    setMoviesLoading(true);
+    console.log('🎬 Fetching movies...');
+    
+    try {
+      const movies = await getAllMovies();
+      console.log('✅ Movies loaded:', movies.length);
+      setAllMovies(movies);
+      setMoviesLoaded(true);
+    } catch (error) {
+      console.error('❌ Error loading movies:', error);
+    } finally {
+      setMoviesLoading(false);
+    }
+  };
+
+  const fetchSeries = async () => {
+    if (seriesLoaded) return;
+    
+    setSeriesLoading(true);
+    console.log('📺 Fetching series...');
+    
+    try {
+      const series = await getAllSeries();
+      console.log('✅ Series loaded:', series.length);
+      setAllSeries(series);
+      setSeriesLoaded(true);
+    } catch (error) {
+      console.error('❌ Error loading series:', error);
+    } finally {
+      setSeriesLoading(false);
+    }
+  };
+
+  const fetchAnime = async () => {
+    if (animeLoaded) return;
+    
+    setAnimeLoading(true);
+    console.log('🌟 Fetching anime...');
+    
+    try {
+      const anime = await getAllAnime();
+      console.log('✅ Anime loaded:', anime.length);
+      setAllAnime(anime);
+      setAnimeLoaded(true);
+    } catch (error) {
+      console.error('❌ Error loading anime:', error);
+    } finally {
+      setAnimeLoading(false);
+    }
+  };
 
   // Enhanced content detection function to include anime
   const isSeriesContent = (content) => {
@@ -119,23 +191,32 @@ function Home() {
     setCurrentPage(1);
   };
 
-  // Updated to get current content based on type (including anime)
-  const getCurrentContent = () => {
+  // Optimized content type switcher
+  const handleContentTypeChange = (newType) => {
+    if (newType === contentType) return; // No change needed
+    
+    console.log(`🔄 Switching from ${contentType} to ${newType}`);
+    setContentType(newType);
+    setSearchQuery(''); // Clear search when switching types
+  };
+
+  // Get current content and loading state
+  const getCurrentContentAndState = () => {
     switch (contentType) {
       case 'movies':
-        return allMovies;
+        return { content: allMovies, loading: moviesLoading, loaded: moviesLoaded };
       case 'series':
-        return allSeries;
+        return { content: allSeries, loading: seriesLoading, loaded: seriesLoaded };
       case 'anime':
-        return allAnime;
+        return { content: allAnime, loading: animeLoading, loaded: animeLoaded };
       default:
-        return allMovies;
+        return { content: allMovies, loading: moviesLoading, loaded: moviesLoaded };
     }
   };
 
   // Group content by platforms/categories - UPDATED for all content types
   const getGroupedContent = () => {
-    const currentContent = getCurrentContent();
+    const { content: currentContent } = getCurrentContentAndState();
     
     if (searchQuery.trim()) {
       const filtered = currentContent.filter(item =>
@@ -214,12 +295,25 @@ function Home() {
     return sections;
   };
 
+  // Optimized skeleton component
   const MovieSkeleton = () => (
     <div 
       className="animate-pulse bg-gray-800 rounded-lg overflow-hidden flex-shrink-0"
       style={{ width: '112px', aspectRatio: '2/3' }}
     >
       <div className="w-full h-full bg-gray-700"></div>
+    </div>
+  );
+
+  // Loading state for tab switching
+  const TabLoadingState = () => (
+    <div className="space-y-8 px-4 md:px-8">
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading {contentType}...</p>
+        </div>
+      </div>
     </div>
   );
 
@@ -278,9 +372,13 @@ function Home() {
     );
   };
 
-  // Updated All Content Section to handle all types
+  // Updated All Content Section to handle loading states
   const AllContentSection = () => {
-    const currentContent = getCurrentContent();
+    const { content: currentContent, loading } = getCurrentContentAndState();
+    
+    if (loading) return <TabLoadingState />;
+    if (currentContent.length === 0) return null;
+
     const totalPages = Math.ceil(currentContent.length / MOVIES_PER_PAGE);
     const startIndex = (currentPage - 1) * MOVIES_PER_PAGE;
     const endIndex = startIndex + MOVIES_PER_PAGE;
@@ -290,8 +388,6 @@ function Home() {
       setCurrentPage(page);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
-
-    if (currentContent.length === 0) return null;
 
     // Get section title based on content type
     const getSectionTitle = () => {
@@ -374,21 +470,15 @@ function Home() {
     
     const isSeries = isSeriesContent(selectedMovie);
     console.log('🎯 Enhanced series/anime check result:', isSeries);
-    console.log('🎯 selectedMovie.isSeries:', selectedMovie.isSeries);
-    console.log('🎯 selectedMovie.isAnime:', selectedMovie.isAnime);
-    console.log('🎯 selectedMovie.seasons:', selectedMovie.seasons);
-    console.log('🎯 categories:', selectedMovie.categories);
 
     // Add error boundary fallback
     try {
       if (isSeries) {
         console.log('📺 Rendering SeriesDetail component (for series or anime)');
-        // Use SeriesDetail for both series and anime since they have the same structure
         return <SeriesDetail series={selectedMovie} onClose={() => setSelectedMovie(null)} />;
       } else {
         console.log('🎬 Rendering MovieDetails component');
         
-        // Check if MovieDetails component exists and can be rendered
         if (!MovieDetails) {
           console.error('❌ MovieDetails component not found or not imported properly');
           return (
@@ -430,44 +520,60 @@ function Home() {
     }
   };
 
-  // Updated Bottom navigation bar to include anime
+  // Updated Bottom navigation bar with loading indicators
   const BottomBar = () => (
     <nav className="fixed z-50 bottom-0 left-0 right-0 bg-black/90 backdrop-blur-md border-t border-gray-800 flex md:hidden items-center justify-around h-16">
       <button
         className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
           contentType === 'movies' ? 'text-red-500' : 'text-gray-400'
         }`}
-        onClick={() => setContentType('movies')}
+        onClick={() => handleContentTypeChange('movies')}
       >
-        <Film size={20} />
+        <div className="relative">
+          <Film size={20} />
+          {moviesLoading && (
+            <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+          )}
+        </div>
         <span className="text-xs mt-1">Movies</span>
       </button>
       <button
         className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
           contentType === 'series' ? 'text-red-500' : 'text-gray-400'
         }`}
-        onClick={() => setContentType('series')}
+        onClick={() => handleContentTypeChange('series')}
       >
-        <Tv size={20} />
+        <div className="relative">
+          <Tv size={20} />
+          {seriesLoading && (
+            <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+          )}
+        </div>
         <span className="text-xs mt-1">Series</span>
       </button>
       <button
         className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
           contentType === 'anime' ? 'text-red-500' : 'text-gray-400'
         }`}
-        onClick={() => setContentType('anime')}
+        onClick={() => handleContentTypeChange('anime')}
       >
-        <Star size={20} />
+        <div className="relative">
+          <Star size={20} />
+          {animeLoading && (
+            <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+          )}
+        </div>
         <span className="text-xs mt-1">Anime</span>
       </button>
     </nav>
   );
 
+  const { content: currentContent, loading: isCurrentLoading } = getCurrentContentAndState();
   const groupedContent = getGroupedContent();
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* NETFLIX-STYLE HEADER - Updated to include anime tab */}
+      {/* NETFLIX-STYLE HEADER - Updated with loading indicators */}
       <header 
         ref={headerRef} 
         className="fixed top-0 w-full bg-black bg-opacity-0 z-50 transition-all duration-300 transform"
@@ -479,28 +585,37 @@ function Home() {
             </div>
             <div className="hidden md:flex items-center space-x-6">
               <button
-                className={`text-sm font-medium transition-colors ${
+                className={`text-sm font-medium transition-colors relative ${
                   contentType === 'movies' ? 'text-white' : 'text-gray-400 hover:text-white'
                 }`}
-                onClick={() => setContentType('movies')}
+                onClick={() => handleContentTypeChange('movies')}
               >
                 Movies
+                {moviesLoading && (
+                  <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                )}
               </button>
               <button
-                className={`text-sm font-medium transition-colors ${
+                className={`text-sm font-medium transition-colors relative ${
                   contentType === 'series' ? 'text-white' : 'text-gray-400 hover:text-white'
                 }`}
-                onClick={() => setContentType('series')}
+                onClick={() => handleContentTypeChange('series')}
               >
                 TV Shows
+                {seriesLoading && (
+                  <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                )}
               </button>
               <button
-                className={`text-sm font-medium transition-colors ${
+                className={`text-sm font-medium transition-colors relative ${
                   contentType === 'anime' ? 'text-white' : 'text-gray-400 hover:text-white'
                 }`}
-                onClick={() => setContentType('anime')}
+                onClick={() => handleContentTypeChange('anime')}
               >
                 Anime
+                {animeLoading && (
+                  <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                )}
               </button>
               <button className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
                 My List
@@ -534,7 +649,7 @@ function Home() {
       {/* MAIN CONTENT */}
       <main className="pt-20 pb-20">
         {/* HERO SECTION */}
-        {!searchQuery && !isLoading && groupedContent[0]?.items[0] && (
+        {!searchQuery && !isCurrentLoading && groupedContent[0]?.items[0] && (
           <div className="relative h-[40vh] md:h-[50vh] mb-8 overflow-hidden">
             {groupedContent[0].items[0].featuredImage || groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image ? (
               <img
@@ -587,19 +702,8 @@ function Home() {
 
         {/* CONTENT SECTIONS */}
         <div>
-          {isLoading ? (
-            <div className="space-y-8">
-              {[...Array(3)].map((_, i) => (
-                <div key={i}>
-                  <div className="h-8 bg-gray-800 rounded w-48 mb-4 mx-4 md:mx-8 animate-pulse"></div>
-                  <div className="flex space-x-4 overflow-hidden px-4 md:px-8">
-                    {[...Array(6)].map((__, j) => (
-                      <MovieSkeleton key={j} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+          {isCurrentLoading ? (
+            <TabLoadingState />
           ) : (
             <>
               {groupedContent.length > 0 && groupedContent.map((section, index) => (
@@ -613,7 +717,7 @@ function Home() {
 
               {!searchQuery && <AllContentSection />}
 
-              {groupedContent.length === 0 && (
+              {groupedContent.length === 0 && currentContent.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-16">
                   <div className="text-6xl mb-4">😕</div>
                   <p className="text-gray-400 text-center mb-2">No content found</p>
@@ -634,38 +738,6 @@ function Home() {
           )}
         </div>
       </main>
-
-      {/* Debug Test Button - Remove in production */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="fixed top-20 right-4 z-50 flex flex-col gap-2">
-          <button 
-            className="bg-red-500 text-white px-4 py-2 rounded text-xs"
-            onClick={() => {
-              const testContent = allMovies[0] || allSeries[0] || allAnime[0];
-              if (testContent) {
-                handleContentSelect(testContent);
-              }
-            }}
-          >
-            Test Detail View
-          </button>
-          <button 
-            className="bg-blue-500 text-white px-4 py-2 rounded text-xs"
-            onClick={() => {
-              console.log('🔍 Current state:', {
-                selectedMovie: !!selectedMovie,
-                selectedTitle: selectedMovie?.title,
-                allMovies: allMovies.length,
-                allSeries: allSeries.length,
-                allAnime: allAnime.length,
-                contentType: contentType
-              });
-            }}
-          >
-            Debug State
-          </button>
-        </div>
-      )}
 
       {selectedMovie && renderDetailComponent()}
       <BottomBar />
