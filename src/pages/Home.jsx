@@ -98,7 +98,7 @@ function Home() {
     if (moviesLoaded) return;
     
     setMoviesLoading(true);
-    console.log('🎬 Fetching movies...');
+    // console.log('🎬 Fetching movies...');
     
     try {
       const movies = await getAllMovies();
@@ -116,15 +116,15 @@ function Home() {
     if (seriesLoaded) return;
     
     setSeriesLoading(true);
-    console.log('📺 Fetching series...');
+    // console.log('📺 Fetching series...');
     
     try {
       const series = await getAllSeries();
-      console.log('✅ Series loaded:', series.length);
+      // console.log('✅ Series loaded:', series.length);
       setAllSeries(series);
       setSeriesLoaded(true);
     } catch (error) {
-      console.error('❌ Error loading series:', error);
+      // console.error('❌ Error loading series:', error);
     } finally {
       setSeriesLoading(false);
     }
@@ -134,11 +134,11 @@ function Home() {
     if (animeLoaded) return;
     
     setAnimeLoading(true);
-    console.log('🌟 Fetching anime...');
+    // console.log('🌟 Fetching anime...');
     
     try {
       const anime = await getAllAnime();
-      console.log('✅ Anime loaded:', anime.length);
+      // console.log('✅ Anime loaded:', anime.length);
       setAllAnime(anime);
       setAnimeLoaded(true);
     } catch (error) {
@@ -179,10 +179,10 @@ function Home() {
 
   // Debug wrapper for content selection
   const handleContentSelect = (content) => {
-    console.log('🎬 Content selected:', content.title, 
-      content.isSeries ? 'Series' : content.isAnime ? 'Anime' : 'Movie');
-    console.log('🎬 Content data:', content);
-    console.log('🎬 Is series/anime check result:', isSeriesContent(content));
+    // console.log('🎬 Content selected:', content.title, 
+    //   content.isSeries ? 'Series' : content.isAnime ? 'Anime' : 'Movie');
+    // console.log('🎬 Content data:', content);
+    // console.log('🎬 Is series/anime check result:', isSeriesContent(content));
     setSelectedMovie(content);
   };
 
@@ -195,7 +195,7 @@ function Home() {
   const handleContentTypeChange = (newType) => {
     if (newType === contentType) return; // No change needed
     
-    console.log(`🔄 Switching from ${contentType} to ${newType}`);
+    // console.log(`🔄 Switching from ${contentType} to ${newType}`);
     setContentType(newType);
     setSearchQuery(''); // Clear search when switching types
   };
@@ -461,23 +461,23 @@ function Home() {
 
   // Enhanced render detail component to handle anime as series
   const renderDetailComponent = () => {
-    console.log('🎬 renderDetailComponent called, selectedMovie:', selectedMovie);
+    // console.log('🎬 renderDetailComponent called, selectedMovie:', selectedMovie);
     
     if (!selectedMovie) {
-      console.log('❌ No selected content, returning null');
+      // console.log('❌ No selected content, returning null');
       return null;
     }
     
     const isSeries = isSeriesContent(selectedMovie);
-    console.log('🎯 Enhanced series/anime check result:', isSeries);
+    // console.log('🎯 Enhanced series/anime check result:', isSeries);
 
     // Add error boundary fallback
     try {
       if (isSeries) {
-        console.log('📺 Rendering SeriesDetail component (for series or anime)');
+        // console.log('📺 Rendering SeriesDetail component (for series or anime)');
         return <SeriesDetail series={selectedMovie} onClose={() => setSelectedMovie(null)} />;
       } else {
-        console.log('🎬 Rendering MovieDetails component');
+        // console.log('🎬 Rendering MovieDetails component');
         
         if (!MovieDetails) {
           console.error('❌ MovieDetails component not found or not imported properly');

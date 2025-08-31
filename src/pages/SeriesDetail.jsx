@@ -211,7 +211,7 @@ const SeriesDetail = ({ series, onClose }) => {
           }
         }
       } catch (error) {
-        console.error('Error fetching series data:', error);
+        // console.error('Error fetching series data:', error);
         showToast('Error loading series data', 'error');
       } finally {
         setIsLoadingSeasons(false);
@@ -283,7 +283,7 @@ const SeriesDetail = ({ series, onClose }) => {
       setTimeout(() => showToast(`Download started: ${quality}`, 'success'), 1000);
       
     } catch (error) {
-      console.error('Download failed:', error);
+      // console.error('Download failed:', error);
       showToast("Download failed", 'error');
     } finally {
       setTimeout(() => {

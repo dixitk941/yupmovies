@@ -23,7 +23,7 @@ const MovieDetails = ({ movie, onClose }) => {
   const parseDownloadLinks = useCallback((linksString) => {
     if (!linksString || typeof linksString !== 'string') return [];
     
-    console.log('Raw links string:', linksString);
+    // console.log('Raw links string:', linksString);
     
     try {
       const links = [];
@@ -36,7 +36,7 @@ const MovieDetails = ({ movie, onClose }) => {
       while ((match = linkPattern.exec(linksString)) !== null) {
         const [, url, description, size] = match;
         
-        console.log('Found match:', { url, description, size });
+        // console.log('Found match:', { url, description, size });
         
         // Extract quality from description
         let quality = 'HD';
@@ -73,14 +73,14 @@ const MovieDetails = ({ movie, onClose }) => {
         });
       }
       
-      console.log('Final parsed links:', links);
+      // console.log('Final parsed links:', links);
       
       // Sort by quality
       const qualityOrder = { '480P': 1, '720P': 2, '1080P': 3, '4K': 4, 'HD': 2.5 };
       return links.sort((a, b) => (qualityOrder[a.quality] || 5) - (qualityOrder[b.quality] || 5));
       
     } catch (error) {
-      console.error('Error parsing download links:', error);
+      // console.error('Error parsing download links:', error);
       return [];
     }
   }, []);
@@ -89,7 +89,7 @@ const MovieDetails = ({ movie, onClose }) => {
   const extractMovieData = useCallback(() => {
     if (!movie) return {};
     
-    console.log('Raw movie object:', movie);
+    // console.log('Raw movie object:', movie);
     
     // Extract screenshots from poster if it's an HTML string
     let screenshots = [];
@@ -109,7 +109,7 @@ const MovieDetails = ({ movie, onClose }) => {
       downloadLinks = parseDownloadLinks(movie.links);
     }
     
-    console.log('Final downloadLinks:', downloadLinks);
+    // console.log('Final downloadLinks:', downloadLinks);
     
     // Extract content metadata
     let metadata = {};
@@ -315,7 +315,7 @@ const MovieDetails = ({ movie, onClose }) => {
       }, 1000);
       
     } catch (error) {
-      console.error("Direct download error:", error);
+      // console.error("Direct download error:", error);
       showToast("Download failed. Please try again.", 'error');
     } finally {
       // Remove from downloading state after 3 seconds
@@ -523,7 +523,7 @@ const MovieDetails = ({ movie, onClose }) => {
           url: window.location.href
         });
       } catch (error) {
-        console.log('Share cancelled');
+        // console.log('Share cancelled');
       }
     } else {
       // Fallback to clipboard
