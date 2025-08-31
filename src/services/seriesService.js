@@ -28,19 +28,14 @@ const parseSeriesEpisodes = (seasonData) => {
   const episodes = [];
   
   try {
-    console.log('🔍 Parsing season data:', seasonData.substring(0, 200) + '...');
-    
     // Split by "Episode " to get individual episodes
     const episodeParts = seasonData.split(/Episode\s+(\d+)\s*:/);
-    console.log('📺 Found episode parts:', episodeParts.length);
     
     for (let i = 1; i < episodeParts.length; i += 2) {
       const episodeNumber = parseInt(episodeParts[i]);
       const episodeLinks = episodeParts[i + 1];
       
       if (episodeLinks) {
-        console.log(`📺 Processing Episode ${episodeNumber}:`, episodeLinks.substring(0, 100) + '...');
-        
         // Parse download links for this episode
         const links = parseEpisodeLinks(episodeLinks, episodeNumber);
         
@@ -51,7 +46,6 @@ const parseSeriesEpisodes = (seasonData) => {
             title: `Episode ${episodeNumber}`,
             downloadLinks: links
           });
-          console.log(`✅ Added Episode ${episodeNumber} with ${links.length} links`);
         }
       }
     }
@@ -60,7 +54,6 @@ const parseSeriesEpisodes = (seasonData) => {
     console.error('💥 Error parsing series episodes:', error);
   }
   
-  console.log(`🎬 Total episodes parsed: ${episodes.length}`);
   return episodes;
 };
 
@@ -71,11 +64,8 @@ const parseEpisodeLinks = (linkString, episodeNumber) => {
   const links = [];
   
   try {
-    console.log(`🔗 Parsing links for episode ${episodeNumber}:`, linkString.substring(0, 150) + '...');
-    
     // Split by " : " to separate different quality options
     const linkParts = linkString.split(' : ');
-    console.log(`🔗 Found ${linkParts.length} link parts`);
     
     linkParts.forEach((part, index) => {
       const trimmed = part.trim();
@@ -130,13 +120,6 @@ const parseEpisodeLinks = (linkString, episodeNumber) => {
         };
         
         links.push(linkEntry);
-        
-        console.log(`✅ Parsed episode link ${index + 1}:`, {
-          quality,
-          size,
-          downloadType: linkEntry.downloadType,
-          url: cleanUrl.substring(0, 50) + '...'
-        });
       }
     });
     
@@ -154,11 +137,8 @@ const parseSeasonZipLinks = (seasonZipData) => {
   const links = [];
   
   try {
-    console.log('📦 Parsing season zip data:', seasonZipData.substring(0, 200) + '...');
-    
     // Split by " : " to separate different package options
     const zipParts = seasonZipData.split(' : ');
-    console.log(`📦 Found ${zipParts.length} zip parts`);
     
     zipParts.forEach((part, index) => {
       const trimmed = part.trim();
@@ -213,13 +193,6 @@ const parseSeasonZipLinks = (seasonZipData) => {
         };
         
         links.push(linkEntry);
-        
-        console.log(`✅ Parsed package link ${index + 1}:`, {
-          quality,
-          size,
-          downloadType: linkEntry.downloadType,
-          url: cleanUrl.substring(0, 50) + '...'
-        });
       }
     });
     
@@ -244,7 +217,6 @@ const transformSeriesData = (row) => {
   seasonColumns.forEach((col, index) => {
     if (row[col] && row[col].trim() !== '') {
       const seasonNumber = index + 1;
-      console.log(`🎬 Processing season ${seasonNumber} from column ${col}`);
       
       const episodes = parseSeriesEpisodes(row[col]);
       
@@ -254,9 +226,6 @@ const transformSeriesData = (row) => {
           episodes,
           totalEpisodes: episodes.filter(ep => ep.episodeNumber !== 'complete').length
         };
-        console.log(`✅ Added season ${seasonNumber} with ${episodes.length} episodes`);
-      } else {
-        console.log(`❌ No episodes found for season ${seasonNumber}`);
       }
     }
   });
@@ -264,9 +233,7 @@ const transformSeriesData = (row) => {
   // UPDATED: Parse season zip packages from season_zip column
   let seasonZipLinks = [];
   if (row.season_zip && row.season_zip.trim() !== '') {
-    console.log('📦 Processing season zip packages');
     seasonZipLinks = parseSeasonZipLinks(row.season_zip);
-    console.log(`✅ Parsed ${seasonZipLinks.length} season package links`);
   }
   
   const genres = extractGenres(categories);
@@ -279,14 +246,6 @@ const transformSeriesData = (row) => {
   const totalSeasons = Object.keys(seasons).length;
   const allEpisodes = Object.values(seasons).flatMap(season => season.episodes);
   const totalEpisodes = allEpisodes.filter(ep => ep.episodeNumber !== 'complete').length;
-  
-  console.log(`🎬 Series transformation complete:`, {
-    title: row.title,
-    totalSeasons,
-    totalEpisodes,
-    seasonZipLinks: seasonZipLinks.length,
-    availableSeasons: Object.keys(seasons)
-  });
   
   return {
     id: row.record_id?.toString() || row.url_slug,
@@ -366,7 +325,6 @@ const fetchAllSeries = async () => {
       return [];
     }
 
-    console.log(`📺 Fetched ${data.length} series from database`);
     updateSeriesCache(data);
     return Array.from(seriesCache.values());
   } catch (error) {

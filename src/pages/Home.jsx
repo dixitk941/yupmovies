@@ -1,14 +1,534 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, ChevronLeft, ChevronRight, X, Film, Tv, Play, Star } from 'lucide-react';
+import React, { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
+import { Search, ChevronLeft, ChevronRight, X, Film, Tv, Play, Star, Grid, List, Filter } from 'lucide-react';
 import { platforms } from '../data/mockData';
 import MovieCard from './MovieCard';
 import MovieDetails from './MovieDetails';
 import SeriesDetail from './SeriesDetail';
 
-// Updated imports - including anime service
-import { getAllMovies } from '../services/movieService';
-import { getAllSeries } from '../services/seriesService';
-import { getAllAnime } from '../services/animeService';
+// Updated imports with ultra-fast service
+import { getAllMovies, searchMovies } from '../services/movieService';
+import { getAllSeries, searchSeries } from '../services/seriesService';
+import { getAllAnime, searchAnime } from '../services/animeService';
+
+// **ENHANCED SEARCH HOOK WITH AWESOME FEATURES**
+const useAwesomeSearch = (searchQuery, contentType) => {
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchCache, setSearchCache] = useState(new Map());
+  const [searchHistory, setSearchHistory] = useState([]);
+  const [suggestions, setSuggestions] = useState([]);
+  
+  const debouncedSearch = useCallback(
+    async (query, type) => {
+      if (!query || query.length < 2) {
+        setSearchResults([]);
+        setSuggestions([]);
+        return;
+      }
+
+      const cacheKey = `${type}_${query.toLowerCase()}`;
+      if (searchCache.has(cacheKey)) {
+        setSearchResults(searchCache.get(cacheKey));
+        return;
+      }
+
+      setIsSearching(true);
+      
+      try {
+        let results = [];
+        
+        switch (type) {
+          case 'movies':
+            results = await searchMovies(query, { limit: 100 });
+            break;
+          case 'series':
+            results = await searchSeries(query, { limit: 100 });
+            break;
+          case 'anime':
+            results = await searchAnime(query, { limit: 100 });
+            break;
+          default:
+            results = [];
+        }
+
+        // Generate search suggestions based on results
+        const titleSuggestions = results
+          .map(item => item.title)
+          .filter(title => title.toLowerCase().includes(query.toLowerCase()))
+          .slice(0, 5);
+        
+        setSuggestions(titleSuggestions);
+
+        // Cache the results with TTL
+        setSearchCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(cacheKey, results);
+          
+          // Limit cache size
+          if (newCache.size > 50) {
+            const firstKey = newCache.keys().next().value;
+            newCache.delete(firstKey);
+          }
+          
+          return newCache;
+        });
+
+        setSearchResults(results);
+        
+        // Add to search history
+        if (results.length > 0) {
+          setSearchHistory(prev => {
+            const newHistory = [query, ...prev.filter(h => h !== query)].slice(0, 10);
+            return newHistory;
+          });
+        }
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults([]);
+        setSuggestions([]);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [searchCache]
+  );
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      debouncedSearch(searchQuery, contentType);
+    }, 200); // Faster debounce for better UX
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, contentType, debouncedSearch]);
+
+  return { 
+    searchResults, 
+    isSearching, 
+    suggestions, 
+    searchHistory,
+    clearCache: () => setSearchCache(new Map()),
+    clearHistory: () => setSearchHistory([])
+  };
+};
+
+// **AWESOME SEARCH BAR WITH ADVANCED FEATURES**
+const AwesomeSearchBar = memo(({ 
+  searchQuery, 
+  onSearchChange, 
+  contentType, 
+  searchResults = [], 
+  isSearching = false,
+  suggestions = [],
+  searchHistory = [],
+  onResultSelect 
+}) => {
+  const [isFocused, setIsFocused] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [activeTab, setActiveTab] = useState('results');
+  const searchRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        searchRef.current && 
+        !searchRef.current.contains(event.target) &&
+        dropdownRef.current && 
+        !dropdownRef.current.contains(event.target)
+      ) {
+        setShowDropdown(false);
+        setIsFocused(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setShowDropdown(isFocused && (searchResults.length > 0 || isSearching || searchQuery.length >= 1));
+  }, [isFocused, searchResults.length, isSearching, searchQuery]);
+
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    onSearchChange(value);
+    setActiveTab('results');
+  };
+
+  const handleResultClick = (result) => {
+    onResultSelect(result);
+    setShowDropdown(false);
+    setIsFocused(false);
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    onSearchChange(suggestion);
+    setActiveTab('results');
+  };
+
+  const handleHistoryClick = (historyItem) => {
+    onSearchChange(historyItem);
+    setActiveTab('results');
+  };
+
+  const highlightMatch = (text, query) => {
+    if (!query || !text) return text;
+    
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <span key={index} className="bg-yellow-400 text-black px-1 rounded font-semibold">
+          {part}
+        </span>
+      ) : part
+    );
+  };
+
+  const getResultTypeIcon = (result) => {
+    if (result.isAnime) return '🌟';
+    if (result.isSeries) return '📺';
+    return '🎬';
+  };
+
+  return (
+    <div className="relative" ref={searchRef}>
+      <div className="relative">
+        <input
+          type="text"
+          placeholder={`Search ${contentType}... Try "Batman" or "Action"`}
+          className={`transition-all duration-300 bg-black/60 border rounded-lg px-12 py-3 text-sm focus:outline-none ${
+            isFocused 
+              ? 'border-red-500 bg-black/80 w-72 md:w-96 shadow-xl' 
+              : 'border-gray-600 hover:border-gray-400 w-48 md:w-64'
+          }`}
+          value={searchQuery}
+          onChange={handleInputChange}
+          onFocus={() => setIsFocused(true)}
+        />
+        <Search className={`absolute left-4 top-3.5 transition-colors ${isFocused ? 'text-red-400' : 'text-gray-400'}`} size={16} />
+        {isSearching && (
+          <div className="absolute right-12 top-3.5">
+            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        )}
+        {searchQuery && (
+          <button
+            onClick={() => {
+              onSearchChange('');
+              setShowDropdown(false);
+            }}
+            className="absolute right-4 top-3.5 text-gray-400 hover:text-white transition-colors"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* Enhanced Search Dropdown */}
+      {showDropdown && (
+        <div 
+          ref={dropdownRef}
+          className="absolute top-full left-0 right-0 mt-2 bg-black/95 backdrop-blur-xl border border-gray-700 rounded-xl shadow-2xl max-h-[500px] overflow-hidden z-50"
+        >
+          {/* Tab Navigation */}
+          <div className="flex border-b border-gray-700">
+            <button
+              onClick={() => setActiveTab('results')}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'results' 
+                  ? 'text-red-400 border-b-2 border-red-400 bg-gray-800/50' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Results ({searchResults.length})
+            </button>
+            {suggestions.length > 0 && (
+              <button
+                onClick={() => setActiveTab('suggestions')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'suggestions' 
+                    ? 'text-red-400 border-b-2 border-red-400 bg-gray-800/50' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Suggestions
+              </button>
+            )}
+            {searchHistory.length > 0 && (
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'history' 
+                    ? 'text-red-400 border-b-2 border-red-400 bg-gray-800/50' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                History
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-96 overflow-y-auto">
+            {/* Results Tab */}
+            {activeTab === 'results' && (
+              <>
+                {isSearching ? (
+                  <div className="p-6 text-center text-gray-400">
+                    <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                    <p>Searching {contentType}...</p>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  <div className="p-2">
+                    <div className="text-xs text-gray-500 px-3 py-2">
+                      Found {searchResults.length} results
+                    </div>
+                    <div className="grid grid-cols-1 gap-1">
+                      {searchResults.slice(0, 12).map((result, index) => (
+                        <button
+                          key={result.id || index}
+                          onClick={() => handleResultClick(result)}
+                          className="w-full p-3 hover:bg-gray-800/60 rounded-lg text-left flex items-center space-x-3 transition-all duration-150"
+                        >
+                          <div className="w-14 h-20 bg-gray-700 rounded-md overflow-hidden flex-shrink-0">
+                            {result.poster || result.featuredImage ? (
+                              <img
+                                src={result.poster || result.featuredImage}
+                                alt={result.title}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-500 text-lg">
+                                {getResultTypeIcon(result)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-white font-medium truncate">
+                              {highlightMatch(result.title, searchQuery)}
+                            </div>
+                            <div className="text-sm text-gray-400 truncate">
+                              {result.releaseYear && `${result.releaseYear} • `}
+                              {result.genres?.slice(0, 2).join(', ') || 
+                               result.categories?.slice(0, 2).join(', ') || 
+                               'No genre info'}
+                            </div>
+                            <div className="flex items-center mt-1">
+                              {result.content?.rating && (
+                                <div className="text-xs text-yellow-400 mr-2">
+                                  ⭐ {result.content.rating}
+                                </div>
+                              )}
+                              <div className="text-xs text-gray-500">
+                                {result.downloadLinks?.length || 0} links
+                              </div>
+                            </div>
+                          </div>
+                          <ChevronRight size={16} className="text-gray-500" />
+                        </button>
+                      ))}
+                    </div>
+                    {searchResults.length > 12 && (
+                      <div className="p-3 text-xs text-gray-500 text-center border-t border-gray-800">
+                        +{searchResults.length - 12} more results available
+                      </div>
+                    )}
+                  </div>
+                ) : searchQuery.length >= 2 ? (
+                  <div className="p-6 text-center text-gray-400">
+                    <div className="text-3xl mb-3">🔍</div>
+                    <p className="font-medium">No results found</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Try different keywords or check spelling
+                    </p>
+                  </div>
+                ) : null}
+              </>
+            )}
+
+            {/* Suggestions Tab */}
+            {activeTab === 'suggestions' && suggestions.length > 0 && (
+              <div className="p-2">
+                <div className="text-xs text-gray-500 px-3 py-2">
+                  Popular suggestions
+                </div>
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className="w-full p-3 hover:bg-gray-800/60 rounded-lg text-left flex items-center space-x-3 transition-colors"
+                  >
+                    <Search size={16} className="text-gray-400" />
+                    <span className="text-white">{suggestion}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* History Tab */}
+            {activeTab === 'history' && searchHistory.length > 0 && (
+              <div className="p-2">
+                <div className="text-xs text-gray-500 px-3 py-2">
+                  Recent searches
+                </div>
+                {searchHistory.map((historyItem, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleHistoryClick(historyItem)}
+                    className="w-full p-3 hover:bg-gray-800/60 rounded-lg text-left flex items-center space-x-3 transition-colors"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center">
+                      <span className="text-xs text-gray-400">🕒</span>
+                    </div>
+                    <span className="text-white">{historyItem}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+AwesomeSearchBar.displayName = 'AwesomeSearchBar';
+
+// Memoized sub-components for better performance
+const MovieSkeleton = memo(() => (
+  <div 
+    className="animate-pulse bg-gray-800 rounded-lg overflow-hidden flex-shrink-0"
+    style={{ width: '112px', aspectRatio: '2/3' }}
+  >
+    <div className="w-full h-full bg-gray-700"></div>
+  </div>
+));
+MovieSkeleton.displayName = 'MovieSkeleton';
+
+const TabLoadingState = memo(({ contentType }) => (
+  <div className="space-y-8 px-4 md:px-8">
+    <div className="flex items-center justify-center py-16">
+      <div className="text-center">
+        <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-gray-400">Loading {contentType}...</p>
+      </div>
+    </div>
+  </div>
+));
+TabLoadingState.displayName = 'TabLoadingState';
+
+const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect }) => {
+  const scrollRef = useRef(null);
+
+  const scroll = (direction) => {
+    if (scrollRef.current) {
+      const scrollAmount = 320;
+      scrollRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  return (
+    <div className="mb-8 group">
+      <div className="flex items-center justify-between mb-4 px-4 md:px-8">
+        <h2 className="text-xl md:text-2xl font-bold text-white">
+          {title}
+        </h2>
+        <div className="hidden md:flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => scroll('left')}
+            className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
+          >
+            <ChevronLeft size={16} className="text-white" />
+          </button>
+          <button
+            onClick={() => scroll('right')}
+            className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
+          >
+            <ChevronRight size={16} className="text-white" />
+          </button>
+        </div>
+      </div>
+      
+      <div
+        ref={scrollRef}
+        className="flex space-x-2 md:space-x-4 overflow-x-auto scrollbar-hide pb-4 px-4 md:px-8"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {items.map((content, idx) => (
+          <div key={content.id || idx} className="flex-shrink-0">
+            <MovieCard
+              movie={content}
+              onClick={onContentSelect}
+              index={idx}
+              showNumber={showNumbers}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+ScrollableRow.displayName = 'ScrollableRow';
+
+const BottomBar = memo(({ 
+  contentType, 
+  onContentTypeChange, 
+  moviesLoading, 
+  seriesLoading, 
+  animeLoading 
+}) => (
+  <nav className="fixed z-50 bottom-0 left-0 right-0 bg-black/90 backdrop-blur-md border-t border-gray-800 flex md:hidden items-center justify-around h-16">
+    <button
+      className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
+        contentType === 'movies' ? 'text-red-500' : 'text-gray-400'
+      }`}
+      onClick={() => onContentTypeChange('movies')}
+    >
+      <div className="relative">
+        <Film size={20} />
+        {moviesLoading && (
+          <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+        )}
+      </div>
+      <span className="text-xs mt-1">Movies</span>
+    </button>
+    <button
+      className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
+        contentType === 'series' ? 'text-red-500' : 'text-gray-400'
+      }`}
+      onClick={() => onContentTypeChange('series')}
+    >
+      <div className="relative">
+        <Tv size={20} />
+        {seriesLoading && (
+          <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+        )}
+      </div>
+      <span className="text-xs mt-1">Series</span>
+    </button>
+    <button
+      className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
+        contentType === 'anime' ? 'text-red-500' : 'text-gray-400'
+      }`}
+      onClick={() => onContentTypeChange('anime')}
+    >
+      <div className="relative">
+        <Star size={20} />
+        {animeLoading && (
+          <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+        )}
+      </div>
+      <span className="text-xs mt-1">Anime</span>
+    </button>
+  </nav>
+));
+BottomBar.displayName = 'BottomBar';
 
 function Home() {
   const [contentType, setContentType] = useState('movies');
@@ -34,7 +554,18 @@ function Home() {
   const headerRef = useRef(null);
   const lastScrollY = useRef(0);
 
-  const MOVIES_PER_PAGE = 20;
+  // **AWESOME SEARCH WITH ENHANCED FEATURES**
+  const { 
+    searchResults, 
+    isSearching, 
+    suggestions, 
+    searchHistory,
+    clearCache,
+    clearHistory 
+  } = useAwesomeSearch(searchQuery, contentType);
+
+  // **OPTIMIZED PAGINATION - 100 MOVIES PER PAGE**
+  const MOVIES_PER_PAGE = 100;
 
   // Remove these platforms from filters (case-insensitive)
   const removePlatforms = ["zee5", "sonyliv", "voot", "mx player"];
@@ -98,11 +629,11 @@ function Home() {
     if (moviesLoaded) return;
     
     setMoviesLoading(true);
-    // console.log('🎬 Fetching movies...');
+    console.log('🎬 Fetching movies...');
     
     try {
       const movies = await getAllMovies();
-      console.log('✅ Movies loaded:', movies.length);
+      console.log(`✅ Loaded ${movies.length} movies`);
       setAllMovies(movies);
       setMoviesLoaded(true);
     } catch (error) {
@@ -116,15 +647,15 @@ function Home() {
     if (seriesLoaded) return;
     
     setSeriesLoading(true);
-    // console.log('📺 Fetching series...');
+    console.log('📺 Fetching series...');
     
     try {
       const series = await getAllSeries();
-      // console.log('✅ Series loaded:', series.length);
+      console.log(`✅ Loaded ${series.length} series`);
       setAllSeries(series);
       setSeriesLoaded(true);
     } catch (error) {
-      // console.error('❌ Error loading series:', error);
+      console.error('❌ Error loading series:', error);
     } finally {
       setSeriesLoading(false);
     }
@@ -134,11 +665,11 @@ function Home() {
     if (animeLoaded) return;
     
     setAnimeLoading(true);
-    // console.log('🌟 Fetching anime...');
+    console.log('🌟 Fetching anime...');
     
     try {
       const anime = await getAllAnime();
-      // console.log('✅ Anime loaded:', anime.length);
+      console.log(`✅ Loaded ${anime.length} anime`);
       setAllAnime(anime);
       setAnimeLoaded(true);
     } catch (error) {
@@ -177,27 +708,21 @@ function Home() {
     return false;
   };
 
-  // Debug wrapper for content selection
   const handleContentSelect = (content) => {
-    // console.log('🎬 Content selected:', content.title, 
-    //   content.isSeries ? 'Series' : content.isAnime ? 'Anime' : 'Movie');
-    // console.log('🎬 Content data:', content);
-    // console.log('🎬 Is series/anime check result:', isSeriesContent(content));
     setSelectedMovie(content);
   };
 
-  const handleSearchChange = (value) => {
+  const handleSearchChange = useCallback((value) => {
     setSearchQuery(value);
     setCurrentPage(1);
-  };
+  }, []);
 
-  // Optimized content type switcher
   const handleContentTypeChange = (newType) => {
-    if (newType === contentType) return; // No change needed
+    if (newType === contentType) return;
     
-    // console.log(`🔄 Switching from ${contentType} to ${newType}`);
     setContentType(newType);
     setSearchQuery(''); // Clear search when switching types
+    clearCache(); // Clear search cache
   };
 
   // Get current content and loading state
@@ -214,15 +739,18 @@ function Home() {
     }
   };
 
-  // Group content by platforms/categories - UPDATED for all content types
-  const getGroupedContent = () => {
+  // **OPTIMIZED: Use search results when searching, otherwise use grouped content**
+  const getGroupedContent = useMemo(() => {
     const { content: currentContent } = getCurrentContentAndState();
     
-    if (searchQuery.trim()) {
-      const filtered = currentContent.filter(item =>
-        item.title?.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      return [{ title: 'Search Results', items: filtered }];
+    // If searching, return search results
+    if (searchQuery.trim() && searchResults.length > 0) {
+      return [{ title: `Search Results (${searchResults.length})`, items: searchResults }];
+    }
+    
+    // If searching but no results
+    if (searchQuery.trim() && searchResults.length === 0 && !isSearching) {
+      return [];
     }
 
     const sections = [];
@@ -235,7 +763,7 @@ function Home() {
       })
       .slice(0, 15);
     if (trending.length > 0) {
-      sections.push({ title: 'Trending', items: trending, showNumbers: true });
+      sections.push({ title: 'Trending Now', items: trending, showNumbers: true });
     }
 
     // Recently Added
@@ -248,7 +776,6 @@ function Home() {
 
     // Content-specific sections
     if (contentType === 'anime') {
-      // Anime-specific categories
       const animeGenres = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Romance', 'Thriller'];
       animeGenres.forEach(genre => {
         const genreContent = currentContent.filter(item => {
@@ -271,7 +798,6 @@ function Home() {
         }
       });
     } else {
-      // Platform-specific sections for movies and series
       platformList.forEach(platform => {
         const platformContent = currentContent.filter(item => {
           if (item.categories && Array.isArray(item.categories)) {
@@ -293,90 +819,13 @@ function Home() {
     }
 
     return sections;
-  };
+  }, [searchQuery, searchResults, isSearching, contentType, allMovies, allSeries, allAnime]);
 
-  // Optimized skeleton component
-  const MovieSkeleton = () => (
-    <div 
-      className="animate-pulse bg-gray-800 rounded-lg overflow-hidden flex-shrink-0"
-      style={{ width: '112px', aspectRatio: '2/3' }}
-    >
-      <div className="w-full h-full bg-gray-700"></div>
-    </div>
-  );
-
-  // Loading state for tab switching
-  const TabLoadingState = () => (
-    <div className="space-y-8 px-4 md:px-8">
-      <div className="flex items-center justify-center py-16">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading {contentType}...</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  const ScrollableRow = ({ title, items, showNumbers = false }) => {
-    const scrollRef = useRef(null);
-
-    const scroll = (direction) => {
-      if (scrollRef.current) {
-        const scrollAmount = 320;
-        scrollRef.current.scrollBy({
-          left: direction === 'left' ? -scrollAmount : scrollAmount,
-          behavior: 'smooth'
-        });
-      }
-    };
-
-    return (
-      <div className="mb-8 group">
-        <div className="flex items-center justify-between mb-4 px-4 md:px-8">
-          <h2 className="text-xl md:text-2xl font-bold text-white">
-            {title}
-          </h2>
-          <div className="hidden md:flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={() => scroll('left')}
-              className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
-            >
-              <ChevronLeft size={16} className="text-white" />
-            </button>
-            <button
-              onClick={() => scroll('right')}
-              className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
-            >
-              <ChevronRight size={16} className="text-white" />
-            </button>
-          </div>
-        </div>
-        
-        <div
-          ref={scrollRef}
-          className="flex space-x-2 md:space-x-4 overflow-x-auto scrollbar-hide pb-4 px-4 md:px-8"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
-          {items.map((content, idx) => (
-            <div key={content.id || idx} className="flex-shrink-0">
-              <MovieCard
-                movie={content}
-                onClick={handleContentSelect}
-                index={idx}
-                showNumber={showNumbers}
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // Updated All Content Section to handle loading states
-  const AllContentSection = () => {
+  // **OPTIMIZED ALL CONTENT SECTION WITH 100-MOVIE BATCHES**
+  const AllContentSection = memo(() => {
     const { content: currentContent, loading } = getCurrentContentAndState();
     
-    if (loading) return <TabLoadingState />;
+    if (loading) return <TabLoadingState contentType={contentType} />;
     if (currentContent.length === 0) return null;
 
     const totalPages = Math.ceil(currentContent.length / MOVIES_PER_PAGE);
@@ -389,27 +838,32 @@ function Home() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // Get section title based on content type
     const getSectionTitle = () => {
       switch (contentType) {
         case 'movies':
-          return 'All Movies';
+          return `All Movies (${currentContent.length})`;
         case 'series':
-          return 'All TV Shows';
+          return `All TV Shows (${currentContent.length})`;
         case 'anime':
-          return 'All Anime';
+          return `All Anime (${currentContent.length})`;
         default:
-          return 'All Content';
+          return `All Content (${currentContent.length})`;
       }
     };
 
     return (
       <div className="mb-8 px-4 md:px-8">
-        <h2 className="text-xl md:text-2xl font-bold text-white mb-4">
-          {getSectionTitle()}
-        </h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl md:text-2xl font-bold text-white">
+            {getSectionTitle()}
+          </h2>
+          <div className="text-sm text-gray-400">
+            Showing {startIndex + 1}-{Math.min(endIndex, currentContent.length)} of {currentContent.length}
+          </div>
+        </div>
         
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2 md:gap-4 mb-6">
+        {/* Movie Grid with 100 movies */}
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-2 md:gap-4 mb-8">
           {paginatedContent.map((content, idx) => (
             <MovieCard
               key={content.id || idx}
@@ -420,67 +874,118 @@ function Home() {
           ))}
         </div>
 
+        {/* Enhanced Pagination */}
         {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-3 md:gap-4">
-            <button
-              disabled={currentPage === 1}
-              onClick={() => handlePageChange(currentPage - 1)}
-              className={`px-3 py-2 rounded-full text-sm md:text-base ${
-                currentPage === 1 
-                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-                  : 'bg-gradient-to-r from-red-600 to-purple-600 text-white hover:from-red-500 hover:to-purple-500'
-              }`}
-            >
-              <ChevronLeft className="inline mr-1" size={18} />
-              Previous
-            </button>
-            
-            <div className="flex items-center justify-center bg-[#1e1e1e] rounded-full px-4 py-2 min-w-[100px]">
-              <span className="text-sm md:text-base font-medium text-white">
-                {currentPage} of {totalPages}
-              </span>
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex justify-center items-center gap-2 md:gap-3">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => handlePageChange(1)}
+                className={`px-3 py-2 rounded-lg text-sm ${
+                  currentPage === 1 
+                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                    : 'bg-gray-700 text-white hover:bg-gray-600'
+                }`}
+              >
+                First
+              </button>
+              
+              <button
+                disabled={currentPage === 1}
+                onClick={() => handlePageChange(currentPage - 1)}
+                className={`px-4 py-2 rounded-lg text-sm flex items-center ${
+                  currentPage === 1 
+                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-red-600 to-purple-600 text-white hover:from-red-500 hover:to-purple-500'
+                }`}
+              >
+                <ChevronLeft size={16} className="mr-1" />
+                Previous
+              </button>
+              
+              <div className="flex items-center justify-center bg-[#1e1e1e] rounded-lg px-6 py-2">
+                <span className="text-sm font-medium text-white">
+                  Page {currentPage} of {totalPages}
+                </span>
+              </div>
+              
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => handlePageChange(currentPage + 1)}
+                className={`px-4 py-2 rounded-lg text-sm flex items-center ${
+                  currentPage === totalPages 
+                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-red-600 to-purple-600 text-white hover:from-red-500 hover:to-purple-500'
+                }`}
+              >
+                Next
+                <ChevronRight size={16} className="ml-1" />
+              </button>
+
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => handlePageChange(totalPages)}
+                className={`px-3 py-2 rounded-lg text-sm ${
+                  currentPage === totalPages 
+                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                    : 'bg-gray-700 text-white hover:bg-gray-600'
+                }`}
+              >
+                Last
+              </button>
             </div>
             
-            <button
-              disabled={currentPage === totalPages}
-              onClick={() => handlePageChange(currentPage + 1)}
-              className={`px-3 py-2 rounded-full text-sm md:text-base ${
-                currentPage === totalPages 
-                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-                  : 'bg-gradient-to-r from-red-600 to-purple-600 text-white hover:from-red-500 hover:to-purple-500'
-              }`}
-            >
-              Next
-              <ChevronRight className="inline ml-1" size={18} />
-            </button>
+            {/* Quick Jump Pages */}
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-400">Quick jump:</span>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => handlePageChange(pageNum)}
+                    className={`w-8 h-8 rounded transition-colors ${
+                      pageNum === currentPage 
+                        ? 'bg-red-600 text-white' 
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
     );
-  };
+  });
+  AllContentSection.displayName = 'AllContentSection';
 
   // Enhanced render detail component to handle anime as series
   const renderDetailComponent = () => {
-    // console.log('🎬 renderDetailComponent called, selectedMovie:', selectedMovie);
-    
     if (!selectedMovie) {
-      // console.log('❌ No selected content, returning null');
       return null;
     }
     
     const isSeries = isSeriesContent(selectedMovie);
-    // console.log('🎯 Enhanced series/anime check result:', isSeries);
 
-    // Add error boundary fallback
     try {
       if (isSeries) {
-        // console.log('📺 Rendering SeriesDetail component (for series or anime)');
         return <SeriesDetail series={selectedMovie} onClose={() => setSelectedMovie(null)} />;
       } else {
-        // console.log('🎬 Rendering MovieDetails component');
-        
         if (!MovieDetails) {
-          console.error('❌ MovieDetails component not found or not imported properly');
+          console.error('❌ MovieDetails component not found');
           return (
             <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
               <div className="bg-white text-black p-8 rounded">
@@ -520,60 +1025,12 @@ function Home() {
     }
   };
 
-  // Updated Bottom navigation bar with loading indicators
-  const BottomBar = () => (
-    <nav className="fixed z-50 bottom-0 left-0 right-0 bg-black/90 backdrop-blur-md border-t border-gray-800 flex md:hidden items-center justify-around h-16">
-      <button
-        className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
-          contentType === 'movies' ? 'text-red-500' : 'text-gray-400'
-        }`}
-        onClick={() => handleContentTypeChange('movies')}
-      >
-        <div className="relative">
-          <Film size={20} />
-          {moviesLoading && (
-            <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-          )}
-        </div>
-        <span className="text-xs mt-1">Movies</span>
-      </button>
-      <button
-        className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
-          contentType === 'series' ? 'text-red-500' : 'text-gray-400'
-        }`}
-        onClick={() => handleContentTypeChange('series')}
-      >
-        <div className="relative">
-          <Tv size={20} />
-          {seriesLoading && (
-            <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-          )}
-        </div>
-        <span className="text-xs mt-1">Series</span>
-      </button>
-      <button
-        className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
-          contentType === 'anime' ? 'text-red-500' : 'text-gray-400'
-        }`}
-        onClick={() => handleContentTypeChange('anime')}
-      >
-        <div className="relative">
-          <Star size={20} />
-          {animeLoading && (
-            <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-          )}
-        </div>
-        <span className="text-xs mt-1">Anime</span>
-      </button>
-    </nav>
-  );
-
   const { content: currentContent, loading: isCurrentLoading } = getCurrentContentAndState();
-  const groupedContent = getGroupedContent();
+  const groupedContent = getGroupedContent;
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* NETFLIX-STYLE HEADER - Updated with loading indicators */}
+      {/* ENHANCED HEADER WITH AWESOME SEARCH */}
       <header 
         ref={headerRef} 
         className="fixed top-0 w-full bg-black bg-opacity-0 z-50 transition-all duration-300 transform"
@@ -624,24 +1081,16 @@ function Home() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder={`Search ${contentType}...`}
-                className="w-48 md:w-64 bg-black/50 border border-gray-700 rounded px-10 py-2 text-sm focus:outline-none focus:border-white transition-colors"
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-              />
-              <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-white"
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
+            <AwesomeSearchBar
+              searchQuery={searchQuery}
+              onSearchChange={handleSearchChange}
+              contentType={contentType}
+              searchResults={searchResults}
+              isSearching={isSearching}
+              suggestions={suggestions}
+              searchHistory={searchHistory}
+              onResultSelect={handleContentSelect}
+            />
           </div>
         </div>
       </header>
@@ -703,7 +1152,7 @@ function Home() {
         {/* CONTENT SECTIONS */}
         <div>
           {isCurrentLoading ? (
-            <TabLoadingState />
+            <TabLoadingState contentType={contentType} />
           ) : (
             <>
               {groupedContent.length > 0 && groupedContent.map((section, index) => (
@@ -712,26 +1161,43 @@ function Home() {
                   title={section.title}
                   items={section.items}
                   showNumbers={section.showNumbers}
+                  onContentSelect={handleContentSelect}
                 />
               ))}
 
               {!searchQuery && <AllContentSection />}
 
-              {groupedContent.length === 0 && currentContent.length === 0 && (
+              {searchQuery && groupedContent.length === 0 && !isSearching && (
                 <div className="flex flex-col items-center justify-center py-16">
-                  <div className="text-6xl mb-4">😕</div>
-                  <p className="text-gray-400 text-center mb-2">No content found</p>
+                  <div className="text-6xl mb-4">🔍</div>
+                  <p className="text-gray-400 text-center mb-2">No results found</p>
                   <p className="text-gray-500 text-sm text-center max-w-md">
-                    We couldn't find any {contentType} that matches your search.
+                    We couldn't find any {contentType} matching "{searchQuery}".
                   </p>
-                  {searchQuery && (
+                  <div className="flex gap-3 mt-4">
                     <button
-                      className="mt-4 px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                      className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                       onClick={() => setSearchQuery('')}
                     >
                       Clear Search
                     </button>
-                  )}
+                    <button
+                      className="px-6 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                      onClick={clearHistory}
+                    >
+                      Clear History
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {groupedContent.length === 0 && currentContent.length === 0 && !searchQuery && (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <div className="text-6xl mb-4">😕</div>
+                  <p className="text-gray-400 text-center mb-2">No content available</p>
+                  <p className="text-gray-500 text-sm text-center max-w-md">
+                    We couldn't find any {contentType} to display.
+                  </p>
                 </div>
               )}
             </>
@@ -740,7 +1206,13 @@ function Home() {
       </main>
 
       {selectedMovie && renderDetailComponent()}
-      <BottomBar />
+      <BottomBar 
+        contentType={contentType}
+        onContentTypeChange={handleContentTypeChange}
+        moviesLoading={moviesLoading}
+        seriesLoading={seriesLoading}
+        animeLoading={animeLoading}
+      />
 
       <style jsx>{`
         .scrollbar-hide {
@@ -761,4 +1233,8 @@ function Home() {
   );
 }
 
-export default Home;
+// Main component with memo
+const MemoizedHome = memo(Home);
+MemoizedHome.displayName = 'Home';
+
+export default MemoizedHome;
