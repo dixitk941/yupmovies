@@ -265,14 +265,29 @@ const MovieDetails = ({ movie, onClose }) => {
     };
   }, []);
 
-  // Handle escape key
+  // Handle escape key and browser back button
   useEffect(() => {
     const handleEscKey = (e) => {
       if (e.key === 'Escape') onClose();
     };
-    
+
+    const handleBackButton = (e) => {
+      // Prevent the browser from actually navigating back
+      e.preventDefault();
+      // Close the modal instead
+      onClose();
+    };
+
     window.addEventListener('keydown', handleEscKey);
-    return () => window.removeEventListener('keydown', handleEscKey);
+    window.addEventListener('popstate', handleBackButton);
+
+    // Add a history state when modal opens so back button can be intercepted
+    window.history.pushState({ modalOpen: true }, '');
+
+    return () => {
+      window.removeEventListener('keydown', handleEscKey);
+      window.removeEventListener('popstate', handleBackButton);
+    };
   }, [onClose]);
 
   // Direct download handler - No redirects, direct file download

@@ -247,11 +247,11 @@ const RealTimeSearchBar = memo(({
       <div className="relative">
         <input
           type="text"
-          placeholder={isSearchActive ? `🔴 Live searching ${contentType}...` : `Click to search ${contentType}...`}
-          className={`transition-all duration-300 bg-black/60 border rounded-lg px-12 py-3 text-sm focus:outline-none ${
+          placeholder={isSearchActive ? `🔴 Live searching ${contentType}...` : `Search ${contentType}...`}
+          className={`transition-all duration-300 bg-black/60 border rounded-xl px-12 py-4 text-white placeholder-gray-400 focus:outline-none ${
             isFocused 
-              ? `border-${searchError ? 'orange' : isSearchActive ? 'green' : 'red'}-500 bg-black/80 w-72 md:w-96 shadow-xl`
-              : 'border-gray-600 hover:border-gray-400 w-48 md:w-64'
+              ? `border-${searchError ? 'orange' : isSearchActive ? 'green' : 'red'}-500 bg-black/80 w-80 md:w-[500px] shadow-2xl`
+              : 'border-gray-600 hover:border-gray-400 w-64 md:w-80'
           }`}
           value={searchQuery}
           onChange={handleInputChange}
@@ -745,7 +745,7 @@ function Home() {
   } = useRealTimeSearch(searchQuery, contentType, isSearchActive);
 
   // **OPTIMIZED PAGINATION**
-  const MOVIES_PER_PAGE = CONFIG.ITEMS_PER_PAGE;
+  const MOVIES_PER_PAGE = 20; // Changed from CONFIG.ITEMS_PER_PAGE (100) to 20 as requested
 
   // Remove these platforms from filters (case-insensitive) - memoized to prevent recreation
   const platformList = useMemo(() => {
@@ -1052,74 +1052,92 @@ function Home() {
       return [];
     }
 
-    // **OPTIMIZED SECTIONS - Limit items for better performance**
+    // **REORGANIZED SECTIONS PER USER REQUEST**
     
-    // Trending section (high-rated content)
+    // 1. Trending Now (high-rated content)
     const trending = currentContent
       .filter(item => {
         const rating = item.content?.rating || item.rating;
         return rating && parseFloat(rating) > 7;
       })
-      .slice(0, 12); // Reduced from 15 to 12 for faster loading
+      .slice(0, 20); // Changed to 20 as requested
     if (trending.length > 0) {
       sections.push({ title: 'Trending Now', items: trending, showNumbers: true });
     }
 
-    // Recently Added (based on modification date)
+    // 2. Recently Added (based on modification date)
     const recentlyAdded = [...currentContent]
       .sort((a, b) => new Date(b.modifiedDate || b.date || 0) - new Date(a.modifiedDate || a.date || 0))
-      .slice(0, 12);
+      .slice(0, 20);
     if (recentlyAdded.length > 0) {
       sections.push({ title: 'Recently Added', items: recentlyAdded });
     }
 
-    // Content-specific sections (limited for performance)
-    if (contentType === 'anime') {
-      const animeGenres = ['Action', 'Adventure', 'Comedy', 'Drama']; // Reduced genres
-      animeGenres.forEach(genre => {
-        const genreContent = currentContent.filter(item => {
-          if (item.genres && Array.isArray(item.genres)) {
-            return item.genres.some(g => g.toLowerCase().includes(genre.toLowerCase()));
-          }
-          if (item.categories && Array.isArray(item.categories)) {
-            return item.categories.some(cat => 
-              cat.toLowerCase().includes(genre.toLowerCase())
-            );
-          }
-          return false;
-        }).slice(0, 12);
-        
-        if (genreContent.length > 0) {
-          sections.push({
-            title: `${genre} Anime`,
-            items: genreContent
-          });
-        }
-      });
-    } else {
-      // Platform-based sections (limited for performance)
-      platformList.slice(0, 6).forEach(platform => { // Reduced platforms
-        const platformContent = currentContent.filter(item => {
-          if (item.categories && Array.isArray(item.categories)) {
-            return item.categories.some(cat => 
-              cat.toLowerCase().includes(platform.name.toLowerCase())
-            );
-          }
-          return item.category && 
-                 item.category.toLowerCase().includes(platform.name.toLowerCase());
-        }).slice(0, 12);
-        
-        if (platformContent.length > 0) {
-          sections.push({
-            title: platform.name,
-            items: platformContent
-          });
-        }
+    // 3. Prime Video content
+    const primeVideoContent = currentContent.filter(item => {
+      if (item.categories && Array.isArray(item.categories)) {
+        return item.categories.some(cat => 
+          cat.toLowerCase().includes('prime') || 
+          cat.toLowerCase().includes('amazon')
+        );
+      }
+      return item.category && 
+             (item.category.toLowerCase().includes('prime') || 
+              item.category.toLowerCase().includes('amazon'));
+    }).slice(0, 20);
+    
+    if (primeVideoContent.length > 0) {
+      sections.push({
+        title: 'Prime Video',
+        items: primeVideoContent
       });
     }
 
+    // 4. Netflix content
+    const netflixContent = currentContent.filter(item => {
+      if (item.categories && Array.isArray(item.categories)) {
+        return item.categories.some(cat => 
+          cat.toLowerCase().includes('netflix')
+        );
+      }
+      return item.category && 
+             item.category.toLowerCase().includes('netflix');
+    }).slice(0, 20);
+    
+    if (netflixContent.length > 0) {
+      sections.push({
+        title: 'Netflix',
+        items: netflixContent
+      });
+    }
+
+    // 5. Other popular platforms (limited)
+    const otherPlatforms = ['disney', 'hulu', 'hbo', 'apple'];
+    otherPlatforms.forEach(platform => {
+      const platformContent = currentContent.filter(item => {
+        if (item.categories && Array.isArray(item.categories)) {
+          return item.categories.some(cat => 
+            cat.toLowerCase().includes(platform)
+          );
+        }
+        return item.category && 
+               item.category.toLowerCase().includes(platform);
+      }).slice(0, 20);
+      
+      if (platformContent.length > 0) {
+        const displayName = platform === 'disney' ? 'Disney+' : 
+                           platform === 'hbo' ? 'HBO Max' : 
+                           platform === 'apple' ? 'Apple TV+' : 
+                           platform.charAt(0).toUpperCase() + platform.slice(1);
+        sections.push({
+          title: displayName,
+          items: platformContent
+        });
+      }
+    });
+
     return sections;
-  }, [searchQuery, searchResults, isSearching, contentType, getCurrentContentAndState, searchError, platformList]);
+  }, [searchQuery, searchResults, isSearching, contentType, getCurrentContentAndState, searchError]);
 
   // **OPTIMIZED ALL CONTENT SECTION WITH BATCH PAGINATION**
   const AllContentSection = memo(() => {
@@ -1366,48 +1384,7 @@ function Home() {
   // Memoize the main content to prevent re-renders when selectedMovie changes
   const MainContent = useMemo(() => (
     <>
-      {/* HERO SECTION with optimized image */}
-      {!searchQuery && !isCurrentLoading && groupedContent[0]?.items[0] && (
-        <div className="relative h-[40vh] md:h-[50vh] mb-8 overflow-hidden">
-          <SimpleOptimizedImage
-            src={groupedContent[0].items[0].featuredImage || groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image}
-            alt={groupedContent[0].items[0].title}
-            className="w-full h-full object-cover"
-            lazy={false} // Hero image should load immediately
-            placeholder={false}
-            onError={(e) => {
-              e.target.style.display = 'none';
-            }}
-          />
-          
-          <div className="absolute inset-0 bg-gradient-to-r from-black via-black/50 to-transparent"></div>
-          <div className="absolute bottom-0 left-0 p-8 md:p-12 max-w-2xl">
-            <h1 className="text-2xl md:text-4xl font-bold mb-4 text-white">
-              {groupedContent[0].items[0].title?.replace(/\(\d{4}\)/, '').trim()}
-            </h1>
-            <p className="text-md md:text-lg text-gray-300 mb-6 line-clamp-3">
-              {groupedContent[0].items[0].content?.description || groupedContent[0].items[0].excerpt || "Discover amazing content and enjoy unlimited streaming."}
-            </p>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => handleContentSelect(groupedContent[0].items[0])}
-                className="flex items-center space-x-2 bg-white text-black px-6 py-3 rounded hover:bg-gray-200 transition-colors"
-              >
-                <Play size={20} fill="currentColor" />
-                <span className="font-medium">Play</span>
-              </button>
-              <button
-                onClick={() => handleContentSelect(groupedContent[0].items[0])}
-                className="flex items-center space-x-2 bg-gray-600/70 text-white px-6 py-3 rounded hover:bg-gray-600 transition-colors"
-              >
-                <span className="font-medium">More Info</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CONTENT SECTIONS with performance indicators */}
+      {/* CONTENT SECTIONS with performance indicators - Hero section removed */}
       <div>
         {isCurrentLoading ? (
           <TabLoadingState 
@@ -1471,7 +1448,6 @@ function Home() {
       </div>
     </>
   ), [
-    searchQuery,
     isCurrentLoading, 
     groupedContent,
     contentType,
@@ -1479,62 +1455,58 @@ function Home() {
     isSearching,
     searchError,
     currentContent,
-    handleContentSelect
+    handleContentSelect,
+    searchQuery,
+    setSearchQuery
   ]);
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* ENHANCED HEADER WITH REAL-TIME DATABASE SEARCH */}
+      {/* REDESIGNED HEADER WITHOUT STREAMFLIX TEXT */}
       <header 
         ref={headerRef} 
-        className="fixed top-0 w-full bg-black bg-opacity-0 z-50 transition-all duration-300 transform"
+        className="fixed top-0 w-full bg-black bg-opacity-95 backdrop-blur-md z-50 transition-all duration-300 transform border-b border-gray-800/50"
       >
-        <div className="flex items-center justify-between px-4 md:px-8 py-4">
-          <div className="flex items-center space-x-8">
-            <div className="text-red-600 text-2xl font-bold">
-              StreamFlix
-            </div>
-            <div className="hidden md:flex items-center space-x-6">
-              <button
-                className={`text-sm font-medium transition-colors relative ${
-                  contentType === 'movies' ? 'text-white' : 'text-gray-400 hover:text-white'
-                }`}
-                onClick={() => handleContentTypeChange('movies')}
-              >
-                Movies
-                {moviesLoading && (
-                  <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                )}
-              </button>
-              <button
-                className={`text-sm font-medium transition-colors relative ${
-                  contentType === 'series' ? 'text-white' : 'text-gray-400 hover:text-white'
-                }`}
-                onClick={() => handleContentTypeChange('series')}
-              >
-                TV Shows
-                {seriesLoading && (
-                  <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                )}
-              </button>
-              <button
-                className={`text-sm font-medium transition-colors relative ${
-                  contentType === 'anime' ? 'text-white' : 'text-gray-400 hover:text-white'
-                }`}
-                onClick={() => handleContentTypeChange('anime')}
-              >
-                Anime
-                {animeLoading && (
-                  <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-                )}
-              </button>
-              <button className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
-                My List
-              </button>
-            </div>
+        <div className="flex items-center justify-center px-4 md:px-8 py-4">
+          {/* Navigation moved to left side */}
+          <div className="hidden md:flex items-center space-x-6 mr-8">
+            <button
+              className={`text-sm font-medium transition-colors relative ${
+                contentType === 'movies' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'
+              } px-3 py-1`}
+              onClick={() => handleContentTypeChange('movies')}
+            >
+              Movies
+              {moviesLoading && (
+                <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
+            </button>
+            <button
+              className={`text-sm font-medium transition-colors relative ${
+                contentType === 'series' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'
+              } px-3 py-1`}
+              onClick={() => handleContentTypeChange('series')}
+            >
+              TV Shows
+              {seriesLoading && (
+                <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
+            </button>
+            <button
+              className={`text-sm font-medium transition-colors relative ${
+                contentType === 'anime' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'
+              } px-3 py-1`}
+              onClick={() => handleContentTypeChange('anime')}
+            >
+              Anime
+              {animeLoading && (
+                <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
+            </button>
           </div>
 
-          <div className="flex items-center space-x-4">
+          {/* Centered Search Bar with more space */}
+          <div className="flex-1 flex justify-center max-w-2xl mx-auto">
             <RealTimeSearchBar
               searchQuery={searchQuery}
               onSearchChange={handleSearchChange}
@@ -1549,10 +1521,13 @@ function Home() {
               onSearchActivate={handleSearchActivate}
               onSearchDeactivate={handleSearchDeactivate}
             />
+          </div>
             
+          {/* Right side - Additional options */}
+          <div className="hidden md:flex items-center space-x-3">
             {/* Search Status Indicator */}
             {isSearchActive && (
-              <div className="hidden md:flex items-center space-x-2 px-3 py-2 bg-green-900/50 rounded-lg border border-green-700">
+              <div className="flex items-center space-x-2 px-3 py-2 bg-green-900/50 rounded-lg border border-green-700">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span className="text-green-300 text-sm font-medium">Live Search</span>
               </div>
@@ -1595,11 +1570,12 @@ function Home() {
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="pt-20 pb-20">
+      <main className="pt-24 pb-20">
         {MainContent}
       </main>
 
       {selectedMovie && renderDetailComponent()}
+      
       <BottomBar 
         contentType={contentType}
         onContentTypeChange={handleContentTypeChange}
