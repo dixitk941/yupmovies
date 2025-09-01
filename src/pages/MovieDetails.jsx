@@ -542,7 +542,7 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 1. Title and Date Section */}
-        <div className="bg-gray-900/50 backdrop-blur-sm px-8 py-4 border-b border-gray-700/30">
+        <div className="bg-[#131313] px-8 py-4 border-b border-gray-700/30">
           <div className="max-w-7xl mx-auto">
             {/* Title - dynamic from movie data */}
             <h1 className="text-xl font-bold text-white mb-1 leading-tight truncate">
@@ -562,11 +562,11 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 2. Image Section with Episode Badge - Series card style */}
-        <div className="bg-gray-900/30 backdrop-blur-sm px-8 py-4">
+        <div className="bg-[#131313] px-0 py-4">
           <div className="max-w-7xl mx-auto">
             <div className="w-full max-w-2xl mx-auto relative">
               {/* Series card style image - wider aspect ratio */}
-              <div className="w-full h-48 rounded-lg overflow-hidden shadow-xl border border-gray-700/50 relative bg-gray-900">
+              <div className="w-full h-48 rounded-lg overflow-hidden border border-gray-700/50 relative bg-gray-900">
                 <img 
                   src={movieData.image} 
                   alt={movieData.title} 
@@ -579,52 +579,57 @@ const MovieDetails = ({ movie, onClose }) => {
                 {/* Dark overlay for better text readability */}
                 <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-black/40"></div>
                 
-                {/* Episode badge overlay on image - dynamic */}
-                <div className="absolute top-3 left-3">
-                  {movieData.isSeries ? (
-                    <div className="inline-flex items-center bg-red-600 text-white px-3 py-1.5 rounded-md text-xs font-medium">
-                      Series
-                      <span className="ml-2 bg-white/20 px-2 py-0.5 rounded text-[10px]">
+                {/* Movie Card at left bottom corner */}
+                <div className="absolute bottom-4 left-4">
+                  <div className="relative cursor-pointer rounded-lg overflow-hidden bg-black/80 backdrop-blur-sm w-20 transition-all duration-300">
+                    {/* Card container with fixed aspect ratio */}
+                    <div className="relative w-full" style={{ aspectRatio: '2/3' }}>
+                      {/* Movie poster */}
+                      <img
+                        src={movieData.image}
+                        alt={movieData.title}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.src = 'https://via.placeholder.com/80x120/1a1a1a/666?text=No+Image';
+                        }}
+                      />
+                      
+                      {/* Excerpt badge at the bottom center of the image */}
+                      {movieData.excerpt && (
+                        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-red-600/90 backdrop-blur-sm text-white text-[6px] px-1 py-0.5 rounded font-medium max-w-[60px] text-center whitespace-nowrap overflow-hidden">
+                          {movieData.excerpt.length > 10 ? movieData.excerpt.substring(0, 10) + '...' : movieData.excerpt}
+                        </div>
+                      )}
+
+                      {/* Watch Now badge */}
+                      <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm text-black text-[6px] px-1.5 py-0.5 rounded font-medium text-center whitespace-nowrap">
                         Watch Now
-                      </span>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="inline-flex items-center bg-blue-600 text-white px-3 py-1.5 rounded-md text-xs font-medium">
-                      Movie
-                      <span className="ml-2 bg-white/20 px-2 py-0.5 rounded text-[10px]">
-                        Watch Now
-                      </span>
-                    </div>
-                  )}
+                  </div>
                 </div>
                 
-                {/* Play button overlay in center */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <button className="bg-red-600/90 hover:bg-red-600 rounded-full p-3 transition-colors shadow-lg">
-                    <Play size={24} className="text-white ml-0.5" />
-                  </button>
-                </div>
               </div>
             </div>
           </div>
         </div>
 
         {/* 3. VLC Media Player Recommendation Line */}
-        <div className="bg-gray-900/40 backdrop-blur-sm px-8 py-4 border-b border-gray-700/30">
+        <div className="bg-[#131313] px-8 py-4 border-b border-gray-700/30">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center space-x-3">
               <div className="bg-orange-600 rounded-full p-2">
                 <Info size={16} className="text-white" />
               </div>
-              <div className="text-sm text-gray-300 leading-relaxed">
-                For immersive experience always use <span className="text-orange-400 font-semibold">VLC Media Player</span>. It supports all the audio codex
+              <div className="text-[10px] text-gray-300 leading-relaxed">
+                For immersive experience always use <span className="text-white font-semibold">VLC Media Player</span>. It supports all the audio codex
               </div>
             </div>
           </div>
         </div>
 
         {/* 4. Tabs Section */}
-        <div className="bg-black border-b border-gray-800">
+<div className="bg-black border-b border-gray-800 mx-[5%] mt-[10px] rounded-sm">
           <div className="flex max-w-7xl mx-auto">
             {[
               { id: 'download', label: 'Download', active: true },
@@ -636,7 +641,7 @@ const MovieDetails = ({ movie, onClose }) => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-8 py-4 text-sm font-medium transition-colors relative ${
                   (activeTab === tab.id || (tab.id === 'download' && activeTab === 'download'))
-                    ? 'text-red-500 bg-red-500/10'
+                    ? 'text-red-500'
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
@@ -650,15 +655,17 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 5. Tab Content Section */}
-        <div className="flex-1 overflow-y-auto bg-black">
+        <div className="flex-1 overflow-y-auto bg-[#131313]">
           {/* Download Tab - Exact match to image */}
           {activeTab === 'download' && (
             <div className="p-8">
               <div className="max-w-7xl mx-auto">
                 {/* Download Options header */}
-                <div className="mb-6">
-                  <h3 className="text-white text-lg font-medium mb-2">Download Options</h3>
-                  <div className="text-gray-400 text-sm">{movieData.downloadLinks?.length || 0}</div>
+                <div className="mb-6 shadow-lg">
+                  <h3 className="text-white text-lg font-medium">
+                    Download Options 
+                    <span className="text-gray-400 text-sm ml-2">({movieData.downloadLinks?.length || 0})</span>
+                  </h3>
                 </div>
 
                 {/* Dynamic Download Links - Show all available links with individual file info */}
@@ -668,8 +675,8 @@ const MovieDetails = ({ movie, onClose }) => {
                       <div key={index} className="bg-black border border-gray-700/30 rounded-lg overflow-hidden shadow-lg">
                         {/* File Information for this specific download */}
                         <div className="bg-black border-l-4 border-gray-600 p-4">
-                          <h4 className="text-white font-medium mb-2">File Information:</h4>
-                          <div className="text-gray-300 text-sm leading-relaxed">
+                          <h4 className="text-white font-[12px] mb-2">File Information:</h4>
+                          <div className="text-gray-300 text-[10px] leading-relaxed">
                             {link.rawDatabaseDetails || link.description || 
                              `Download ${movieData.title} (${movieData.year || 'Unknown'}) ${link.quality || 'HD'} [${link.size || 'Unknown'}]`}
                           </div>

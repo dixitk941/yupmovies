@@ -233,11 +233,11 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
         {/* Title and Date Section - Below Image */}
         <div className="p-2 bg-black/90">
           {/* Date display - above title */}
-          <div className="text-gray-400 text-[10px] mb-1">
+          <div className="text-gray-400 text-[8px] mb-1">
             {displayDate ? displayDate : 'Unknown Date'}
           </div>
 
-          <h3 className="text-white font-bold text-xs line-clamp-2 leading-tight">
+          <h3 className="text-white font-bold text-[12px] line-clamp-2 leading-tight">
             {cleanTitle.length > 15 ? cleanTitle.substring(0, 15) + '...' : cleanTitle}
           </h3>
         </div>
