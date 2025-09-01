@@ -47,38 +47,68 @@ function useDevToolsProtection() {
     // Advanced DevTools Detection
     const detectDevTools = () => {
       const threshold = 160;
-      const isDevToolsOpen = 
-        window.outerHeight - window.innerHeight > threshold ||
-        window.outerWidth - window.innerWidth > threshold;
+      const heightDiff = window.outerHeight - window.innerHeight;
+      const widthDiff = window.outerWidth - window.innerWidth;
+      
+      // More accurate detection - consider both dimensions and avoid false positives from browser UI
+      const isDevToolsOpen = (
+        (heightDiff > threshold && heightDiff < 800) || // Avoid full-screen false positives
+        (widthDiff > threshold && widthDiff < 800)
+      ) && (
+        heightDiff > 100 || widthDiff > 100 // Minimum threshold to avoid normal browser variations
+      );
       
       if (isDevToolsOpen) {
-        setIsBlocked(true);
-        window.location.reload();
+        // Double-check with a small delay to avoid false positives
+        setTimeout(() => {
+          const heightDiff2 = window.outerHeight - window.innerHeight;
+          const widthDiff2 = window.outerWidth - window.innerWidth;
+          if ((heightDiff2 > threshold && heightDiff2 < 800) || (widthDiff2 > threshold && widthDiff2 < 800)) {
+            setIsBlocked(true);
+            window.location.reload();
+          }
+        }, 500);
       }
     };
 
-    // Detect console interaction
-    let consoleWarned = false;
+    // Detect console interaction (only trigger on user console commands)
+    let userConsoleDetected = false;
     const originalLog = console.log;
     const originalError = console.error;
     const originalWarn = console.warn;
     const originalInfo = console.info;
     const originalDebug = console.debug;
 
-    const consoleInterceptor = function(...args) {
-      if (!consoleWarned) {
-        consoleWarned = true;
-        alert('🚨 Developer console activity detected!\n\nThis session will be terminated for security reasons.\n\nIf you need assistance, please contact support.');
-        window.location.reload();
+    // Only intercept if DevTools console is actually open and user is typing
+    const smartConsoleDetector = () => {
+      const devToolsHeight = window.outerHeight - window.innerHeight;
+      const devToolsWidth = window.outerWidth - window.innerWidth;
+      
+      // Only activate console protection if DevTools is actually open
+      if (devToolsHeight > 160 || devToolsWidth > 160) {
+        if (!userConsoleDetected) {
+          userConsoleDetected = true;
+          setTimeout(() => {
+            alert('🚨 Developer console usage detected!\n\nThis session will be terminated for security reasons.');
+            window.location.reload();
+          }, 2000); // Give a delay to avoid false positives
+        }
       }
-      return originalLog.apply(console, args);
     };
 
-    console.log = consoleInterceptor;
-    console.error = consoleInterceptor;
-    console.warn = consoleInterceptor;
-    console.info = consoleInterceptor;
-    console.debug = consoleInterceptor;
+    // Override console methods only to detect manual user input
+    const createConsoleInterceptor = (originalMethod) => {
+      return function(...args) {
+        // Check if this console call is from user interaction (not our protection system)
+        const stack = new Error().stack;
+        if (stack && !stack.includes('useDevToolsProtection') && !stack.includes('console.log')) {
+          smartConsoleDetector();
+        }
+        return originalMethod.apply(console, args);
+      };
+    };
+
+    // Don't override the console methods immediately - this was causing the false positive
 
     // Disable right-click context menu
     const handleContextMenu = (e) => {
@@ -121,15 +151,20 @@ function useDevToolsProtection() {
     const devToolsCheckInterval = setInterval(() => {
       detectDevTools();
       
-      // Additional check for performance timing (DevTools affects performance)
-      const start = performance.now();
-      debugger; // This will pause if DevTools is open
-      const end = performance.now();
-      if (end - start > 100) {
-        setIsBlocked(true);
-        window.location.reload();
+      // Additional check for performance timing (DevTools affects performance) - only if window size indicates DevTools might be open
+      const heightDiff = window.outerHeight - window.innerHeight;
+      const widthDiff = window.outerWidth - window.innerWidth;
+      
+      if (heightDiff > 160 || widthDiff > 160) {
+        const start = performance.now();
+        debugger; // This will pause if DevTools is open
+        const end = performance.now();
+        if (end - start > 100) {
+          setIsBlocked(true);
+          window.location.reload();
+        }
       }
-    }, 1000);
+    }, 2000); // Increased interval to reduce false positives
 
     // Network request monitoring and obfuscation
     const originalFetch = window.fetch;
@@ -199,11 +234,6 @@ function useDevToolsProtection() {
       window.removeEventListener('blur', handleBlur);
       
       // Restore original functions
-      console.log = originalLog;
-      console.error = originalError;
-      console.warn = originalWarn;
-      console.info = originalInfo;
-      console.debug = originalDebug;
       window.fetch = originalFetch;
       XMLHttpRequest.prototype.open = originalXHROpen;
       XMLHttpRequest.prototype.send = originalXHRSend;
