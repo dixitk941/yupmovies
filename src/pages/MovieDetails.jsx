@@ -725,43 +725,12 @@ const MovieDetails = ({ movie, onClose }) => {
               {/* Content */}
               <div className="absolute bottom-0 left-0 right-0 p-4">
                 <div className="flex flex-col gap-2">
-                  {/* Content type and rating */}
-                  <div className="flex items-center gap-2">
-                    {movieData.isSeries ? (
-                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-medium backdrop-blur-sm">
-                        <Tv size={12} className="mr-1" /> Series
-                      </div>
-                    ) : (
-                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium backdrop-blur-sm">
-                        <Film size={12} className="mr-1" /> Movie
-                      </div>
-                    )}
-                    
-                    {movieData.rating && (
-                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-xs font-medium backdrop-blur-sm">
-                        <Star size={12} className="mr-1 fill-yellow-400" /> {movieData.rating}
-                      </div>
-                    )}
-                  </div>
-                  
                   <h2 id="movie-details-title" className="text-2xl font-bold text-white drop-shadow-lg">
                     {movieData.title}
                   </h2>
                   
                   {/* Basic metadata */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-300">
-                    {movieData.year && (
-                      <span className="flex items-center">
-                        <Calendar size={14} className="mr-1 text-gray-400" />
-                        {movieData.year}
-                      </span>
-                    )}
-                    {movieData.duration && (
-                      <span className="flex items-center">
-                        <Clock size={14} className="mr-1 text-gray-400" />
-                        {movieData.duration}
-                      </span>
-                    )}
                     {movieData.languages.length > 0 && (
                       <span className="flex items-center">
                         <Globe size={14} className="mr-1 text-gray-400" />
@@ -770,13 +739,17 @@ const MovieDetails = ({ movie, onClose }) => {
                     )}
                   </div>
                   
-                  {/* Date badge */}
+                  {/* Date display - normal text */}
                   {(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date) && (
-                    <span className="flex items-center bg-red-600 text-white px-2 py-0.5 rounded text-xs shadow-sm self-start">
-                      <Calendar size={10} className="mr-1" />
-                      Added: {formatDateString(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date)}
-                    </span>
+                    <div className="text-gray-300 text-xs">
+                      Modified: {formatDateString(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date)}
+                    </div>
                   )}
+                  
+                  {/* VLC Player recommendation - moved under date */}
+                  <div className="text-gray-400 text-xs leading-relaxed mt-1">
+                    For immersive experience always use <span className="text-orange-400 font-semibold">VLC Media Player</span>. It supports all the audio codecs.
+                  </div>
                 </div>
               </div>
             </div>
@@ -788,7 +761,6 @@ const MovieDetails = ({ movie, onClose }) => {
                 onClick={() => setActiveTab('download')}
               >
                 <div className="flex flex-col items-center">
-                  <Download size={16} className={activeTab === 'download' ? 'text-red-500' : 'text-gray-400'} />
                   <span className="mt-1">Download</span>
                 </div>
                 {activeTab === 'download' && (
@@ -801,7 +773,6 @@ const MovieDetails = ({ movie, onClose }) => {
                 onClick={() => setActiveTab('details')}
               >
                 <div className="flex flex-col items-center">
-                  <Info size={16} className={activeTab === 'details' ? 'text-red-500' : 'text-gray-400'} />
                   <span className="mt-1">Details</span>
                 </div>
                 {activeTab === 'details' && (
@@ -814,7 +785,6 @@ const MovieDetails = ({ movie, onClose }) => {
                 onClick={() => setActiveTab('preview')}
               >
                 <div className="flex flex-col items-center">
-                  <Image size={16} className={activeTab === 'preview' ? 'text-red-500' : 'text-gray-400'} />
                   <span className="mt-1">Preview</span>
                 </div>
                 {activeTab === 'preview' && (
@@ -832,15 +802,7 @@ const MovieDetails = ({ movie, onClose }) => {
               {/* DOWNLOAD TAB */}
               {activeTab === 'download' && (
                 <div className="p-4 pb-12">
-                  {/* Live data indicator */}
-                  <div className="flex justify-end mb-3">
-                    <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-black border border-red-700/50">
-                      <HardDrive size={12} className={directDetails ? "text-red-400" : "text-yellow-400"} />
-                      <span className={directDetails ? "text-red-400" : "text-yellow-400"}>
-                        {directDetails ? 'Live Database' : 'Cached Data'}
-                      </span>
-                    </div>
-                  </div>
+                  {/* Live data indicator - removed to save space */}
                   
                   {movieData.downloadLinks && movieData.downloadLinks.length > 0 ? (
                     <div className="space-y-4">
@@ -852,17 +814,7 @@ const MovieDetails = ({ movie, onClose }) => {
                       <div className="h-[45vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-red-600 scrollbar-track-black rounded-lg relative">
                         {/* Fade indicator at the bottom to hint scrollable content */}
                         <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black to-transparent pointer-events-none z-10"></div>
-                        {/* Fixed position indicator that shows there's more content */}
-                        <div className="fixed bottom-24 right-4 bg-red-600 text-white p-2 rounded-full shadow-lg shadow-red-600/30 z-20 animate-pulse">
-                          <Download size={16} />
-                        </div>
                         <div className="space-y-3 pb-12 relative">
-                          {movieData.downloadLinks.length > 2 && (
-                            <div className="absolute top-2 right-2 animate-bounce flex flex-col items-center z-10 opacity-80">
-                              <div className="w-1 h-6 bg-red-500 rounded-full"></div>
-                              <span className="text-xs text-red-500 mt-1">Scroll</span>
-                            </div>
-                          )}
                           {movieData.downloadLinks.map((link, index) => (
                             <button
                               key={index}
@@ -886,10 +838,10 @@ const MovieDetails = ({ movie, onClose }) => {
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center space-x-2">
                                     <div className={`text-sm font-bold ${
-                                      link.quality === '4K' ? 'text-purple-400' :
-                                      link.quality === '1080P' ? 'text-green-400' :
-                                      link.quality === '720P' ? 'text-blue-400' :
-                                      'text-yellow-400'
+                                      link.quality === '4K' ? 'text-white-400' :
+                                      link.quality === '1080P' ? 'text-white-400' :
+                                      link.quality === '720P' ? 'text-white-400' :
+                                      'text-white-400'
                                     }`}>
                                       {link.quality}
                                     </div>
@@ -900,11 +852,17 @@ const MovieDetails = ({ movie, onClose }) => {
                                   </div>
                                   
                                   {/* Download Button - Larger and more noticeable */}
-                                  <div className="bg-red-600 hover:bg-red-700 rounded-full p-3 transition-colors shadow-lg shadow-red-600/20">
+                                  <div className="bg-red-600 hover:bg-red-700 rounded px-4 py-2 transition-colors shadow-lg flex items-center space-x-2">
                                     {downloadingLinks.has(index) ? (
-                                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                      <>
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <span className="text-white text-sm font-medium">Downloading...</span>
+                                      </>
                                     ) : (
-                                      <Download size={20} className="text-white" />
+                                      <>
+                                        <Download size={16} className="text-white" />
+                                        <span className="text-white text-sm font-medium">Download</span>
+                                      </>
                                     )}
                                   </div>
                                 </div>
@@ -1083,43 +1041,12 @@ const MovieDetails = ({ movie, onClose }) => {
               {/* Title and basic info */}
               <div className="absolute bottom-0 left-0 right-0 p-4">
                 <div className="flex flex-col gap-2">
-                  {/* Content type and rating */}
-                  <div className="flex items-center gap-2">
-                    {movieData.isSeries ? (
-                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-medium backdrop-blur-sm">
-                        <Tv size={12} className="mr-1" /> Series
-                      </div>
-                    ) : (
-                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium backdrop-blur-sm">
-                        <Film size={12} className="mr-1" /> Movie
-                      </div>
-                    )}
-                    
-                    {movieData.rating && (
-                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-xs font-medium backdrop-blur-sm">
-                        <Star size={12} className="mr-1 fill-yellow-400" /> {movieData.rating}
-                      </div>
-                    )}
-                  </div>
-                  
                   <h2 id="movie-details-title" className="text-xl font-bold text-white drop-shadow-lg">
                     {movieData.title}
                   </h2>
                   
                   {/* Basic metadata */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-300">
-                    {movieData.year && (
-                      <span className="flex items-center">
-                        <Calendar size={14} className="mr-1 text-gray-400" />
-                        {movieData.year}
-                      </span>
-                    )}
-                    {movieData.duration && (
-                      <span className="flex items-center">
-                        <Clock size={14} className="mr-1 text-gray-400" />
-                        {movieData.duration}
-                      </span>
-                    )}
                     {movieData.languages.length > 0 && (
                       <span className="flex items-center">
                         <Globe size={14} className="mr-1 text-gray-400" />
@@ -1128,13 +1055,17 @@ const MovieDetails = ({ movie, onClose }) => {
                     )}
                   </div>
                   
-                  {/* Date badge */}
+                  {/* Date display - normal text */}
                   {(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date) && (
-                    <span className="flex items-center bg-red-600 text-white px-2 py-0.5 rounded text-xs shadow-sm self-start">
-                      <Calendar size={10} className="mr-1" />
-                      Added: {formatDateString(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date)}
-                    </span>
+                    <div className="text-gray-300 text-xs">
+                      Modified: {formatDateString(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date)}
+                    </div>
                   )}
+                  
+                  {/* VLC Player recommendation - moved under date */}
+                  <div className="text-gray-400 text-xs leading-relaxed mt-1">
+                    For immersive experience always use <span className="text-orange-400 font-semibold">VLC Media Player</span>. It supports all the audio codecs.
+                  </div>
                 </div>
               </div>
               
@@ -1176,7 +1107,6 @@ const MovieDetails = ({ movie, onClose }) => {
                   onClick={() => setActiveTab('download')}
                 >
                   <div className="flex flex-col items-center">
-                    <Download size={16} className={activeTab === 'download' ? 'text-red-500' : 'text-gray-400'} />
                     <span className="mt-1">Download</span>
                   </div>
                   {activeTab === 'download' && (
@@ -1189,7 +1119,6 @@ const MovieDetails = ({ movie, onClose }) => {
                   onClick={() => setActiveTab('details')}
                 >
                   <div className="flex flex-col items-center">
-                    <Info size={16} className={activeTab === 'details' ? 'text-red-500' : 'text-gray-400'} />
                     <span className="mt-1">Details</span>
                   </div>
                   {activeTab === 'details' && (
@@ -1202,7 +1131,6 @@ const MovieDetails = ({ movie, onClose }) => {
                   onClick={() => setActiveTab('preview')}
                 >
                   <div className="flex flex-col items-center">
-                    <Image size={16} className={activeTab === 'preview' ? 'text-red-500' : 'text-gray-400'} />
                     <span className="mt-1">Preview</span>
                   </div>
                   {activeTab === 'preview' && (
@@ -1216,15 +1144,7 @@ const MovieDetails = ({ movie, onClose }) => {
                 {/* DOWNLOAD TAB */}
                 {activeTab === 'download' && (
                   <div className="p-6 pb-20">
-                    {/* Live data indicator */}
-                    <div className="flex justify-end mb-4">
-                      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-black border border-gray-700">
-                        <HardDrive size={12} className={directDetails ? "text-red-400" : "text-yellow-400"} />
-                        <span className={directDetails ? "text-red-400" : "text-yellow-400"}>
-                          {directDetails ? 'Live Database' : 'Cached Data'}
-                        </span>
-                      </div>
-                    </div>
+                    {/* Live data indicator - removed to save space */}
                     
                     {movieData.downloadLinks && movieData.downloadLinks.length > 0 ? (
                       <div className="space-y-4">
@@ -1257,12 +1177,7 @@ const MovieDetails = ({ movie, onClose }) => {
                                   {/* Quality and Size */}
                                   <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center space-x-3">
-                                      <div className={`text-sm font-bold ${
-                                        link.quality === '4K' ? 'text-purple-400' :
-                                        link.quality === '1080P' ? 'text-green-400' :
-                                        link.quality === '720P' ? 'text-blue-400' :
-                                        'text-yellow-400'
-                                      }`}>
+                                      <div className="text-sm font-bold text-white">
                                         {link.quality}
                                       </div>
                                       <div className="w-px h-4 bg-gray-700"></div>
@@ -1272,11 +1187,17 @@ const MovieDetails = ({ movie, onClose }) => {
                                     </div>
                                     
                                     {/* Download Button */}
-                                    <div className="bg-red-600 hover:bg-red-700 rounded-full p-2 transition-colors">
+                                    <div className="bg-red-600 hover:bg-red-700 rounded px-4 py-2 transition-colors flex items-center space-x-2">
                                       {downloadingLinks.has(index) ? (
-                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <>
+                                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                          <span className="text-white text-sm font-medium">Downloading...</span>
+                                        </>
                                       ) : (
-                                        <Download size={20} className="text-white" />
+                                        <>
+                                          <Download size={16} className="text-white" />
+                                          <span className="text-white text-sm font-medium">Download</span>
+                                        </>
                                       )}
                                     </div>
                                   </div>
@@ -1427,7 +1348,6 @@ const MovieDetails = ({ movie, onClose }) => {
           </div>
         )}
 
-        {/* Mobile content based on active tab is now handled in the tab layout above */}
       </div>
     </div>
   );
