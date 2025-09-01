@@ -675,7 +675,7 @@ const MovieDetails = ({ movie, onClose }) => {
                       <div key={index} className="bg-black border border-gray-700/30 rounded-lg overflow-hidden shadow-lg">
                         {/* File Information for this specific download */}
                         <div className="bg-black border-l-4 border-gray-600 p-4">
-                          <h4 className="text-white font-[12px] mb-2">File Information:</h4>
+                          <h4 className="text-white text-[12px] mb-2">File Information:</h4>
                           <div className="text-gray-300 text-[10px] leading-relaxed">
                             {link.rawDatabaseDetails || link.description || 
                              `Download ${movieData.title} (${movieData.year || 'Unknown'}) ${link.quality || 'HD'} [${link.size || 'Unknown'}]`}
