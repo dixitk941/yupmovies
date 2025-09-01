@@ -244,255 +244,80 @@ const RealTimeSearchBar = memo(({
 
   return (
     <div className="relative" ref={searchRef}>
-      <div className="relative">
+      <div className="relative group">
         <input
           type="text"
-          placeholder={isSearchActive ? `🔴 Live searching ${contentType}...` : `Search ${contentType}...`}
-          className={`transition-all duration-300 bg-black/60 border rounded-xl px-12 py-4 text-white placeholder-gray-400 focus:outline-none ${
-            isFocused 
-              ? `border-${searchError ? 'orange' : isSearchActive ? 'green' : 'red'}-500 bg-black/80 w-80 md:w-[500px] shadow-2xl`
-              : 'border-gray-600 hover:border-gray-400 w-64 md:w-80'
+          placeholder={`Search ${contentType}...`}
+          className={`bg-gray-800 border border-gray-700 rounded-lg px-12 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-red-500 transition-colors duration-200 ${
+            isFocused ? 'w-80 border-red-500' : 'w-64'
           }`}
           value={searchQuery}
           onChange={handleInputChange}
           onFocus={handleFocus}
         />
-        <Search className={`absolute left-4 top-3.5 transition-colors ${
-          isFocused ? (searchError ? 'text-orange-400' : isSearchActive ? 'text-green-400' : 'text-red-400') : 'text-gray-400'
-        }`} size={16} />
         
-        {/* Search status indicator */}
-        {isSearchActive && (
-          <div className="absolute right-12 top-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Real-time search active"></div>
-          </div>
-        )}
+        {/* Simple Search Icon */}
+        <div className={`absolute left-4 top-3.5 text-gray-400 ${isFocused ? 'text-red-500' : ''}`}>
+          <Search size={16} />
+        </div>
         
-        {isSearching && (
-          <div className="absolute right-12 top-3.5">
-            <div className={`w-4 h-4 border-2 border-${searchError ? 'orange' : 'green'}-500 border-t-transparent rounded-full animate-spin`}></div>
-          </div>
-        )}
-        
+        {/* Simple Clear Button */}
         {searchQuery && (
           <button
             onClick={() => {
               onSearchChange('');
               setShowDropdown(false);
             }}
-            className="absolute right-4 top-3.5 text-gray-400 hover:text-white transition-colors"
+            className="absolute right-4 top-3.5 text-gray-400 hover:text-white"
           >
             <X size={16} />
           </button>
         )}
-        
-        {/* Search deactivate button */}
-        {isSearchActive && (
-          <button
-            onClick={() => {
-              onSearchDeactivate?.();
-              setShowDropdown(false);
-            }}
-            className="absolute right-16 top-2 text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded"
-            title="Stop real-time search"
-          >
-            Stop
-          </button>
-        )}
       </div>
 
-      {/* Enhanced Search Dropdown */}
+      {/* Simple Search Dropdown */}
       {showDropdown && (
         <div 
           ref={dropdownRef}
-          className="absolute top-full left-0 right-0 mt-2 bg-black/95 backdrop-blur-xl border border-gray-700 rounded-xl shadow-2xl max-h-[500px] overflow-hidden z-50"
+          className="absolute top-full left-0 right-0 mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-h-96 overflow-hidden z-50"
         >
-          {/* Status Banner */}
-          <div className={`${isSearchActive ? 'bg-green-900/50 border-green-700' : 'bg-gray-900/50 border-gray-700'} border-b p-3`}>
-            <div className={`flex items-center ${isSearchActive ? 'text-green-300' : 'text-gray-300'} text-sm`}>
-              <span className="mr-2">{isSearchActive ? '🔴' : '⚪'}</span>
-              {isSearchActive ? 'Real-time database search active' : 'Click search bar to activate live search'}
-              {searchError && <span className="ml-2 text-orange-400">⚠️ {searchError}</span>}
+          {isSearching ? (
+            <div className="p-4 text-center">
+              <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-gray-400 text-sm">Searching...</p>
             </div>
-          </div>
-
-          {/* Tab Navigation */}
-          <div className="flex border-b border-gray-700">
-            <button
-              onClick={() => setActiveTab('results')}
-              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === 'results' 
-                  ? `text-${isSearchActive ? 'green' : 'red'}-400 border-b-2 border-${isSearchActive ? 'green' : 'red'}-400 bg-gray-800/50`
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Results ({searchResults.length})
-            </button>
-            {suggestions.length > 0 && (
-              <button
-                onClick={() => setActiveTab('suggestions')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'suggestions' 
-                    ? `text-${isSearchActive ? 'green' : 'red'}-400 border-b-2 border-${isSearchActive ? 'green' : 'red'}-400 bg-gray-800/50`
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                Suggestions
-              </button>
-            )}
-            {searchHistory.length > 0 && (
-              <button
-                onClick={() => setActiveTab('history')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'history' 
-                    ? `text-${isSearchActive ? 'green' : 'red'}-400 border-b-2 border-${isSearchActive ? 'green' : 'red'}-400 bg-gray-800/50`
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                History
-              </button>
-            )}
-          </div>
-
-          <div className="max-h-96 overflow-y-auto">
-            {/* Results Tab */}
-            {activeTab === 'results' && (
-              <>
-                {isSearching ? (
-                  <div className="p-6 text-center text-gray-400">
-                    <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                    <p>Searching {contentType} database...</p>
-                    <p className="text-xs text-gray-500 mt-1">Real-time results</p>
+          ) : searchResults.length > 0 ? (
+            <div className="max-h-80 overflow-y-auto">
+              {searchResults.slice(0, 6).map((result, index) => (
+                <button
+                  key={result.id || index}
+                  onClick={() => handleResultClick(result)}
+                  className="w-full p-3 hover:bg-gray-800 text-left flex items-center space-x-3 border-b border-gray-800 last:border-b-0"
+                >
+                  <div className="w-12 h-16 bg-gray-700 rounded overflow-hidden flex-shrink-0">
+                    <SimpleOptimizedImage
+                      src={result.poster || result.featuredImage}
+                      alt={result.title}
+                      className="w-full h-full object-cover"
+                      lazy={true}
+                    />
                   </div>
-                ) : searchResults.length > 0 ? (
-                  <div className="p-2">
-                    <div className="text-xs text-gray-500 px-3 py-2">
-                      Found {searchResults.length} results (database)
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white text-sm font-medium truncate">
+                      {result.title}
                     </div>
-                    <div className="grid grid-cols-1 gap-1">
-                      {searchResults.slice(0, 8).map((result, index) => (
-                        <button
-                          key={result.id || index}
-                          onClick={() => handleResultClick(result)}
-                          className="w-full p-3 hover:bg-gray-800/60 rounded-lg text-left flex items-center space-x-3 transition-all duration-150"
-                        >
-                          <div className="w-14 h-20 bg-gray-700 rounded-md overflow-hidden flex-shrink-0">
-                            <SimpleOptimizedImage
-                              src={result.poster || result.featuredImage}
-                              alt={result.title}
-                              className="w-full h-full object-cover"
-                              lazy={true}
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-white font-medium truncate">
-                              {highlightMatch(result.title, searchQuery)}
-                            </div>
-                            <div className="text-sm text-gray-400 truncate">
-                              {result.releaseYear && `${result.releaseYear} • `}
-                              {result.categories?.slice(0, 2).join(', ') || 'No genre info'}
-                            </div>
-                            <div className="flex items-center mt-1">
-                              {result.content?.rating && (
-                                <div className="text-xs text-yellow-400 mr-2">
-                                  ⭐ {result.content.rating}
-                                </div>
-                              )}
-                              <div className="text-xs text-green-500">
-                                🔴 Live result
-                              </div>
-                            </div>
-                          </div>
-                          <ChevronRight size={16} className="text-gray-500" />
-                        </button>
-                      ))}
+                    <div className="text-gray-400 text-xs truncate">
+                      {result.releaseYear} • {result.categories?.slice(0, 1).join(', ')}
                     </div>
                   </div>
-                ) : isSearchActive && searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH ? (
-                  <div className="p-6 text-center text-gray-400">
-                    <div className="text-3xl mb-3">🔍</div>
-                    <p className="font-medium">No results found</p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      No {contentType} found for "{searchQuery}"
-                      {searchError && " (database error)"}
-                    </p>
-                    <div className="mt-4 space-y-2">
-                      <p className="text-xs text-gray-600">Try these popular searches:</p>
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        <button
-                          onClick={() => onSearchChange('avatar')}
-                          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-                        >
-                          avatar
-                        </button>
-                        <button
-                          onClick={() => onSearchChange('action')}
-                          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-                        >
-                          action
-                        </button>
-                        <button
-                          onClick={() => onSearchChange('comedy')}
-                          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-                        >
-                          comedy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : !isSearchActive ? (
-                  <div className="p-6 text-center text-gray-500">
-                    <div className="text-3xl mb-3">👆</div>
-                    <p className="font-medium">Click the search bar to activate real-time search</p>
-                    <p className="text-sm mt-1">Search will query the database directly for live results</p>
-                  </div>
-                ) : searchQuery.length > 0 ? (
-                  <div className="p-4 text-center text-gray-500">
-                    <p className="text-sm">Type at least {CONFIG.SEARCH_MIN_LENGTH} characters to search</p>
-                  </div>
-                ) : null}
-              </>
-            )}
-
-            {/* Suggestions and History tabs remain the same */}
-            {activeTab === 'suggestions' && suggestions.length > 0 && (
-              <div className="p-2">
-                <div className="text-xs text-gray-500 px-3 py-2">
-                  Popular suggestions
-                </div>
-                {suggestions.map((suggestion, index) => (
-                  <button
-                    key={index}
-                    onClick={() => onSearchChange(suggestion)}
-                    className="w-full p-3 hover:bg-gray-800/60 rounded-lg text-left flex items-center space-x-3 transition-colors"
-                  >
-                    <Search size={16} className="text-gray-400" />
-                    <span className="text-white">{suggestion}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {activeTab === 'history' && searchHistory.length > 0 && (
-              <div className="p-2">
-                <div className="text-xs text-gray-500 px-3 py-2">
-                  Recent searches
-                </div>
-                {searchHistory.map((historyItem, index) => (
-                  <button
-                    key={index}
-                    onClick={() => onSearchChange(historyItem)}
-                    className="w-full p-3 hover:bg-gray-800/60 rounded-lg text-left flex items-center space-x-3 transition-colors"
-                  >
-                    <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center">
-                      <span className="text-xs text-gray-400">🕒</span>
-                    </div>
-                    <span className="text-white">{historyItem}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+                </button>
+              ))}
+            </div>
+          ) : searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH ? (
+            <div className="p-4 text-center">
+              <p className="text-gray-400 text-sm">No results found for "{searchQuery}"</p>
+            </div>
+          ) : null}
         </div>
       )}
     </div>
@@ -529,7 +354,7 @@ const TabLoadingState = memo(({ contentType, cacheStats }) => (
 ));
 TabLoadingState.displayName = 'TabLoadingState';
 
-// **OPTIMIZED SCROLLABLE ROW WITH IMAGE PRELOADING**
+// **CLEAN MINIMAL SCROLLABLE ROW**
 const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect }) => {
   const scrollRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -541,17 +366,6 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
       ([entry]) => {
         if (entry.isIntersecting && !isVisible) {
           setIsVisible(true);
-          
-          // Preload images when section becomes visible
-          const imagesToPreload = items
-            .slice(0, CONFIG.PRELOAD_IMAGES_COUNT)
-            .map(item => item.poster || item.featuredImage)
-            .filter(Boolean);
-          
-          if (imagesToPreload.length > 0) {
-            // Removed preload to reduce requests - images will load naturally when needed
-            // preloadBatchImages(imagesToPreload, 5).catch(console.error);
-          }
         }
       },
       { threshold: 0.1, rootMargin: '100px' }
@@ -564,16 +378,6 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
     return () => observer.disconnect();
   }, [items, isVisible]);
 
-  const scroll = (direction) => {
-    if (scrollRef.current) {
-      const scrollAmount = 320;
-      scrollRef.current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth'
-      });
-    }
-  };
-
   if (!isVisible && items.length > 0) {
     return (
       <div ref={intersectionRef} className="mb-8 h-48 flex items-center justify-center">
@@ -583,30 +387,16 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
   }
 
   return (
-    <div className="mb-8 group" ref={intersectionRef}>
-      <div className="flex items-center justify-between mb-4 px-4 md:px-8">
-        <h2 className="text-xl md:text-2xl font-bold text-white">
+    <div className="mb-8" ref={intersectionRef}>
+      <div className="mb-4 px-4 md:px-8">
+        <h2 className="text-xl font-bold text-white">
           {title}
         </h2>
-        <div className="hidden md:flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => scroll('left')}
-            className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
-          >
-            <ChevronLeft size={16} className="text-white" />
-          </button>
-          <button
-            onClick={() => scroll('right')}
-            className="w-8 h-8 bg-black/50 rounded-full flex items-center justify-center hover:bg-black/70 transition-colors"
-          >
-            <ChevronRight size={16} className="text-white" />
-          </button>
-        </div>
       </div>
       
       <div
         ref={scrollRef}
-        className="flex space-x-2 md:space-x-4 overflow-x-auto scrollbar-hide pb-4 px-4 md:px-8"
+        className="flex space-x-3 overflow-x-auto scrollbar-hide pb-4 px-4 md:px-8"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {items.map((content, idx) => (
@@ -634,65 +424,71 @@ const BottomBar = memo(({
   animeLoading,
   cacheStats 
 }) => (
-  <nav className="fixed z-50 bottom-0 left-0 right-0 bg-black/90 backdrop-blur-md border-t border-gray-800 flex md:hidden items-center justify-around h-16">
-    <button
-      className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
-        contentType === 'movies' ? 'text-red-500' : 'text-gray-400'
-      }`}
-      onClick={() => onContentTypeChange('movies')}
-    >
-      <div className="relative">
+  <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 z-50">
+    {/* Desktop version */}
+    <div className="hidden md:flex justify-center px-6 py-4">
+      <div className="flex bg-gray-900 rounded-lg p-1">
+        <button
+          className={`flex items-center space-x-2 px-6 py-3 rounded-md transition-colors ${
+            contentType === 'movies' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'
+          }`}
+          onClick={() => onContentTypeChange('movies')}
+        >
+          <span>🎬</span>
+          <span className="font-medium">Movies</span>
+        </button>
+        <button
+          className={`flex items-center space-x-2 px-6 py-3 rounded-md transition-colors ${
+            contentType === 'series' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'
+          }`}
+          onClick={() => onContentTypeChange('series')}
+        >
+          <span>📺</span>
+          <span className="font-medium">TV Shows</span>
+        </button>
+        <button
+          className={`flex items-center space-x-2 px-6 py-3 rounded-md transition-colors ${
+            contentType === 'anime' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'
+          }`}
+          onClick={() => onContentTypeChange('anime')}
+        >
+          <span>🎌</span>
+          <span className="font-medium">Anime</span>
+        </button>
+      </div>
+    </div>
+
+    {/* Mobile version */}
+    <nav className="flex md:hidden items-center justify-around px-4 py-3">
+      <button
+        className={`flex flex-col items-center p-2 ${
+          contentType === 'movies' ? 'text-red-500' : 'text-gray-400'
+        }`}
+        onClick={() => onContentTypeChange('movies')}
+      >
         <Film size={20} />
-        {moviesLoading && (
-          <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-        )}
-        {cacheStats?.movies && (
-          <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
-        )}
-      </div>
-      <span className="text-xs mt-1">
-        Movies {cacheStats?.movies ? `(${cacheStats.movies})` : ''}
-      </span>
-    </button>
-    <button
-      className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
-        contentType === 'series' ? 'text-red-500' : 'text-gray-400'
-      }`}
-      onClick={() => onContentTypeChange('series')}
-    >
-      <div className="relative">
+        <span className="text-xs mt-1">Movies</span>
+      </button>
+      <button
+        className={`flex flex-col items-center p-2 ${
+          contentType === 'series' ? 'text-red-500' : 'text-gray-400'
+        }`}
+        onClick={() => onContentTypeChange('series')}
+      >
         <Tv size={20} />
-        {seriesLoading && (
-          <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-        )}
-        {cacheStats?.series && (
-          <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
-        )}
-      </div>
-      <span className="text-xs mt-1">
-        Series {cacheStats?.series ? `(${cacheStats.series})` : ''}
-      </span>
-    </button>
-    <button
-      className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
-        contentType === 'anime' ? 'text-red-500' : 'text-gray-400'
-      }`}
-      onClick={() => onContentTypeChange('anime')}
-    >
-      <div className="relative">
+        <span className="text-xs mt-1">Series</span>
+      </button>
+      <button
+        className={`flex flex-col items-center p-2 ${
+          contentType === 'anime' ? 'text-red-500' : 'text-gray-400'
+        }`}
+        onClick={() => onContentTypeChange('anime')}
+      >
         <Star size={20} />
-        {animeLoading && (
-          <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-        )}
-        {cacheStats?.anime && (
-          <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
-        )}
-      </div>
-      <span className="text-xs mt-1">
-        Anime {cacheStats?.anime ? `(${cacheStats.anime})` : ''}
-      </span>
-    </button>
-  </nav>
+        <span className="text-xs mt-1">Anime</span>
+      </button>
+    </nav>
+  </div>
 ));
 BottomBar.displayName = 'BottomBar';
 
@@ -1136,18 +932,47 @@ function Home() {
       }
     });
 
+    // 6. Year-wise sections (2025, 2024, 2023)
+    const years = [2025, 2024, 2023];
+    years.forEach(year => {
+      const yearContent = currentContent.filter(item => {
+        // Check various possible date fields
+        const releaseYear = item.releaseYear || item.year;
+        const dateFromContent = item.content?.year;
+        
+        // Parse year from string if needed
+        let itemYear = releaseYear || dateFromContent;
+        if (typeof itemYear === 'string') {
+          itemYear = parseInt(itemYear);
+        }
+        
+        return itemYear === year;
+      }).slice(0, 20);
+      
+      if (yearContent.length > 0) {
+        sections.push({
+          title: `${year} Latest`,
+          items: yearContent
+        });
+      }
+    });
+
     return sections;
   }, [searchQuery, searchResults, isSearching, contentType, getCurrentContentAndState, searchError]);
 
-  // **OPTIMIZED ALL CONTENT SECTION WITH BATCH PAGINATION**
+  // **MINIMAL ALL CONTENT SECTION**
   const AllContentSection = memo(() => {
     const { content: currentContent, loading } = getCurrentContentAndState();
     
     if (loading) {
-      const stats = contentType === 'movies' ? { totalMovies: cacheStats.movies } :
-                   contentType === 'series' ? { totalSeries: cacheStats.series } :
-                   { totalAnime: cacheStats.anime };
-      return <TabLoadingState contentType={contentType} cacheStats={stats} />;
+      return (
+        <div className="flex items-center justify-center py-16">
+          <div className="text-center">
+            <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading {contentType}...</p>
+          </div>
+        </div>
+      );
     }
     
     if (currentContent.length === 0) return null;
@@ -1160,48 +985,21 @@ function Home() {
     const handlePageChange = (page) => {
       setCurrentPage(page);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      
-      // Preload images for new page (DISABLED to reduce requests)
-      // const newPageImages = paginatedContent
-      //   .slice(0, CONFIG.PRELOAD_IMAGES_COUNT)
-      //   .map(item => item.poster || item.featuredImage)
-      //   .filter(Boolean);
-      
-      // if (newPageImages.length > 0) {
-      //   preloadBatchImages(newPageImages, 5).catch(console.error);
-      // }
-    };
-
-    const getSectionTitle = () => {
-      const cached = cacheStats[contentType] > 0 ? ` (${cacheStats[contentType]} cached)` : '';
-      switch (contentType) {
-        case 'movies':
-          return `All Movies${cached}`;
-        case 'series':
-          return `All TV Shows${cached}`;
-        case 'anime':
-          return `All Anime${cached}`;
-        default:
-          return `All Content${cached}`;
-      }
     };
 
     return (
       <div className="mb-8 px-4 md:px-8">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl md:text-2xl font-bold text-white">
-            {getSectionTitle()}
+          <h2 className="text-xl font-bold text-white">
+            All {contentType === 'movies' ? 'Movies' : contentType === 'series' ? 'TV Shows' : 'Anime'}
           </h2>
-          <div className="text-sm text-gray-400 flex items-center space-x-2">
-            <span>Showing {startIndex + 1}-{Math.min(endIndex, currentContent.length)} of {currentContent.length}</span>
-            {cacheStats[contentType] > 0 && (
-              <div className="w-2 h-2 bg-green-500 rounded-full" title="Cached for fast loading"></div>
-            )}
+          <div className="text-sm text-gray-400">
+            Showing {startIndex + 1}-{Math.min(endIndex, currentContent.length)} of {currentContent.length}
           </div>
         </div>
         
-        {/* **OPTIMIZED MOVIE GRID** */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-2 md:gap-4 mb-8">
+        {/* Clean movie grid */}
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-3 mb-8">
           {paginatedContent.map((content, idx) => (
             <MovieCard
               key={content.id || `${content.title}-${startIndex + idx}`}
@@ -1213,107 +1011,38 @@ function Home() {
           ))}
         </div>
 
-        {/* Enhanced Pagination with performance info */}
+        {/* Simple pagination */}
         {totalPages > 1 && (
-          <div className="flex flex-col items-center gap-4">
-            <div className="flex justify-center items-center gap-2 md:gap-3">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => handlePageChange(1)}
-                className={`px-3 py-2 rounded-lg text-sm ${
-                  currentPage === 1 
-                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-                    : 'bg-gray-700 text-white hover:bg-gray-600'
-                }`}
-              >
-                First
-              </button>
-              
-              <button
-                disabled={currentPage === 1}
-                onClick={() => handlePageChange(currentPage - 1)}
-                className={`px-4 py-2 rounded-lg text-sm flex items-center ${
-                  currentPage === 1 
-                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-                    : 'bg-gradient-to-r from-red-600 to-purple-600 text-white hover:from-red-500 hover:to-purple-500'
-                }`}
-              >
-                <ChevronLeft size={16} className="mr-1" />
-                Previous
-              </button>
-              
-              <div className="flex items-center justify-center bg-[#1e1e1e] rounded-lg px-6 py-2">
-                <span className="text-sm font-medium text-white">
-                  Page {currentPage} of {totalPages}
-                </span>
-              </div>
-              
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => handlePageChange(currentPage + 1)}
-                className={`px-4 py-2 rounded-lg text-sm flex items-center ${
-                  currentPage === totalPages 
-                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-                    : 'bg-gradient-to-r from-red-600 to-purple-600 text-white hover:from-red-500 hover:to-purple-500'
-                }`}
-              >
-                Next
-                <ChevronRight size={16} className="ml-1" />
-              </button>
-
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => handlePageChange(totalPages)}
-                className={`px-3 py-2 rounded-lg text-sm ${
-                  currentPage === totalPages 
-                    ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-                    : 'bg-gray-700 text-white hover:bg-gray-600'
-                }`}
-              >
-                Last
-              </button>
+          <div className="flex justify-center items-center gap-3">
+            <button
+              disabled={currentPage === 1}
+              onClick={() => handlePageChange(currentPage - 1)}
+              className={`px-4 py-2 rounded text-sm ${
+                currentPage === 1 
+                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                  : 'bg-red-600 text-white hover:bg-red-700'
+              }`}
+            >
+              Previous
+            </button>
+            
+            <div className="flex items-center justify-center bg-gray-800 rounded px-4 py-2">
+              <span className="text-sm text-white">
+                Page {currentPage} of {totalPages}
+              </span>
             </div>
             
-            {/* Quick Jump Pages */}
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-400">Quick jump:</span>
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => handlePageChange(pageNum)}
-                    className={`w-8 h-8 rounded transition-colors ${
-                      pageNum === currentPage 
-                        ? 'bg-red-600 text-white' 
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-            </div>
-            
-            {/* Performance indicators */}
-            <div className="text-xs text-gray-500 text-center">
-              {cacheStats[contentType] > 0 && (
-                <span className="inline-flex items-center">
-                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-                  Fast loading enabled • Images cached • Database optimized
-                </span>
-              )}
-            </div>
+            <button
+              disabled={currentPage === totalPages}
+              onClick={() => handlePageChange(currentPage + 1)}
+              className={`px-4 py-2 rounded text-sm ${
+                currentPage === totalPages 
+                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
+                  : 'bg-red-600 text-white hover:bg-red-700'
+              }`}
+            >
+              Next
+            </button>
           </div>
         )}
       </div>
@@ -1462,50 +1191,41 @@ function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* REDESIGNED HEADER WITHOUT STREAMFLIX TEXT */}
+      {/* SIMPLE HEADER */}
       <header 
         ref={headerRef} 
-        className="fixed top-0 w-full bg-black bg-opacity-95 backdrop-blur-md z-50 transition-all duration-300 transform border-b border-gray-800/50"
+        className="fixed top-0 w-full bg-black bg-opacity-95 backdrop-blur-sm z-50 border-b border-gray-800"
       >
         <div className="flex items-center justify-center px-4 md:px-8 py-4">
-          {/* Navigation moved to left side */}
+          {/* Navigation */}
           <div className="hidden md:flex items-center space-x-6 mr-8">
             <button
-              className={`text-sm font-medium transition-colors relative ${
-                contentType === 'movies' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'
-              } px-3 py-1`}
+              className={`text-sm font-medium transition-colors px-3 py-1 ${
+                contentType === 'movies' ? 'text-red-500' : 'text-gray-400 hover:text-white'
+              }`}
               onClick={() => handleContentTypeChange('movies')}
             >
               Movies
-              {moviesLoading && (
-                <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-              )}
             </button>
             <button
-              className={`text-sm font-medium transition-colors relative ${
-                contentType === 'series' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'
-              } px-3 py-1`}
+              className={`text-sm font-medium transition-colors px-3 py-1 ${
+                contentType === 'series' ? 'text-red-500' : 'text-gray-400 hover:text-white'
+              }`}
               onClick={() => handleContentTypeChange('series')}
             >
               TV Shows
-              {seriesLoading && (
-                <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-              )}
             </button>
             <button
-              className={`text-sm font-medium transition-colors relative ${
-                contentType === 'anime' ? 'text-red-500 border-b-2 border-red-500' : 'text-gray-400 hover:text-white'
-              } px-3 py-1`}
+              className={`text-sm font-medium transition-colors px-3 py-1 ${
+                contentType === 'anime' ? 'text-red-500' : 'text-gray-400 hover:text-white'
+              }`}
               onClick={() => handleContentTypeChange('anime')}
             >
               Anime
-              {animeLoading && (
-                <div className="absolute -top-2 -right-2 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
-              )}
             </button>
           </div>
 
-          {/* Centered Search Bar with more space */}
+          {/* Centered Search Bar */}
           <div className="flex-1 flex justify-center max-w-2xl mx-auto">
             <RealTimeSearchBar
               searchQuery={searchQuery}
@@ -1521,50 +1241,6 @@ function Home() {
               onSearchActivate={handleSearchActivate}
               onSearchDeactivate={handleSearchDeactivate}
             />
-          </div>
-            
-          {/* Right side - Additional options */}
-          <div className="hidden md:flex items-center space-x-3">
-            {/* Search Status Indicator */}
-            {isSearchActive && (
-              <div className="flex items-center space-x-2 px-3 py-2 bg-green-900/50 rounded-lg border border-green-700">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-green-300 text-sm font-medium">Live Search</span>
-              </div>
-            )}
-            
-            {/* Debug button - remove in production */}
-            {process.env.NODE_ENV === 'development' && (
-              <button
-                onClick={async () => {
-                  console.log('🧪 Testing search functionality...');
-                  console.log('Current content type:', contentType);
-                  console.log('Search query:', searchQuery);
-                  console.log('Search active:', isSearchActive);
-                  
-                  // Test direct search calls
-                  try {
-                    const testQuery = 'avatar'; // A common movie/series name
-                    console.log(`Testing search for "${testQuery}"`);
-                    
-                    const movieResults = await searchMoviesDB(testQuery, { limit: 5 });
-                    console.log('Movie results:', movieResults.length, movieResults.slice(0, 2).map(m => m.title));
-                    
-                    const seriesResults = await searchSeriesDB(testQuery, { limit: 5 });
-                    console.log('Series results:', seriesResults.length, seriesResults.slice(0, 2).map(s => s.title));
-                    
-                    const animeResults = await searchAnimeDB(testQuery, { limit: 5 });
-                    console.log('Anime results:', animeResults.length, animeResults.slice(0, 2).map(a => a.title));
-                  } catch (error) {
-                    console.error('Search test failed:', error);
-                  }
-                }}
-                className="px-3 py-2 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                title="Test Search (Dev Only)"
-              >
-                🧪
-              </button>
-            )}
           </div>
         </div>
       </header>

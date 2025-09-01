@@ -25,10 +25,15 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    // If image was already cached, ensure we're in loaded state
+    if (wasImageLoaded && !isLoaded) {
+      setIsLoaded(true);
+    }
+    
     return () => {
       mountedRef.current = false;
     };
-  }, []);
+  }, [wasImageLoaded, isLoaded]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -49,7 +54,18 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
     cleanTitle = movie.title.replace(yearMatch[0], '').trim();
   }
 
-  const hasDownloads = !!(movie.downloadLinks && movie.downloadLinks.length > 0);
+  // Enhanced logic to check for download availability
+  const hasDownloads = !!(
+    // 1. Check for download links array
+    (movie.downloadLinks && movie.downloadLinks.length > 0) || 
+    // 2. Check for raw links string
+    (movie.links && typeof movie.links === 'string' && movie.links.trim().length > 0 && 
+     (movie.links.includes('?download') || movie.links.includes('download'))) ||
+    // 3. Check for available qualities array
+    (movie.availableQualities && movie.availableQualities.length > 0) ||
+    // 4. Check for download field in content object
+    (movie.content?.download && movie.content.download.length > 0)
+  );
 
   // Date formatting function
   const formatDate = (dateString) => {
@@ -82,14 +98,14 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
 
   // Handle image error
   const handleImageError = (e) => {
-    if (!imgError && mountedRef.current) {
+    if (mountedRef.current) {
       setImgError(true);
       setIsLoaded(true);
     }
   };
 
   // Enhanced image load handler with caching
-  const handleImageLoad = () => {
+  const handleImageLoad = (e) => {
     if (mountedRef.current) {
       setIsLoaded(true);
       // Add to cache to prevent re-loading
@@ -207,7 +223,11 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
 
           {/* Download Indicator */}
           {hasDownloads && (
-            <div className="absolute top-2 right-2 w-2 h-2 bg-green-500 rounded-full ring-1 ring-black/50 z-20"></div>
+            <div className="absolute top-2 right-2 flex items-center justify-center z-20">
+              <div className="w-4 h-4 bg-green-500/90 rounded-full ring-1 ring-black flex items-center justify-center">
+                <span className="text-[6px] font-bold text-black">DL</span>
+              </div>
+            </div>
           )}
 
           {/* Gradient Overlay - only for real images */}

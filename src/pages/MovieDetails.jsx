@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info, Play, Film, Tv, HardDrive } from 'lucide-react';
+import { getMovieDetailsById, getSeriesDetailsById } from '../services/directMovieService';
 
 const MovieDetails = ({ movie, onClose }) => {
+  const [directDetails, setDirectDetails] = useState(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
@@ -17,87 +21,112 @@ const MovieDetails = ({ movie, onClose }) => {
   const contentRef = useRef(null);
   const backdropRef = useRef(null);
   
+  // Fetch direct details from database on mount
+  useEffect(() => {
+    const fetchDirectDetails = async () => {
+      if (!movie || !movie.id) return;
+      
+      setIsLoadingDetails(true);
+      setDetailsError(null);
+      
+      try {
+        // Use the appropriate fetch function based on content type
+        let details;
+        if (movie.isSeries) {
+          details = await getSeriesDetailsById(movie.id);
+        } else {
+          details = await getMovieDetailsById(movie.id);
+        }
+        
+        if (details) {
+          setDirectDetails(details);
+          console.log('✅ Direct details loaded:', details.title);
+        } else {
+          // If direct fetch fails, use cached data
+          console.log('⚠️ Using cached data as fallback');
+          setDetailsError('Could not fetch latest details');
+        }
+      } catch (error) {
+        console.error('❌ Error fetching direct details:', error);
+        setDetailsError('Error loading details');
+      } finally {
+        setIsLoadingDetails(false);
+      }
+    };
+    
+    fetchDirectDetails();
+  }, [movie]);
+  
   // Enhanced parseDownloadLinks function to handle your specific data format
   const parseDownloadLinks = useCallback((linksString) => {
     if (!linksString || typeof linksString !== 'string') return [];
     
     // Only log in development
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 Raw links string:', linksString);
+      console.log('🔍 Raw links string:', linksString.substring(0, 200) + '...');
     }
     
     try {
       const links = [];
       
-      // Your format: "https://...?download,description,sizehttps://...?download,description,size..."
-      // Split by 'https://' to separate individual links, then reconstruct URLs
-      const linkParts = linksString.split('https://').filter(part => part.trim());
+      // Your format: "url,title,sizeurl,title,size..." (concatenated without separators)
+      // Use regex to find all patterns: https://...?download,title,size
+      const linkPattern = /(https:\/\/[^,]+\?download),([^,]+),(\d+(?:\.\d+)?(?:MB|GB|TB))/gi;
       
-      for (const part of linkParts) {
-        if (!part.trim()) continue;
+      let match;
+      while ((match = linkPattern.exec(linksString)) !== null) {
+        const [, url, title, size] = match;
         
-        // Reconstruct the full URL
-        const fullPart = 'https://' + part;
-        
-        // Extract URL, description, and size using regex
-        // Pattern: https://...?download,description,size
-        const match = fullPart.match(/(https:\/\/[^,]+\?download),([^,]+),([^,\s]+(?:MB|GB))/i);
-        
-        if (match) {
-          let [, url, description, size] = match;
-          
-          // Clean up URL - ensure it has ?download parameter
-          if (!url.includes('?download')) {
-            url += '?download';
-          }
-          
-          if (process.env.NODE_ENV === 'development') {
-            console.log('🎬 Found match:', { url: url.substring(0, 50) + '...', description, size });
-          }
-          
-          // Extract quality from description with enhanced patterns
-          let quality = 'HD';
-          const qualityMatch = description.match(/(480p|720p|1080p|4K|2160p)/i);
-          if (qualityMatch) {
-            quality = qualityMatch[1].toUpperCase();
-            if (quality === '2160P') quality = '4K';
-          }
-          
-          // Fallback quality detection from size if not found in description
-          if (quality === 'HD') {
-            const sizeMatch = size.match(/(\d+(?:\.\d+)?)([MG]B)/i);
-            if (sizeMatch) {
-              const sizeNum = parseFloat(sizeMatch[1]);
-              const unit = sizeMatch[2].toLowerCase();
-              
-              if (unit === 'gb') {
-                if (sizeNum >= 2.5) quality = '1080P';
-                else if (sizeNum >= 1.2) quality = '720P';
-                else quality = '480P';
-              } else if (unit === 'mb') {
-                if (sizeNum >= 1500) quality = '1080P';
-                else if (sizeNum >= 800) quality = '720P';
-                else quality = '480P';
-              }
-            }
-          }
-          
-          // Clean up description and size
-          description = description.trim();
-          size = size.trim();
-          
-          links.push({
-            url: url.trim(),
-            quality: quality,
-            size: size,
-            description: description,
-            rawDatabaseDetails: description // Store complete database details
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🎬 Found match:', { 
+            url: url.substring(0, 50) + '...', 
+            title: title.substring(0, 50) + '...', 
+            size 
           });
         }
+        
+        // Extract quality from title
+        let quality = 'HD';
+        const qualityMatch = title.match(/(480p|720p|1080p|4K|2160p)/i);
+        if (qualityMatch) {
+          quality = qualityMatch[1].toUpperCase();
+          if (quality === '2160P') quality = '4K';
+        }
+        
+        // Fallback quality detection from size if not found in title
+        if (quality === 'HD') {
+          const sizeMatch = size.match(/(\d+(?:\.\d+)?)([MG]B)/i);
+          if (sizeMatch) {
+            const sizeNum = parseFloat(sizeMatch[1]);
+            const unit = sizeMatch[2].toLowerCase();
+            
+            if (unit === 'gb') {
+              if (sizeNum >= 2.5) quality = '1080P';
+              else if (sizeNum >= 1.2) quality = '720P';
+              else quality = '480P';
+            } else if (unit === 'mb') {
+              if (sizeNum >= 1500) quality = '1080P';
+              else if (sizeNum >= 800) quality = '720P';
+              else quality = '480P';
+            }
+          }
+        }
+        
+        links.push({
+          url: url.trim(),
+          quality: quality,
+          size: size.trim(),
+          description: title.trim(),
+          rawDatabaseDetails: title.trim() // Store complete database details
+        });
       }
       
       if (process.env.NODE_ENV === 'development') {
-        console.log('🎯 Final parsed links:', links.map(l => ({ quality: l.quality, size: l.size, description: l.description })));
+        console.log('🎯 Final parsed links:', links.map(l => ({ 
+          quality: l.quality, 
+          size: l.size, 
+          description: l.description.substring(0, 50) + '...' 
+        })));
       }
       
       // Sort by quality order
@@ -112,31 +141,59 @@ const MovieDetails = ({ movie, onClose }) => {
 
   // Keep your original extractMovieData function
   const extractMovieData = useCallback(() => {
-    if (!movie) return {};
+    // Priority: direct database details > cached movie data
+    const sourceData = directDetails || movie;
     
-    // console.log('Raw movie object:', movie);
+    if (!sourceData) return {};
+    
+    // Use details directly if they're already properly formatted (from direct fetch)
+    if (directDetails) {
+      return {
+        ...directDetails,
+        // Ensure we always have these fields properly set
+        title: directDetails.title || 'Unknown Title',
+        year: directDetails.releaseYear,
+        image: directDetails.featuredImage || directDetails.poster || directDetails.image,
+        genres: directDetails.genres || [],
+        languages: directDetails.languages || [],
+        qualities: directDetails.qualities || [],
+        isSeries: directDetails.isSeries,
+        seasons: directDetails.seasons,
+        description: directDetails.content?.description || directDetails.excerpt || "No description available.",
+        duration: directDetails.content?.duration,
+        rating: directDetails.content?.rating,
+        downloadLinks: directDetails.downloadLinks || [],
+        screenshots: [],
+        cast: directDetails.cast || [],
+        director: directDetails.director,
+        status: directDetails.status,
+        publishDate: directDetails.date,
+        modifiedDate: directDetails.modified_date
+      };
+    }
+    
+    // Console log to indicate we're using cached data
+    console.log('🔄 Using cached movie data for details');
     
     // Screenshots disabled - no longer extracting screenshots
     let screenshots = [];
     
     // Parse download links using our new parser
     let downloadLinks = [];
-    if (movie.downloadLinks && Array.isArray(movie.downloadLinks)) {
-      downloadLinks = movie.downloadLinks;
-    } else if (movie.links && typeof movie.links === 'string') {
-      downloadLinks = parseDownloadLinks(movie.links);
+    if (sourceData.downloadLinks && Array.isArray(sourceData.downloadLinks)) {
+      downloadLinks = sourceData.downloadLinks;
+    } else if (sourceData.links && typeof sourceData.links === 'string') {
+      downloadLinks = parseDownloadLinks(sourceData.links);
     }
-    
-    // console.log('Final downloadLinks:', downloadLinks);
     
     // Extract content metadata
     let metadata = {};
-    if (movie.content) {
-      if (typeof movie.content === 'object') {
-        metadata = movie.content;
-      } else if (typeof movie.content === 'string') {
+    if (sourceData.content) {
+      if (typeof sourceData.content === 'object') {
+        metadata = sourceData.content;
+      } else if (typeof sourceData.content === 'string') {
         try {
-          const parsed = JSON.parse(movie.content);
+          const parsed = JSON.parse(sourceData.content);
           if (Array.isArray(parsed) && parsed.length >= 3) {
             metadata = {
               description: parsed[0],
@@ -145,14 +202,14 @@ const MovieDetails = ({ movie, onClose }) => {
             };
           }
         } catch (error) {
-          metadata = { description: movie.content };
+          metadata = { description: sourceData.content };
         }
       }
     }
     
     // Extract year from title or releaseYear
-    const yearMatch = movie.title?.match(/\((\d{4})\)/);
-    const year = movie.releaseYear || (yearMatch ? yearMatch[1] : '');
+    const yearMatch = sourceData.title?.match(/\((\d{4})\)/);
+    const year = sourceData.releaseYear || (yearMatch ? yearMatch[1] : '');
     
     // Parse categories safely - handle both string and array formats
     let genres = [];
@@ -160,8 +217,8 @@ const MovieDetails = ({ movie, onClose }) => {
     let qualities = [];
     
     // Handle categories field from your database
-    if (movie.categories && typeof movie.categories === 'string') {
-      const categoryArray = movie.categories.split(',').map(c => c.trim());
+    if (sourceData.categories && typeof sourceData.categories === 'string') {
+      const categoryArray = sourceData.categories.split(',').map(c => c.trim());
       
       // Filter out technical terms to get actual genres
       const technicalTerms = ['480p', '720p', '1080p', '4K', 'HD', 'Full HD', 'WEB-DL', 'BluRay', 'Blu-Ray'];
@@ -180,41 +237,46 @@ const MovieDetails = ({ movie, onClose }) => {
       qualities = categoryArray.filter(cat => 
         technicalTerms.some(term => cat.includes(term))
       );
+    } else if (sourceData.categories && Array.isArray(sourceData.categories)) {
+      // Categories already as array
+      genres = sourceData.genres || [];
+      languages = sourceData.languages || [];
+      qualities = sourceData.qualities || [];
     }
     
     // Handle seasons for series
-    let seasons = null;
-    if (movie.season_1 || movie.season_2 || movie.season_3) {
+    let seasons = sourceData.seasons || null;
+    if (!seasons && (sourceData.season_1 || sourceData.season_2 || sourceData.season_3)) {
       seasons = {};
       for (let i = 1; i <= 10; i++) {
         const seasonKey = `season_${i}`;
-        if (movie[seasonKey]) {
-          seasons[seasonKey] = movie[seasonKey];
+        if (sourceData[seasonKey]) {
+          seasons[seasonKey] = sourceData[seasonKey];
         }
       }
     }
     
     return {
-      title: movie.title || 'Unknown Title',
+      title: sourceData.title || 'Unknown Title',
       year,
-      image: movie.featured_image || movie.featuredImage || movie.image,
+      image: sourceData.featured_image || sourceData.featuredImage || sourceData.image,
       genres,
       languages,
       qualities,
       isSeries: !!seasons,
       seasons,
-      description: metadata.description || movie.excerpt || "No description available.",
-      duration: metadata.duration || movie.duration,
-      rating: metadata.rating || movie.rating,
+      description: metadata.description || sourceData.excerpt || "No description available.",
+      duration: metadata.duration || sourceData.duration,
+      rating: metadata.rating || sourceData.rating,
       downloadLinks,
       screenshots: screenshots.length > 0 ? screenshots : [],
-      cast: movie.cast || [],
-      director: movie.director,
-      status: movie.status,
-      publishDate: movie.date,
-      modifiedDate: movie.modified_date
+      cast: sourceData.cast || [],
+      director: sourceData.director,
+      status: sourceData.status,
+      publishDate: sourceData.date,
+      modifiedDate: sourceData.modified_date
     };
-  }, [movie, parseDownloadLinks]);
+  }, [movie, directDetails]);
 
   const movieData = extractMovieData();
 
@@ -370,6 +432,7 @@ const MovieDetails = ({ movie, onClose }) => {
     const displaySize = size || 'Unknown';
     // Use rawDatabaseDetails instead of description for display
     const databaseDetails = rawDatabaseDetails || description || '';
+    const isLiveData = !!directDetails;
     
     const getQualityColor = (qual) => {
       switch (qual) {
@@ -423,10 +486,22 @@ const MovieDetails = ({ movie, onClose }) => {
 
     return (
       <div className="w-full space-y-3">
+        {/* Live Data Badge */}
+        {isLiveData && (
+          <div className="flex justify-end">
+            <span className="inline-flex items-center text-[10px] bg-green-600/20 text-green-400 px-1.5 py-0.5 rounded-full border border-green-600/30">
+              <span className="mr-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+              Live Data
+            </span>
+          </div>
+        )}
+        
         {/* Database Details Line - Only show if we have actual details */}
         {databaseDetails && databaseDetails.trim() && databaseDetails !== 'No additional details available' && (
           <div className="bg-gray-900/30 border-l-2 border-gray-600/50 pl-3 py-2">
-            <div className="text-xs text-gray-400 mb-1">Database Details:</div>
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-xs text-gray-400">Database Details:</span>
+            </div>
             <div className="text-xs text-gray-300 font-mono leading-relaxed break-words">
               {databaseDetails}
             </div>
@@ -702,18 +777,18 @@ const MovieDetails = ({ movie, onClose }) => {
             {movieData.downloadLinks && movieData.downloadLinks.length > 0 && (
               <div className="relative z-20 bg-gradient-to-r from-gray-900/60 via-slate-900/40 to-gray-900/60 border-y border-gray-700/50 py-4 px-4">
                 <div className="flex flex-col space-y-4">
-                  <div className="text-sm text-white font-medium flex items-center justify-between">
-                    <div className="flex items-center">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-white font-medium flex items-center">
                       <Download size={16} className="mr-2 text-red-400" />
                       <span>Download Options ({movieData.downloadLinks.length})</span>
+                    </span>
+                    <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-800/80 border border-gray-700/50">
+                      <HardDrive size={12} className={directDetails ? "text-green-400" : "text-yellow-400"} />
+                      <span className={directDetails ? "text-green-400" : "text-yellow-400"}>
+                        {directDetails ? 'Live Database' : 'Cached Data'}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-400">
-                      <HardDrive size={12} />
-                      <span>Direct</span>
-                    </div>
-                  </div>
-                  
-                  {/* Scrollable Download List */}
+                  </div>                  {/* Scrollable Download List */}
                   <div className="space-y-3 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
                     {movieData.downloadLinks.map((link, index) => (
                       <button
@@ -895,13 +970,13 @@ const MovieDetails = ({ movie, onClose }) => {
                             <Download size={16} className="mr-2 text-red-400" />
                             Download Options ({movieData.downloadLinks.length})
                           </span>
-                          <div className="flex items-center gap-1 text-xs text-gray-400">
-                            <HardDrive size={12} />
-                            <span>Direct • No redirects</span>
+                          <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-800/80 border border-gray-700/50">
+                            <HardDrive size={12} className={directDetails ? "text-green-400" : "text-yellow-400"} />
+                            <span className={directDetails ? "text-green-400" : "text-yellow-400"}>
+                              {directDetails ? 'Live Database' : 'Cached Data'}
+                            </span>
                           </div>
-                        </div>
-                        
-                        {/* Scrollable Download List */}
+                        </div>                        {/* Scrollable Download List */}
                         <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 pr-2">
                           {movieData.downloadLinks.map((link, index) => (
                             <button

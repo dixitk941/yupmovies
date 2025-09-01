@@ -18,8 +18,18 @@ export const SimpleOptimizedImage = React.memo(({
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentSrc, setCurrentSrc] = useState(src);
 
+  // Reset loading state when src changes
+  React.useEffect(() => {
+    if (src !== currentSrc) {
+      setIsLoaded(false);
+      setHasError(false);
+      setCurrentSrc(src);
+    }
+  }, [src, currentSrc]);
+
   const handleLoad = useCallback((e) => {
     setIsLoaded(true);
+    // Call the parent's onLoad callback directly
     onLoad?.(e);
   }, [onLoad]);
 
@@ -28,12 +38,15 @@ export const SimpleOptimizedImage = React.memo(({
       // Try fallback image
       setCurrentSrc(fallbackSrc);
       setHasError(false);
+      // Don't call onError yet, give fallback a chance
     } else {
       // Final error state
       setHasError(true);
+      // Call onLoad to signal completion of loading attempt
+      onLoad?.(e);
       onError?.(e);
     }
-  }, [onError, hasError, fallbackSrc, currentSrc]);
+  }, [onError, onLoad, hasError, fallbackSrc, currentSrc]);
 
   // Don't render if no src
   if (!currentSrc) {

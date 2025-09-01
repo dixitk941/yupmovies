@@ -71,44 +71,8 @@ function useDevToolsProtection() {
       }
     };
 
-    // Detect console interaction (only trigger on user console commands)
-    let userConsoleDetected = false;
-    const originalLog = console.log;
-    const originalError = console.error;
-    const originalWarn = console.warn;
-    const originalInfo = console.info;
-    const originalDebug = console.debug;
-
-    // Only intercept if DevTools console is actually open and user is typing
-    const smartConsoleDetector = () => {
-      const devToolsHeight = window.outerHeight - window.innerHeight;
-      const devToolsWidth = window.outerWidth - window.innerWidth;
-      
-      // Only activate console protection if DevTools is actually open
-      if (devToolsHeight > 160 || devToolsWidth > 160) {
-        if (!userConsoleDetected) {
-          userConsoleDetected = true;
-          setTimeout(() => {
-            alert('🚨 Developer console usage detected!\n\nThis session will be terminated for security reasons.');
-            window.location.reload();
-          }, 2000); // Give a delay to avoid false positives
-        }
-      }
-    };
-
-    // Override console methods only to detect manual user input
-    const createConsoleInterceptor = (originalMethod) => {
-      return function(...args) {
-        // Check if this console call is from user interaction (not our protection system)
-        const stack = new Error().stack;
-        if (stack && !stack.includes('useDevToolsProtection') && !stack.includes('console.log')) {
-          smartConsoleDetector();
-        }
-        return originalMethod.apply(console, args);
-      };
-    };
-
-    // Don't override the console methods immediately - this was causing the false positive
+    // Console interception removed to prevent false positives
+    // Protection now relies on window size detection and keyboard shortcuts only
 
     // Disable right-click context menu
     const handleContextMenu = (e) => {
