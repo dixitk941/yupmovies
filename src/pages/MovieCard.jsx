@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
-import { Play, Info, Plus, Heart } from 'lucide-react';
 import SimpleOptimizedImage from '../components/SimpleOptimizedImage';
+import { formatDateString, debugDate } from '../services/utils.js';
 
 // Cache for loaded images to prevent re-loading after modal close
 const loadedImagesCache = new Set();
@@ -17,7 +17,6 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
   const wasImageLoaded = imageSrc ? loadedImagesCache.has(imageSrc) : false;
   
   const [isLoaded, setIsLoaded] = useState(wasImageLoaded);
-  const [isHovered, setIsHovered] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [imgError, setImgError] = useState(false);
   
@@ -67,32 +66,30 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
     (movie.content?.download && movie.content.download.length > 0)
   );
 
-  // Date formatting function
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric'
-      });
-    } catch {
-      return dateString.split(' ')[0]; // fallback to just date part
-    }
-  };
-
-  // Get display date (prioritize date over modified_date)
+  // Date formatting - now using the centralized utility function
   const getDisplayDate = () => {
-    return movie.date || movie.modified_date || '';
+    // First priority is modified_date from database
+    if (movie.modified_date) return formatDateString(movie.modified_date);
+    // Second priority is modifiedDate (transformed property)
+    if (movie.modifiedDate) return formatDateString(movie.modifiedDate);
+    // Third priority is date
+    if (movie.date) return formatDateString(movie.date);
+    // Fourth priority is publishDate
+    if (movie.publishDate) return formatDateString(movie.publishDate);
+    // No date available
+    return '';
   };
 
-  const displayDate = formatDate(getDisplayDate());
+  const displayDate = getDisplayDate();
 
   // CRITICAL FIX: Proper click handler that prevents page reload
   const handleClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('MovieCard clicked:', movie.title);
+    
+    // Enhanced debugging using our utility
+    console.log('📅 DATE DEBUG - Movie details:', debugDate(movie));
+    
     onClick(movie);
   };
 
@@ -153,14 +150,9 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
           relative cursor-pointer rounded-lg overflow-hidden bg-black/80 backdrop-blur-sm
           transition-all duration-300 ease-out
           w-[112px] flex-shrink-0
-          ${isMobile 
-            ? 'active:scale-95' 
-            : `transform ${isHovered ? 'scale-110 z-40 shadow-2xl shadow-black/60' : 'hover:scale-105'}`
-          }
+          ${isMobile ? 'active:scale-95' : ''}
         `}
         onClick={handleClick}
-        onMouseEnter={() => !isMobile && setIsHovered(true)}
-        onMouseLeave={() => !isMobile && setIsHovered(false)}
         role="button"
         tabIndex={0}
         aria-label={`View details for ${cleanTitle}`}
@@ -221,14 +213,7 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
             />
           )}
 
-          {/* Download Indicator */}
-          {hasDownloads && (
-            <div className="absolute top-2 right-2 flex items-center justify-center z-20">
-              <div className="w-4 h-4 bg-green-500/90 rounded-full ring-1 ring-black flex items-center justify-center">
-                <span className="text-[6px] font-bold text-black">DL</span>
-              </div>
-            </div>
-          )}
+          {/* Download Indicator removed */}
 
           {/* Gradient Overlay - only for real images */}
           {!imgError && imageSrc && (
@@ -249,12 +234,10 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
                   </span>
                 )}
               </div>
-              {/* Date display for mobile */}
-              {displayDate && (
-                <div className="text-gray-400 text-[9px] mb-1">
-                  {displayDate}
-                </div>
-              )}
+              {/* Date display for mobile - more prominent */}
+              <div className="text-white text-[10px] mb-1 font-bold bg-red-600 px-2 py-0.5 rounded-sm inline-block shadow-md">
+                {displayDate ? '📅 ' + displayDate : '📅 Unknown Date'}
+              </div>
               {/* Excerpt at bottom for mobile */}
               {movie.excerpt && (
                 <div className="bg-blue-600/80 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium">
@@ -264,30 +247,11 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
             </div>
           )}
 
-          {/* Desktop Hover Content */}
+          {/* Desktop Content - Always Visible */}
           {!isMobile && (
             <>
-              {/* Play Button Overlay */}
-              <div 
-                className={`
-                  absolute inset-0 flex items-center justify-center z-10
-                  transition-all duration-300
-                  ${isHovered ? 'opacity-100' : 'opacity-0'}
-                `}
-              >
-                <button className="w-8 h-8 bg-white/90 hover:bg-white rounded-full flex items-center justify-center backdrop-blur-sm transition-colors duration-200">
-                  <Play className="w-3 h-3 text-black ml-0.5" fill="currentColor" />
-                </button>
-              </div>
-
-              {/* Bottom Info Overlay */}
-              <div 
-                className={`
-                  absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent z-10
-                  transition-all duration-300
-                  ${isHovered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}
-                `}
-              >
+              {/* Bottom Info Overlay - Always Visible */}
+              <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent z-10">
                 <h3 className="text-white font-bold text-xs mb-1 line-clamp-2 leading-tight">
                   {cleanTitle.length > 15 ? cleanTitle.substring(0, 15) + '...' : cleanTitle}
                 </h3>
@@ -301,33 +265,26 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
                   )}
                 </div>
 
-                {/* Date display for desktop */}
-                {displayDate && (
-                  <div className="text-gray-400 text-[9px] mb-1">
-                    {displayDate}
-                  </div>
-                )}
+                {/* Date display for desktop - HIGHLY VISIBLE */}
+                <div className="text-white text-[10px] mb-1 font-bold bg-red-600 px-2 py-0.5 rounded-sm inline-block shadow-md">
+                  {displayDate ? '📅 ' + displayDate : '📅 Unknown Date'}
+                </div>
 
                 {/* Excerpt at bottom for desktop */}
                 {movie.excerpt && (
-                  <div className="bg-blue-600/80 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium mb-2">
+                  <div className="bg-blue-600/80 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium">
                     {movie.excerpt.length > 15 ? movie.excerpt.substring(0, 15) + '...' : movie.excerpt}
                   </div>
                 )}
-
-                {/* Action Buttons */}
-                <div className="flex items-center space-x-1">
-                  <button className="w-4 h-4 bg-white rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors">
-                    <Play className="w-2 h-2 text-black ml-0.5" fill="currentColor" />
-                  </button>
-                  <button className="w-4 h-4 border border-gray-400 rounded-full flex items-center justify-center hover:border-white transition-colors">
-                    <Plus className="w-2 h-2 text-gray-400 group-hover:text-white" />
-                  </button>
-                  <button className="w-4 h-4 border border-gray-400 rounded-full flex items-center justify-center hover:border-white transition-colors">
-                    <Info className="w-2 h-2 text-gray-400 group-hover:text-white" />
-                  </button>
-                </div>
               </div>
+
+              {/* Debug date information (only in development mode) */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="text-[8px] bg-black/60 p-1 text-gray-400 font-mono mt-1 leading-tight">
+                  md: {movie.modified_date || 'null'}<br/>
+                  d: {movie.date || 'null'}
+                </div>
+              )}
             </>
           )}
         </div>

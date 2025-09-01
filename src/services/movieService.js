@@ -274,6 +274,9 @@ const transformMovieData = (row) => {
     content: parseContentMetadata(row.content),
     excerpt: row.excerpt,
     status: row.status,
+    // PRESERVE BOTH DATE FORMATS FOR COMPATIBILITY
+    date: row.date,
+    modified_date: row.modified_date,
     publishDate: row.date,
     modifiedDate: row.modified_date
   };

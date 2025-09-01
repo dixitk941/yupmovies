@@ -424,9 +424,9 @@ const BottomBar = memo(({
   animeLoading,
   cacheStats 
 }) => (
-  <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 z-50">
-    {/* Desktop version */}
-    <div className="hidden md:flex justify-center px-6 py-4">
+  <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 z-50 transition-all duration-300 transform md:hidden">
+    {/* Desktop version - now hidden with md:hidden class on parent */}
+    <div className="hidden md:hidden justify-center px-6 py-4">
       <div className="flex bg-gray-900 rounded-lg p-1">
         <button
           className={`flex items-center space-x-2 px-6 py-3 rounded-md transition-colors ${
@@ -466,7 +466,6 @@ const BottomBar = memo(({
         }`}
         onClick={() => onContentTypeChange('movies')}
       >
-        <Film size={20} />
         <span className="text-xs mt-1">Movies</span>
       </button>
       <button
@@ -475,7 +474,6 @@ const BottomBar = memo(({
         }`}
         onClick={() => onContentTypeChange('series')}
       >
-        <Tv size={20} />
         <span className="text-xs mt-1">Series</span>
       </button>
       <button
@@ -484,7 +482,6 @@ const BottomBar = memo(({
         }`}
         onClick={() => onContentTypeChange('anime')}
       >
-        <Star size={20} />
         <span className="text-xs mt-1">Anime</span>
       </button>
     </nav>
@@ -1060,12 +1057,16 @@ function Home() {
 
     try {
       if (isSeries) {
-        return <SeriesDetail series={selectedMovie} onClose={() => setSelectedMovie(null)} />;
+        return (
+          <div className="animate-fadeIn">
+            <SeriesDetail series={selectedMovie} onClose={() => setSelectedMovie(null)} />
+          </div>
+        );
       } else {
         if (!MovieDetails) {
           console.error('❌ MovieDetails component not found');
           return (
-            <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+            <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center animate-fadeIn">
               <div className="bg-white text-black p-8 rounded">
                 <h2>Movie Details</h2>
                 <p>Movie: {selectedMovie.title}</p>
@@ -1081,12 +1082,16 @@ function Home() {
           );
         }
         
-        return <MovieDetails movie={selectedMovie} onClose={() => setSelectedMovie(null)} />;
+        return (
+          <div className="animate-fadeIn">
+            <MovieDetails movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
+          </div>
+        );
       }
     } catch (error) {
       console.error('💥 Error rendering detail component:', error);
       return (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center animate-fadeIn">
           <div className="bg-white text-black p-8 rounded">
             <h2>Error</h2>
             <p>Failed to render detail view for: {selectedMovie.title}</p>
@@ -1246,20 +1251,23 @@ function Home() {
       </header>
 
       {/* MAIN CONTENT */}
-      <main className="pt-24 pb-20">
+      <main className={`pt-24 ${selectedMovie ? 'pb-8' : 'pb-20 md:pb-8'}`}>
         {MainContent}
       </main>
 
       {selectedMovie && renderDetailComponent()}
       
-      <BottomBar 
-        contentType={contentType}
-        onContentTypeChange={handleContentTypeChange}
-        moviesLoading={moviesLoading}
-        seriesLoading={seriesLoading}
-        animeLoading={animeLoading}
-        cacheStats={cacheStats}
-      />
+      {/* Only show BottomBar when no movie/series is selected */}
+      {!selectedMovie && (
+        <BottomBar 
+          contentType={contentType}
+          onContentTypeChange={handleContentTypeChange}
+          moviesLoading={moviesLoading}
+          seriesLoading={seriesLoading}
+          animeLoading={animeLoading}
+          cacheStats={cacheStats}
+        />
+      )}
 
       <style jsx>{`
         .scrollbar-hide {
@@ -1274,6 +1282,13 @@ function Home() {
           -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-in-out;
         }
       `}</style>
     </div>

@@ -105,3 +105,51 @@ export const parseContentMetadata = (content) => {
   
   return { description: content };
 };
+
+// Helper function to format dates consistently
+export const formatDateString = (dateString) => {
+  if (!dateString) return '';
+  
+  try {
+    // Handle MySQL datetime format (YYYY-MM-DD HH:MM:SS)
+    const parts = dateString.split(' ');
+    if (parts.length === 2) {
+      const datePart = parts[0].split('-');
+      if (datePart.length === 3) {
+        const year = parseInt(datePart[0]);
+        const month = parseInt(datePart[1]) - 1; // JS months are 0-based
+        const day = parseInt(datePart[2]);
+        const date = new Date(year, month, day);
+        return date.toLocaleDateString('en-US', { 
+          year: 'numeric',
+          month: 'short', 
+          day: 'numeric'
+        });
+      }
+    }
+    
+    // Fallback to general Date parsing
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric',
+      month: 'short', 
+      day: 'numeric'
+    });
+  } catch (error) {
+    console.warn('Date parsing error:', error, 'for date:', dateString);
+    return dateString; // Return the raw string if parsing fails
+  }
+};
+
+// Helper for debugging date formats
+export const debugDate = (movie) => {
+  return {
+    title: movie.title,
+    date: movie.date ? formatDateString(movie.date) : 'null',
+    rawDate: movie.date,
+    modifiedDate: movie.modified_date ? formatDateString(movie.modified_date) : 'null',
+    rawModifiedDate: movie.modified_date,
+    publishDate: movie.publishDate ? formatDateString(movie.publishDate) : 'null',
+    rawPublishDate: movie.publishDate
+  };
+};

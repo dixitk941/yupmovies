@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info, Play, Film, Tv, HardDrive } from 'lucide-react';
 import { getMovieDetailsById, getSeriesDetailsById } from '../services/directMovieService';
+import { formatDateString, debugDate } from '../services/utils.js';
 
 const MovieDetails = ({ movie, onClose }) => {
   const [directDetails, setDirectDetails] = useState(null);
@@ -643,6 +644,14 @@ const MovieDetails = ({ movie, onClose }) => {
     }
   };
 
+  // Debugging effect for date fields
+  useEffect(() => {
+    if (movie) {
+      // Debug dates
+      console.log('📅 DATE DEBUG - MovieDetails received:', debugDate(movie));
+    }
+  }, [movie]);
+
   return (
     <div 
       className="fixed inset-0 bg-black/85 backdrop-blur-lg z-50 flex items-center justify-center p-0 overflow-hidden"
@@ -762,9 +771,23 @@ const MovieDetails = ({ movie, onClose }) => {
                           {movieData.languages[0]}
                         </span>
                       )}
+                      {/* DATE ADDED DISPLAY - HIGH VISIBILITY */}
+                      {(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date) && (
+                        <span className="flex items-center bg-red-600/90 text-white px-2 py-0.5 rounded shadow-sm">
+                          <Calendar size={12} className="mr-1" />
+                          Added: {formatDateString(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date)}
+                        </span>
+                      )}
                       {movieData.qualities.length > 0 && (
                         <span className="text-xs border border-gray-600 px-1 rounded">
                           {movieData.qualities[0]}
+                        </span>
+                      )}
+                      {/* DATE ADDED DISPLAY - HIGH VISIBILITY (MOBILE) */}
+                      {(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date) && (
+                        <span className="flex items-center bg-red-600/90 text-white px-2 py-0.5 rounded shadow-sm">
+                          <Calendar size={12} className="mr-1" />
+                          Added: {formatDateString(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date)}
                         </span>
                       )}
                     </div>
@@ -1140,7 +1163,7 @@ const MovieDetails = ({ movie, onClose }) => {
                         {movieData.genres.map((genre, idx) => (
                           <span 
                             key={idx}
-                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600/20 to-purple-600/20 text-red-300 border border-red-600/30"
+                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600/20 to-purple-600/20 text-red-300 border border-red-600/30 hover:bg-red-600/30 transition-colors duration-200"
                           >
                             {genre}
                           </span>
@@ -1160,7 +1183,7 @@ const MovieDetails = ({ movie, onClose }) => {
                         {movieData.languages.map((language, idx) => (
                           <span 
                             key={idx}
-                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-green-600/20 to-blue-600/20 text-green-300 border border-green-600/30"
+                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-green-600/20 to-blue-600/20 text-green-300 border border-green-600/30 hover:bg-green-600/30 transition-colors duration-200"
                           >
                             {language}
                           </span>
