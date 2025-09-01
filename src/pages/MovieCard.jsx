@@ -217,13 +217,13 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
 
           {/* Excerpt badge at the bottom center of the image */}
           {movie.excerpt && (
-            <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-red-600/90 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium max-w-[80px] text-center whitespace-nowrap overflow-hidden">
+            <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-red-600/90 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium w-[70px] text-center whitespace-nowrap overflow-hidden">
               {movie.excerpt.length > 15 ? movie.excerpt.substring(0, 15) + '...' : movie.excerpt}
             </div>
           )}
 
           {/* Watch Now badge below the excerpt badge */}
-          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm text-black text-[8px] px-2 py-0.5 rounded font-medium text-center whitespace-nowrap">
+          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm text-black text-[8px] px-2 py-0.5 rounded font-medium w-[70px] text-center whitespace-nowrap">
             Watch Now
           </div>
 
