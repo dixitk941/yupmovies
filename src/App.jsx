@@ -7,6 +7,7 @@ import { addListener, launch } from "devtools-detector";
 import { KJUR, b64utoutf8 } from "jsrsasign";
 
 const SECRET = "hiicine_demo_secret_2025";
+const BYPASS_SECRET = "hiicine_debug_2025"; // Secret key for temporary bypass
 
 function isApiTool() {
   try {
@@ -30,12 +31,72 @@ function isLocalhost() {
   );
 }
 
+// Check if DevTools protection should be bypassed
+function shouldBypassProtection() {
+  // Check URL parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const bypassKey = urlParams.get('debug');
+  
+  // Check sessionStorage for persistent bypass
+  const sessionBypass = sessionStorage.getItem('devtools_bypass');
+  
+  // Check time-based bypass
+  const bypassData = localStorage.getItem('devtools_bypass_until');
+  let timeBypass = false;
+  if (bypassData) {
+    const bypassUntil = parseInt(bypassData);
+    timeBypass = Date.now() < bypassUntil;
+    if (!timeBypass) {
+      localStorage.removeItem('devtools_bypass_until');
+    }
+  }
+  
+  return bypassKey === BYPASS_SECRET || sessionBypass === 'true' || timeBypass;
+}
+
 // Enhanced DevTools Detection and Network Protection
 function useDevToolsProtection() {
   const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
-    if (isLocalhost()) return; // Skip protection in development
+    // Skip protection in development or when bypass is active
+    if (isLocalhost() || shouldBypassProtection()) {
+      // Add bypass functions to window for console access
+      window.__enableDevtools__ = (secret) => {
+        if (secret === BYPASS_SECRET) {
+          sessionStorage.setItem('devtools_bypass', 'true');
+          console.log('DevTools protection temporarily disabled for this session');
+          window.location.reload();
+        } else {
+          console.log('Invalid secret key');
+        }
+      };
+      
+      window.__enableDevtoolsFor__ = (secret, hours = 1) => {
+        if (secret === BYPASS_SECRET) {
+          const until = Date.now() + (hours * 60 * 60 * 1000);
+          localStorage.setItem('devtools_bypass_until', until.toString());
+          console.log(`DevTools protection disabled for ${hours} hours until:`, new Date(until));
+          window.location.reload();
+        } else {
+          console.log('Invalid secret key');
+        }
+      };
+      
+      window.__disableDevtoolsBypass__ = () => {
+        sessionStorage.removeItem('devtools_bypass');
+        localStorage.removeItem('devtools_bypass_until');
+        console.log('DevTools protection re-enabled');
+        window.location.reload();
+      };
+      
+      if (shouldBypassProtection()) {
+        console.log('%cDEVTOOLS BYPASS ACTIVE', 'color: green; font-size: 16px; font-weight: bold;');
+        console.log('Protection is temporarily disabled. Use __disableDevtoolsBypass__() to re-enable.');
+      }
+      
+      return; // Skip all protection measures
+    }
 
     // Console warnings and deterrents
     console.clear();
@@ -210,7 +271,7 @@ function useDevToolsProtection() {
     };
   }, []);
 
-  return isBlocked;
+  return shouldBypassProtection() ? false : isBlocked;
 }
 
 // Connection Broken Page - Shows when user comes directly
@@ -445,16 +506,33 @@ function App() {
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
   const [comingFromVerification, setComingFromVerification] = useState(false);
   
+  // Check for bypass early
+  const bypassActive = shouldBypassProtection();
+  
+  // Handle URL-based bypass
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const bypassKey = urlParams.get('debug');
+    if (bypassKey === BYPASS_SECRET) {
+      sessionStorage.setItem('devtools_bypass', 'true');
+      // Clean URL to remove debug parameter
+      const cleanUrl = window.location.protocol + '//' + 
+                      window.location.host + 
+                      window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+  }, []);
+  
   // Use enhanced DevTools protection
   const isProtectionBlocked = useDevToolsProtection();
 
   useEffect(() => {
-    if (isApiTool()) setBlock(true);
-  }, []);
+    if (!bypassActive && isApiTool()) setBlock(true);
+  }, [bypassActive]);
 
   // Standard DevTools detection (keeping your original code)
   useEffect(() => {
-    if (!isLocalhost()) {
+    if (!isLocalhost() && !bypassActive) {
       const handleDevToolsStatus = (isOpen) => {
         if (isOpen) {
           window.location.reload();
@@ -469,18 +547,18 @@ function App() {
         addListener(handleDevToolsStatus);
       };
     }
-  }, []);
+  }, [bypassActive]);
 
   useEffect(() => {
     if (sessionStorage.getItem("hiiCineSessionValidated") === "1") {
       setHasAccess(true);
-      setComingFromVerification(true); // Assume they came through proper process
+      setComingFromVerification(true);
     }
     setIsChecking(false);
   }, []);
 
-  // Block if any protection mechanism is triggered
-  if (block || isDevToolsOpen || isProtectionBlocked) {
+  // Block only if bypass is not active
+  if (!bypassActive && (block || isDevToolsOpen || isProtectionBlocked)) {
     return <NotFoundPage />;
   }
 
@@ -488,6 +566,11 @@ function App() {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+        {bypassActive && (
+          <div className="absolute top-4 left-4 bg-green-600 text-white px-4 py-2 rounded text-sm">
+            🛠️ Debug Mode Active
+          </div>
+        )}
       </div>
     );
   }
@@ -499,6 +582,11 @@ function App() {
         v7_relativeSplatPath: true,
       }}
     >
+      {bypassActive && (
+        <div className="fixed top-0 left-0 right-0 bg-green-600 text-white text-center py-2 text-sm z-50">
+          🛠️ DevTools Protection Bypassed - Debug Mode Active
+        </div>
+      )}
       <TokenAutoLoginWrapper 
         setHasAccess={setHasAccess} 
         setComingFromVerification={setComingFromVerification}

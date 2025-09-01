@@ -25,71 +25,75 @@ const CONFIG = {
 
 // **OPTIMIZED SEARCH HOOK WITH CACHE-ONLY SEARCH** (Database search disabled to reduce requests)
 const useOptimizedSearch = (searchQuery, contentType) => {
-  // Disable direct database search to reduce requests - use cache-only
-  // const { 
-  //   searchResults: dbResults, 
-  //   isSearching: dbSearching, 
-  //   searchError 
-  // } = useDirectDatabaseSearch(searchQuery, contentType);
-  
   // Force cache-only search
   const [cacheSearchResults, setCacheSearchResults] = useState([]);
   const [cacheIsSearching, setCacheIsSearching] = useState(false);
+  const [searchHistory, setSearchHistory] = useState([]);
   const searchError = null; // No database search means no error
   
+  // Memoize the search function to prevent recreation
+  const performCacheSearch = useCallback(async (query, type) => {
+    if (!query || query.length < CONFIG.SEARCH_MIN_LENGTH) {
+      setCacheSearchResults([]);
+      return;
+    }
+    
+    setCacheIsSearching(true);
+    
+    try {
+      let results = [];
+      switch (type) {
+        case 'movies':
+          results = await searchMovies(query, { limit: 20 });
+          break;
+        case 'series':
+          results = await searchSeries(query, { limit: 20 });
+          break;
+        case 'anime':
+          results = await searchAnime(query, { limit: 20 });
+          break;
+        default:
+          results = [];
+      }
+      setCacheSearchResults(results);
+    } catch (error) {
+      console.error('Cache search failed:', error);
+      setCacheSearchResults([]);
+    } finally {
+      setCacheIsSearching(false);
+    }
+  }, []); // Empty dependencies since we're passing params
+  
+  // Debounced search effect
   useEffect(() => {
-    const performCacheSearch = async () => {
-      if (!searchQuery || searchQuery.length < CONFIG.SEARCH_MIN_LENGTH) {
-        setCacheSearchResults([]);
-        return;
-      }
-      
-      setCacheIsSearching(true);
-      
-      try {
-        let results = [];
-        switch (contentType) {
-          case 'movies':
-            results = await searchMovies(searchQuery, { limit: 20 });
-            break;
-          case 'series':
-            results = await searchSeries(searchQuery, { limit: 20 });
-            break;
-          case 'anime':
-            results = await searchAnime(searchQuery, { limit: 20 });
-            break;
-        }
-        setCacheSearchResults(results);
-      } catch (error) {
-        console.error('Cache search failed:', error);
-        setCacheSearchResults([]);
-      } finally {
-        setCacheIsSearching(false);
-      }
-    };
+    if (!searchQuery || searchQuery.length < CONFIG.SEARCH_MIN_LENGTH) {
+      setCacheSearchResults([]);
+      return;
+    }
 
-    const debounceTimeout = setTimeout(performCacheSearch, 500); // 500ms debounce
+    const debounceTimeout = setTimeout(() => {
+      performCacheSearch(searchQuery, contentType);
+    }, 500);
+    
     return () => clearTimeout(debounceTimeout);
-  }, [searchQuery, contentType]);
+  }, [searchQuery, contentType, performCacheSearch]);
   
   // Generate suggestions from recent search results
   const suggestions = useMemo(() => {
-    if (cacheSearchResults.length === 0) return [];
+    if (!cacheSearchResults || cacheSearchResults.length === 0 || !searchQuery) return [];
     
     return cacheSearchResults
       .slice(0, 5)
-      .map(item => item.title)
-      .filter(title => title.toLowerCase().includes(searchQuery.toLowerCase()));
+      .map(item => item?.title)
+      .filter(title => title && title.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [cacheSearchResults, searchQuery]);
 
-  // Simple search history (in memory for session)
-  const [searchHistory, setSearchHistory] = useState([]);
-  
+  // Update search history only when we have successful results
   useEffect(() => {
-    if (searchQuery && cacheSearchResults.length > 0) {
+    if (searchQuery && searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH && cacheSearchResults.length > 0) {
       setSearchHistory(prev => {
-        const newHistory = [searchQuery, ...prev.filter(h => h !== searchQuery)].slice(0, 10);
-        return newHistory;
+        const filtered = prev.filter(h => h !== searchQuery);
+        return [searchQuery, ...filtered].slice(0, 10);
       });
     }
   }, [searchQuery, cacheSearchResults.length]);
@@ -188,7 +192,7 @@ const OptimizedSearchBar = memo(({
       <div className="relative">
         <input
           type="text"
-          placeholder={`Search ${contentType}... (Real-time database search)`}
+          placeholder={`Search ${contentType}... (Cache-only search)`}
           className={`transition-all duration-300 bg-black/60 border rounded-lg px-12 py-3 text-sm focus:outline-none ${
             isFocused 
               ? `border-${searchError ? 'orange' : 'red'}-500 bg-black/80 w-72 md:w-96 shadow-xl`
@@ -612,6 +616,13 @@ function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const headerRef = useRef(null);
   const lastScrollY = useRef(0);
+  
+  // **PREVENT MULTIPLE SIMULTANEOUS FETCHES**
+  const fetchingRef = useRef({
+    movies: false,
+    series: false,
+    anime: false
+  });
 
   // **OPTIMIZED SEARCH WITH DIRECT DATABASE CONNECTION**
   const { 
@@ -625,23 +636,34 @@ function Home() {
   // **OPTIMIZED PAGINATION**
   const MOVIES_PER_PAGE = CONFIG.ITEMS_PER_PAGE;
 
-  // Remove these platforms from filters (case-insensitive)
-  const removePlatforms = ["zee5", "sonyliv", "voot", "mx player"];
-  const platformList = platforms.filter(
-    p => !removePlatforms.some(name => p.name.toLowerCase().includes(name))
-  );
+  // Remove these platforms from filters (case-insensitive) - memoized to prevent recreation
+  const platformList = useMemo(() => {
+    const removePlatforms = ["zee5", "sonyliv", "voot", "mx player"];
+    return platforms.filter(
+      p => !removePlatforms.some(name => p.name.toLowerCase().includes(name))
+    );
+  }, []);
 
-  // **UPDATE CACHE STATS**
+  // **UPDATE CACHE STATS** - Debounced to prevent frequent updates
   const updateCacheStats = useCallback(() => {
     try {
       const movieStats = getMovieStats();
       const seriesStats = getSeriesCacheStats();
       const animeStats = getAnimeCacheStats();
       
-      setCacheStats({
+      const newStats = {
         movies: movieStats?.totalMovies || 0,
         series: seriesStats?.totalSeries || 0,
         anime: animeStats?.totalAnime || 0
+      };
+      
+      // Only update if stats have actually changed
+      setCacheStats(prevStats => {
+        if (JSON.stringify(prevStats) === JSON.stringify(newStats)) {
+          return prevStats; // No change, return same object reference
+        }
+        console.log('📊 Cache stats updated:', newStats);
+        return newStats;
       });
     } catch (error) {
       console.warn('Error updating cache stats:', error);
@@ -669,47 +691,14 @@ function Home() {
     return () => window.removeEventListener('scroll', controlNavbar);
   }, []);
 
-  // **OPTIMIZED INITIAL LOAD - Start with movies**
-  useEffect(() => {
-    // Start loading movies immediately (first batch loads quickly)
-    if (!moviesLoaded) {
-      fetchMovies();
-    }
-    
-    // Update cache stats periodically
-    updateCacheStats();
-    const statsInterval = setInterval(updateCacheStats, 5000);
-    
-    return () => clearInterval(statsInterval);
-  }, [moviesLoaded, updateCacheStats]);
-
-  // **BATCH LOADING ON CONTENT TYPE CHANGE**
-  useEffect(() => {
-    setCurrentPage(1); // Reset pagination when switching types
-    
-    switch (contentType) {
-      case 'movies':
-        if (!moviesLoaded) {
-          fetchMovies();
-        }
-        break;
-      case 'series':
-        if (!seriesLoaded) {
-          fetchSeries();
-        }
-        break;
-      case 'anime':
-        if (!animeLoaded) {
-          fetchAnime();
-        }
-        break;
-    }
-  }, [contentType, moviesLoaded, seriesLoaded, animeLoaded]);
-
   // **OPTIMIZED BATCH FETCH FUNCTIONS**
-  const fetchMovies = async () => {
-    if (moviesLoaded || moviesLoading) return;
+  const fetchMovies = useCallback(async () => {
+    if (moviesLoaded || moviesLoading || fetchingRef.current.movies) {
+      console.log('🎬 Movies already loaded/loading, skipping...');
+      return;
+    }
     
+    fetchingRef.current.movies = true;
     setMoviesLoading(true);
     console.log('🎬 Starting optimized movie loading...');
     
@@ -719,27 +708,31 @@ function Home() {
       console.log(`✅ Loaded ${movies.length} movies in optimized batches`);
       setAllMovies(movies);
       setMoviesLoaded(true);
-      updateCacheStats();
       
-      // Preload some movie poster images (DISABLED to reduce requests)
-      // const posterUrls = movies
-      //   .slice(0, CONFIG.PRELOAD_IMAGES_COUNT)
-      //   .map(movie => movie.poster || movie.featuredImage)
-      //   .filter(Boolean);
+      // Update cache stats after successful load
+      setTimeout(() => {
+        try {
+          updateCacheStats();
+        } catch (error) {
+          console.warn('Cache stats update after movie load failed:', error);
+        }
+      }, 1000);
       
-      // if (posterUrls.length > 0) {
-      //   preloadBatchImages(posterUrls, 5).catch(console.error);
-      // }
     } catch (error) {
       console.error('❌ Error loading movies:', error);
     } finally {
       setMoviesLoading(false);
+      fetchingRef.current.movies = false;
     }
-  };
+  }, []); // Remove all dependencies to prevent recreation
 
-  const fetchSeries = async () => {
-    if (seriesLoaded || seriesLoading) return;
+  const fetchSeries = useCallback(async () => {
+    if (seriesLoaded || seriesLoading || fetchingRef.current.series) {
+      console.log('📺 Series already loaded/loading, skipping...');
+      return;
+    }
     
+    fetchingRef.current.series = true;
     setSeriesLoading(true);
     console.log('📺 Starting optimized series loading...');
     
@@ -748,27 +741,31 @@ function Home() {
       console.log(`✅ Loaded ${series.length} series in optimized batches`);
       setAllSeries(series);
       setSeriesLoaded(true);
-      updateCacheStats();
       
-      // Preload some series poster images (DISABLED to reduce requests)
-      // const posterUrls = series
-      //   .slice(0, CONFIG.PRELOAD_IMAGES_COUNT)
-      //   .map(item => item.poster || item.featuredImage)
-      //   .filter(Boolean);
+      // Update cache stats after successful load
+      setTimeout(() => {
+        try {
+          updateCacheStats();
+        } catch (error) {
+          console.warn('Cache stats update after series load failed:', error);
+        }
+      }, 1000);
       
-      // if (posterUrls.length > 0) {
-      //   preloadBatchImages(posterUrls, 5).catch(console.error);
-      // }
     } catch (error) {
       console.error('❌ Error loading series:', error);
     } finally {
       setSeriesLoading(false);
+      fetchingRef.current.series = false;
     }
-  };
+  }, []); // Remove all dependencies to prevent recreation
 
-  const fetchAnime = async () => {
-    if (animeLoaded || animeLoading) return;
+  const fetchAnime = useCallback(async () => {
+    if (animeLoaded || animeLoading || fetchingRef.current.anime) {
+      console.log('🌟 Anime already loaded/loading, skipping...');
+      return;
+    }
     
+    fetchingRef.current.anime = true;
     setAnimeLoading(true);
     console.log('🌟 Starting optimized anime loading...');
     
@@ -777,23 +774,69 @@ function Home() {
       console.log(`✅ Loaded ${anime.length} anime in optimized batches`);
       setAllAnime(anime);
       setAnimeLoaded(true);
-      updateCacheStats();
       
-      // Preload some anime poster images (DISABLED to reduce requests)
-      // const posterUrls = anime
-      //   .slice(0, CONFIG.PRELOAD_IMAGES_COUNT)
-      //   .map(item => item.poster || item.featuredImage)
-      //   .filter(Boolean);
+      // Update cache stats after successful load
+      setTimeout(() => {
+        try {
+          updateCacheStats();
+        } catch (error) {
+          console.warn('Cache stats update after anime load failed:', error);
+        }
+      }, 1000);
       
-      // if (posterUrls.length > 0) {
-      //   preloadBatchImages(posterUrls, 5).catch(console.error);
-      // }
     } catch (error) {
       console.error('❌ Error loading anime:', error);
     } finally {
       setAnimeLoading(false);
+      fetchingRef.current.anime = false;
     }
-  };
+  }, []); // Remove all dependencies to prevent recreation
+
+  // **BATCH LOADING ON CONTENT TYPE CHANGE**
+  useEffect(() => {
+    setCurrentPage(1); // Reset pagination when switching types
+    
+    // Use refs to check current state to avoid stale closures
+    const shouldFetchMovies = contentType === 'movies' && !moviesLoaded && !moviesLoading;
+    const shouldFetchSeries = contentType === 'series' && !seriesLoaded && !seriesLoading;  
+    const shouldFetchAnime = contentType === 'anime' && !animeLoaded && !animeLoading;
+    
+    if (shouldFetchMovies) {
+      console.log('🎬 Content type changed to movies, fetching...');
+      fetchMovies().catch(console.error);
+    } else if (shouldFetchSeries) {
+      console.log('📺 Content type changed to series, fetching...');
+      fetchSeries().catch(console.error);
+    } else if (shouldFetchAnime) {
+      console.log('🌟 Content type changed to anime, fetching...');
+      fetchAnime().catch(console.error);
+    }
+  }, [contentType, fetchMovies, fetchSeries, fetchAnime]); // Keep only necessary dependencies
+
+  // **OPTIMIZED INITIAL LOAD - Start with movies**
+  useEffect(() => {
+    // Only run once on mount
+    if (!moviesLoaded && !moviesLoading) {
+      fetchMovies().catch(console.error);
+    }
+  }, [fetchMovies]); // Add fetchMovies as dependency since it's now defined above
+
+  // **SEPARATE EFFECT FOR CACHE STATS UPDATE**  
+  useEffect(() => {
+    // Initial update
+    updateCacheStats();
+    
+    // Set up interval with longer delay to prevent frequent refreshing
+    const statsInterval = setInterval(() => {
+      try {
+        updateCacheStats();
+      } catch (error) {
+        console.warn('Cache stats update failed:', error);
+      }
+    }, 30000); // Increased to 30 seconds to reduce instability
+    
+    return () => clearInterval(statsInterval);
+  }, [updateCacheStats]); // Add updateCacheStats as dependency
 
   // Enhanced content detection function to include anime
   const isSeriesContent = (content) => {
@@ -840,8 +883,8 @@ function Home() {
     setSearchQuery(''); // Clear search when switching types
   };
 
-  // Get current content and loading state
-  const getCurrentContentAndState = () => {
+  // Get current content and loading state - memoized to prevent recreation
+  const getCurrentContentAndState = useCallback(() => {
     switch (contentType) {
       case 'movies':
         return { content: allMovies, loading: moviesLoading, loaded: moviesLoaded };
@@ -852,11 +895,12 @@ function Home() {
       default:
         return { content: allMovies, loading: moviesLoading, loaded: moviesLoaded };
     }
-  };
+  }, [contentType, allMovies, allSeries, allAnime, moviesLoading, seriesLoading, animeLoading, moviesLoaded, seriesLoaded, animeLoaded]);
 
   // **OPTIMIZED: Use search results when searching, otherwise use grouped content**
   const getGroupedContent = useMemo(() => {
-    const { content: currentContent } = getCurrentContentAndState();
+    const currentState = getCurrentContentAndState();
+    const currentContent = currentState.content;
     
     // If searching, return search results (from database or cache)
     if (searchQuery.trim() && searchResults.length > 0) {
@@ -874,7 +918,7 @@ function Home() {
     const sections = [];
 
     // Only create sections if we have content
-    if (currentContent.length === 0) {
+    if (!currentContent || currentContent.length === 0) {
       return [];
     }
 
@@ -945,7 +989,7 @@ function Home() {
     }
 
     return sections;
-  }, [searchQuery, searchResults, isSearching, contentType, allMovies, allSeries, allAnime, searchError]);
+  }, [searchQuery, searchResults, isSearching, contentType, getCurrentContentAndState, searchError, platformList]);
 
   // **OPTIMIZED ALL CONTENT SECTION WITH BATCH PAGINATION**
   const AllContentSection = memo(() => {
@@ -1182,7 +1226,11 @@ function Home() {
     }
   };
 
-  const { content: currentContent, loading: isCurrentLoading } = getCurrentContentAndState();
+  // Memoize the current content and state to prevent excessive recalculations
+  const { content: currentContent, loading: isCurrentLoading } = useMemo(() => {
+    return getCurrentContentAndState();
+  }, [getCurrentContentAndState]);
+  
   const groupedContent = getGroupedContent;
 
   return (
