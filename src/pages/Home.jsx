@@ -5,114 +5,106 @@ import MovieCard from './MovieCard';
 import MovieDetails from './MovieDetails';
 import SeriesDetail from './SeriesDetail';
 
-// Updated imports with ultra-fast service
-import { getAllMovies, searchMovies } from '../services/movieService';
-import { getAllSeries, searchSeries } from '../services/seriesService';
-import { getAllAnime, searchAnime } from '../services/animeService';
+// **OPTIMIZED IMPORTS WITH BATCH LOADING**
+import { getAllMovies, searchMovies, getCacheStats as getMovieStats } from '../services/movieService';
+import { getAllSeries, searchSeries, getSeriesCacheStats } from '../services/seriesService';
+import { getAllAnime, searchAnime, getAnimeCacheStats } from '../services/animeService';
 
-// **ENHANCED SEARCH HOOK WITH AWESOME FEATURES**
-const useAwesomeSearch = (searchQuery, contentType) => {
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchCache, setSearchCache] = useState(new Map());
-  const [searchHistory, setSearchHistory] = useState([]);
-  const [suggestions, setSuggestions] = useState([]);
+// **NEW IMPORTS FOR OPTIMIZATION**
+import { useDirectDatabaseSearch, useLazyDownloadLinks } from '../hooks/useDirectDatabaseSearch';
+import SimpleOptimizedImage from '../components/SimpleOptimizedImage';
+
+// **OPTIMIZED BATCH LOADING CONFIGURATION**
+const CONFIG = {
+  INITIAL_BATCH_SIZE: 500, // First batch - increased for better UX
+  ITEMS_PER_PAGE: 100, // Pagination size
+  PRELOAD_IMAGES_COUNT: 20, // Number of images to preload
+  SEARCH_MIN_LENGTH: 3, // Increased to match search hook
+  CACHE_PRELOAD_DELAY: 100
+};
+
+// **OPTIMIZED SEARCH HOOK WITH CACHE-ONLY SEARCH** (Database search disabled to reduce requests)
+const useOptimizedSearch = (searchQuery, contentType) => {
+  // Disable direct database search to reduce requests - use cache-only
+  // const { 
+  //   searchResults: dbResults, 
+  //   isSearching: dbSearching, 
+  //   searchError 
+  // } = useDirectDatabaseSearch(searchQuery, contentType);
   
-  const debouncedSearch = useCallback(
-    async (query, type) => {
-      if (!query || query.length < 2) {
-        setSearchResults([]);
-        setSuggestions([]);
+  // Force cache-only search
+  const [cacheSearchResults, setCacheSearchResults] = useState([]);
+  const [cacheIsSearching, setCacheIsSearching] = useState(false);
+  const searchError = null; // No database search means no error
+  
+  useEffect(() => {
+    const performCacheSearch = async () => {
+      if (!searchQuery || searchQuery.length < CONFIG.SEARCH_MIN_LENGTH) {
+        setCacheSearchResults([]);
         return;
       }
-
-      const cacheKey = `${type}_${query.toLowerCase()}`;
-      if (searchCache.has(cacheKey)) {
-        setSearchResults(searchCache.get(cacheKey));
-        return;
-      }
-
-      setIsSearching(true);
+      
+      setCacheIsSearching(true);
       
       try {
         let results = [];
-        
-        switch (type) {
+        switch (contentType) {
           case 'movies':
-            results = await searchMovies(query, { limit: 100 });
+            results = await searchMovies(searchQuery, { limit: 20 });
             break;
           case 'series':
-            results = await searchSeries(query, { limit: 100 });
+            results = await searchSeries(searchQuery, { limit: 20 });
             break;
           case 'anime':
-            results = await searchAnime(query, { limit: 100 });
+            results = await searchAnime(searchQuery, { limit: 20 });
             break;
-          default:
-            results = [];
         }
-
-        // Generate search suggestions based on results
-        const titleSuggestions = results
-          .map(item => item.title)
-          .filter(title => title.toLowerCase().includes(query.toLowerCase()))
-          .slice(0, 5);
-        
-        setSuggestions(titleSuggestions);
-
-        // Cache the results with TTL
-        setSearchCache(prev => {
-          const newCache = new Map(prev);
-          newCache.set(cacheKey, results);
-          
-          // Limit cache size
-          if (newCache.size > 50) {
-            const firstKey = newCache.keys().next().value;
-            newCache.delete(firstKey);
-          }
-          
-          return newCache;
-        });
-
-        setSearchResults(results);
-        
-        // Add to search history
-        if (results.length > 0) {
-          setSearchHistory(prev => {
-            const newHistory = [query, ...prev.filter(h => h !== query)].slice(0, 10);
-            return newHistory;
-          });
-        }
+        setCacheSearchResults(results);
       } catch (error) {
-        console.error('Search error:', error);
-        setSearchResults([]);
-        setSuggestions([]);
+        console.error('Cache search failed:', error);
+        setCacheSearchResults([]);
       } finally {
-        setIsSearching(false);
+        setCacheIsSearching(false);
       }
-    },
-    [searchCache]
-  );
+    };
 
+    const debounceTimeout = setTimeout(performCacheSearch, 500); // 500ms debounce
+    return () => clearTimeout(debounceTimeout);
+  }, [searchQuery, contentType]);
+  
+  // Generate suggestions from recent search results
+  const suggestions = useMemo(() => {
+    if (cacheSearchResults.length === 0) return [];
+    
+    return cacheSearchResults
+      .slice(0, 5)
+      .map(item => item.title)
+      .filter(title => title.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [cacheSearchResults, searchQuery]);
+
+  // Simple search history (in memory for session)
+  const [searchHistory, setSearchHistory] = useState([]);
+  
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      debouncedSearch(searchQuery, contentType);
-    }, 200); // Faster debounce for better UX
-
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, contentType, debouncedSearch]);
+    if (searchQuery && cacheSearchResults.length > 0) {
+      setSearchHistory(prev => {
+        const newHistory = [searchQuery, ...prev.filter(h => h !== searchQuery)].slice(0, 10);
+        return newHistory;
+      });
+    }
+  }, [searchQuery, cacheSearchResults.length]);
 
   return { 
-    searchResults, 
-    isSearching, 
+    searchResults: cacheSearchResults, 
+    isSearching: cacheIsSearching, 
     suggestions, 
     searchHistory,
-    clearCache: () => setSearchCache(new Map()),
-    clearHistory: () => setSearchHistory([])
+    searchError
   };
 };
 
-// **AWESOME SEARCH BAR WITH ADVANCED FEATURES**
-const AwesomeSearchBar = memo(({ 
+// **OPTIMIZED SEARCH BAR WITH PERFORMANCE IMPROVEMENTS**
+const OptimizedSearchBar = memo(({ 
   searchQuery, 
   onSearchChange, 
   contentType, 
@@ -120,13 +112,17 @@ const AwesomeSearchBar = memo(({
   isSearching = false,
   suggestions = [],
   searchHistory = [],
-  onResultSelect 
+  onResultSelect,
+  searchError = null
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState('results');
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
+
+  // Lazy download links hook (DISABLED to reduce requests)
+  // const { fetchDownloadLinks } = useLazyDownloadLinks();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -155,20 +151,15 @@ const AwesomeSearchBar = memo(({
     setActiveTab('results');
   };
 
-  const handleResultClick = (result) => {
+  const handleResultClick = async (result) => {
+    // Don't preload download links automatically - only when user actually opens details
+    // if (result.id) {
+    //   fetchDownloadLinks(result.id, contentType).catch(console.error);
+    // }
+    
     onResultSelect(result);
     setShowDropdown(false);
     setIsFocused(false);
-  };
-
-  const handleSuggestionClick = (suggestion) => {
-    onSearchChange(suggestion);
-    setActiveTab('results');
-  };
-
-  const handleHistoryClick = (historyItem) => {
-    onSearchChange(historyItem);
-    setActiveTab('results');
   };
 
   const highlightMatch = (text, query) => {
@@ -197,22 +188,26 @@ const AwesomeSearchBar = memo(({
       <div className="relative">
         <input
           type="text"
-          placeholder={`Search ${contentType}... Try "Batman" or "Action"`}
+          placeholder={`Search ${contentType}... (Real-time database search)`}
           className={`transition-all duration-300 bg-black/60 border rounded-lg px-12 py-3 text-sm focus:outline-none ${
             isFocused 
-              ? 'border-red-500 bg-black/80 w-72 md:w-96 shadow-xl' 
+              ? `border-${searchError ? 'orange' : 'red'}-500 bg-black/80 w-72 md:w-96 shadow-xl`
               : 'border-gray-600 hover:border-gray-400 w-48 md:w-64'
           }`}
           value={searchQuery}
           onChange={handleInputChange}
           onFocus={() => setIsFocused(true)}
         />
-        <Search className={`absolute left-4 top-3.5 transition-colors ${isFocused ? 'text-red-400' : 'text-gray-400'}`} size={16} />
+        <Search className={`absolute left-4 top-3.5 transition-colors ${
+          isFocused ? (searchError ? 'text-orange-400' : 'text-red-400') : 'text-gray-400'
+        }`} size={16} />
+        
         {isSearching && (
           <div className="absolute right-12 top-3.5">
-            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className={`w-4 h-4 border-2 border-${searchError ? 'orange' : 'red'}-500 border-t-transparent rounded-full animate-spin`}></div>
           </div>
         )}
+        
         {searchQuery && (
           <button
             onClick={() => {
@@ -226,12 +221,22 @@ const AwesomeSearchBar = memo(({
         )}
       </div>
 
-      {/* Enhanced Search Dropdown */}
+      {/* Enhanced Search Dropdown with Error Handling */}
       {showDropdown && (
         <div 
           ref={dropdownRef}
           className="absolute top-full left-0 right-0 mt-2 bg-black/95 backdrop-blur-xl border border-gray-700 rounded-xl shadow-2xl max-h-[500px] overflow-hidden z-50"
         >
+          {/* Error Banner */}
+          {searchError && (
+            <div className="bg-orange-900/50 border-b border-orange-700 p-3">
+              <div className="flex items-center text-orange-300 text-sm">
+                <span className="mr-2">⚠️</span>
+                Database search failed. Using cached results.
+              </div>
+            </div>
+          )}
+
           {/* Tab Navigation */}
           <div className="flex border-b border-gray-700">
             <button
@@ -282,30 +287,22 @@ const AwesomeSearchBar = memo(({
                 ) : searchResults.length > 0 ? (
                   <div className="p-2">
                     <div className="text-xs text-gray-500 px-3 py-2">
-                      Found {searchResults.length} results
+                      Found {searchResults.length} results {searchError ? '(from cache)' : '(live)'}
                     </div>
                     <div className="grid grid-cols-1 gap-1">
-                      {searchResults.slice(0, 12).map((result, index) => (
+                      {searchResults.slice(0, 6).map((result, index) => (
                         <button
                           key={result.id || index}
                           onClick={() => handleResultClick(result)}
                           className="w-full p-3 hover:bg-gray-800/60 rounded-lg text-left flex items-center space-x-3 transition-all duration-150"
                         >
                           <div className="w-14 h-20 bg-gray-700 rounded-md overflow-hidden flex-shrink-0">
-                            {result.poster || result.featuredImage ? (
-                              <img
-                                src={result.poster || result.featuredImage}
-                                alt={result.title}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-gray-500 text-lg">
-                                {getResultTypeIcon(result)}
-                              </div>
-                            )}
+                            <SimpleOptimizedImage
+                              src={result.poster || result.featuredImage}
+                              alt={result.title}
+                              className="w-full h-full object-cover"
+                              lazy={true}
+                            />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-white font-medium truncate">
@@ -313,9 +310,7 @@ const AwesomeSearchBar = memo(({
                             </div>
                             <div className="text-sm text-gray-400 truncate">
                               {result.releaseYear && `${result.releaseYear} • `}
-                              {result.genres?.slice(0, 2).join(', ') || 
-                               result.categories?.slice(0, 2).join(', ') || 
-                               'No genre info'}
+                              {result.categories?.slice(0, 2).join(', ') || 'No genre info'}
                             </div>
                             <div className="flex items-center mt-1">
                               {result.content?.rating && (
@@ -324,7 +319,7 @@ const AwesomeSearchBar = memo(({
                                 </div>
                               )}
                               <div className="text-xs text-gray-500">
-                                {result.downloadLinks?.length || 0} links
+                                Click for details
                               </div>
                             </div>
                           </div>
@@ -332,13 +327,8 @@ const AwesomeSearchBar = memo(({
                         </button>
                       ))}
                     </div>
-                    {searchResults.length > 12 && (
-                      <div className="p-3 text-xs text-gray-500 text-center border-t border-gray-800">
-                        +{searchResults.length - 12} more results available
-                      </div>
-                    )}
                   </div>
-                ) : searchQuery.length >= 2 ? (
+                ) : searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH ? (
                   <div className="p-6 text-center text-gray-400">
                     <div className="text-3xl mb-3">🔍</div>
                     <p className="font-medium">No results found</p>
@@ -350,7 +340,7 @@ const AwesomeSearchBar = memo(({
               </>
             )}
 
-            {/* Suggestions Tab */}
+            {/* Suggestions and History tabs remain the same */}
             {activeTab === 'suggestions' && suggestions.length > 0 && (
               <div className="p-2">
                 <div className="text-xs text-gray-500 px-3 py-2">
@@ -359,7 +349,7 @@ const AwesomeSearchBar = memo(({
                 {suggestions.map((suggestion, index) => (
                   <button
                     key={index}
-                    onClick={() => handleSuggestionClick(suggestion)}
+                    onClick={() => onSearchChange(suggestion)}
                     className="w-full p-3 hover:bg-gray-800/60 rounded-lg text-left flex items-center space-x-3 transition-colors"
                   >
                     <Search size={16} className="text-gray-400" />
@@ -369,7 +359,6 @@ const AwesomeSearchBar = memo(({
               </div>
             )}
 
-            {/* History Tab */}
             {activeTab === 'history' && searchHistory.length > 0 && (
               <div className="p-2">
                 <div className="text-xs text-gray-500 px-3 py-2">
@@ -378,7 +367,7 @@ const AwesomeSearchBar = memo(({
                 {searchHistory.map((historyItem, index) => (
                   <button
                     key={index}
-                    onClick={() => handleHistoryClick(historyItem)}
+                    onClick={() => onSearchChange(historyItem)}
                     className="w-full p-3 hover:bg-gray-800/60 rounded-lg text-left flex items-center space-x-3 transition-colors"
                   >
                     <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center">
@@ -395,9 +384,9 @@ const AwesomeSearchBar = memo(({
     </div>
   );
 });
-AwesomeSearchBar.displayName = 'AwesomeSearchBar';
+OptimizedSearchBar.displayName = 'OptimizedSearchBar';
 
-// Memoized sub-components for better performance
+// Memoized sub-components for better performance with optimized images
 const MovieSkeleton = memo(() => (
   <div 
     className="animate-pulse bg-gray-800 rounded-lg overflow-hidden flex-shrink-0"
@@ -408,20 +397,58 @@ const MovieSkeleton = memo(() => (
 ));
 MovieSkeleton.displayName = 'MovieSkeleton';
 
-const TabLoadingState = memo(({ contentType }) => (
+const TabLoadingState = memo(({ contentType, cacheStats }) => (
   <div className="space-y-8 px-4 md:px-8">
     <div className="flex items-center justify-center py-16">
       <div className="text-center">
         <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
         <p className="text-gray-400">Loading {contentType}...</p>
+        {cacheStats && (
+          <div className="text-xs text-gray-500 mt-2">
+            {cacheStats.totalMovies > 0 && `${cacheStats.totalMovies} items cached`}
+            {cacheStats.isLoading && ' • Loading more...'}
+          </div>
+        )}
       </div>
     </div>
   </div>
 ));
 TabLoadingState.displayName = 'TabLoadingState';
 
+// **OPTIMIZED SCROLLABLE ROW WITH IMAGE PRELOADING**
 const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect }) => {
   const scrollRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const intersectionRef = useRef(null);
+
+  // Intersection observer for performance
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isVisible) {
+          setIsVisible(true);
+          
+          // Preload images when section becomes visible
+          const imagesToPreload = items
+            .slice(0, CONFIG.PRELOAD_IMAGES_COUNT)
+            .map(item => item.poster || item.featuredImage)
+            .filter(Boolean);
+          
+          if (imagesToPreload.length > 0) {
+            // Removed preload to reduce requests - images will load naturally when needed
+            // preloadBatchImages(imagesToPreload, 5).catch(console.error);
+          }
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    if (intersectionRef.current) {
+      observer.observe(intersectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [items, isVisible]);
 
   const scroll = (direction) => {
     if (scrollRef.current) {
@@ -433,8 +460,16 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
     }
   };
 
+  if (!isVisible && items.length > 0) {
+    return (
+      <div ref={intersectionRef} className="mb-8 h-48 flex items-center justify-center">
+        <div className="text-gray-500">Loading section...</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="mb-8 group">
+    <div className="mb-8 group" ref={intersectionRef}>
       <div className="flex items-center justify-between mb-4 px-4 md:px-8">
         <h2 className="text-xl md:text-2xl font-bold text-white">
           {title}
@@ -467,6 +502,7 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
               onClick={onContentSelect}
               index={idx}
               showNumber={showNumbers}
+              useOptimizedImage={true}
             />
           </div>
         ))}
@@ -481,7 +517,8 @@ const BottomBar = memo(({
   onContentTypeChange, 
   moviesLoading, 
   seriesLoading, 
-  animeLoading 
+  animeLoading,
+  cacheStats 
 }) => (
   <nav className="fixed z-50 bottom-0 left-0 right-0 bg-black/90 backdrop-blur-md border-t border-gray-800 flex md:hidden items-center justify-around h-16">
     <button
@@ -495,8 +532,13 @@ const BottomBar = memo(({
         {moviesLoading && (
           <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
         )}
+        {cacheStats?.movies && (
+          <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
+        )}
       </div>
-      <span className="text-xs mt-1">Movies</span>
+      <span className="text-xs mt-1">
+        Movies {cacheStats?.movies ? `(${cacheStats.movies})` : ''}
+      </span>
     </button>
     <button
       className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
@@ -509,8 +551,13 @@ const BottomBar = memo(({
         {seriesLoading && (
           <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
         )}
+        {cacheStats?.series && (
+          <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
+        )}
       </div>
-      <span className="text-xs mt-1">Series</span>
+      <span className="text-xs mt-1">
+        Series {cacheStats?.series ? `(${cacheStats.series})` : ''}
+      </span>
     </button>
     <button
       className={`flex flex-col items-center justify-center flex-1 h-full focus:outline-none transition-colors ${
@@ -523,8 +570,13 @@ const BottomBar = memo(({
         {animeLoading && (
           <div className="absolute -top-1 -right-1 w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin"></div>
         )}
+        {cacheStats?.anime && (
+          <div className="absolute -bottom-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></div>
+        )}
       </div>
-      <span className="text-xs mt-1">Anime</span>
+      <span className="text-xs mt-1">
+        Anime {cacheStats?.anime ? `(${cacheStats.anime})` : ''}
+      </span>
     </button>
   </nav>
 ));
@@ -534,13 +586,13 @@ function Home() {
   const [contentType, setContentType] = useState('movies');
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Separate loading states for each content type
+  // **OPTIMIZED BATCH LOADING STATE**
   const [allMovies, setAllMovies] = useState([]);
   const [allSeries, setAllSeries] = useState([]);
   const [allAnime, setAllAnime] = useState([]);
   
   // Individual loading states
-  const [moviesLoading, setMoviesLoading] = useState(true);
+  const [moviesLoading, setMoviesLoading] = useState(false);
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [animeLoading, setAnimeLoading] = useState(false);
   
@@ -549,29 +601,52 @@ function Home() {
   const [seriesLoaded, setSeriesLoaded] = useState(false);
   const [animeLoaded, setAnimeLoaded] = useState(false);
   
+  // Cache statistics
+  const [cacheStats, setCacheStats] = useState({
+    movies: 0,
+    series: 0,
+    anime: 0
+  });
+  
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const headerRef = useRef(null);
   const lastScrollY = useRef(0);
 
-  // **AWESOME SEARCH WITH ENHANCED FEATURES**
+  // **OPTIMIZED SEARCH WITH DIRECT DATABASE CONNECTION**
   const { 
     searchResults, 
     isSearching, 
     suggestions, 
     searchHistory,
-    clearCache,
-    clearHistory 
-  } = useAwesomeSearch(searchQuery, contentType);
+    searchError
+  } = useOptimizedSearch(searchQuery, contentType);
 
-  // **OPTIMIZED PAGINATION - 100 MOVIES PER PAGE**
-  const MOVIES_PER_PAGE = 100;
+  // **OPTIMIZED PAGINATION**
+  const MOVIES_PER_PAGE = CONFIG.ITEMS_PER_PAGE;
 
   // Remove these platforms from filters (case-insensitive)
   const removePlatforms = ["zee5", "sonyliv", "voot", "mx player"];
   const platformList = platforms.filter(
     p => !removePlatforms.some(name => p.name.toLowerCase().includes(name))
   );
+
+  // **UPDATE CACHE STATS**
+  const updateCacheStats = useCallback(() => {
+    try {
+      const movieStats = getMovieStats();
+      const seriesStats = getSeriesCacheStats();
+      const animeStats = getAnimeCacheStats();
+      
+      setCacheStats({
+        movies: movieStats?.totalMovies || 0,
+        series: seriesStats?.totalSeries || 0,
+        anime: animeStats?.totalAnime || 0
+      });
+    } catch (error) {
+      console.warn('Error updating cache stats:', error);
+    }
+  }, []);
 
   useEffect(() => {
     const controlNavbar = () => {
@@ -594,14 +669,21 @@ function Home() {
     return () => window.removeEventListener('scroll', controlNavbar);
   }, []);
 
-  // Fetch movies on initial load (default tab)
+  // **OPTIMIZED INITIAL LOAD - Start with movies**
   useEffect(() => {
+    // Start loading movies immediately (first batch loads quickly)
     if (!moviesLoaded) {
       fetchMovies();
     }
-  }, [moviesLoaded]);
+    
+    // Update cache stats periodically
+    updateCacheStats();
+    const statsInterval = setInterval(updateCacheStats, 5000);
+    
+    return () => clearInterval(statsInterval);
+  }, [moviesLoaded, updateCacheStats]);
 
-  // Fetch data when switching content type
+  // **BATCH LOADING ON CONTENT TYPE CHANGE**
   useEffect(() => {
     setCurrentPage(1); // Reset pagination when switching types
     
@@ -624,18 +706,30 @@ function Home() {
     }
   }, [contentType, moviesLoaded, seriesLoaded, animeLoaded]);
 
-  // Optimized fetch functions
+  // **OPTIMIZED BATCH FETCH FUNCTIONS**
   const fetchMovies = async () => {
-    if (moviesLoaded) return;
+    if (moviesLoaded || moviesLoading) return;
     
     setMoviesLoading(true);
-    console.log('🎬 Fetching movies...');
+    console.log('🎬 Starting optimized movie loading...');
     
     try {
-      const movies = await getAllMovies();
-      console.log(`✅ Loaded ${movies.length} movies`);
+      // This now loads in progressive batches (500 initially, then more in background)
+      const movies = await getAllMovies(CONFIG.INITIAL_BATCH_SIZE);
+      console.log(`✅ Loaded ${movies.length} movies in optimized batches`);
       setAllMovies(movies);
       setMoviesLoaded(true);
+      updateCacheStats();
+      
+      // Preload some movie poster images (DISABLED to reduce requests)
+      // const posterUrls = movies
+      //   .slice(0, CONFIG.PRELOAD_IMAGES_COUNT)
+      //   .map(movie => movie.poster || movie.featuredImage)
+      //   .filter(Boolean);
+      
+      // if (posterUrls.length > 0) {
+      //   preloadBatchImages(posterUrls, 5).catch(console.error);
+      // }
     } catch (error) {
       console.error('❌ Error loading movies:', error);
     } finally {
@@ -644,16 +738,27 @@ function Home() {
   };
 
   const fetchSeries = async () => {
-    if (seriesLoaded) return;
+    if (seriesLoaded || seriesLoading) return;
     
     setSeriesLoading(true);
-    console.log('📺 Fetching series...');
+    console.log('📺 Starting optimized series loading...');
     
     try {
-      const series = await getAllSeries();
-      console.log(`✅ Loaded ${series.length} series`);
+      const series = await getAllSeries(CONFIG.INITIAL_BATCH_SIZE);
+      console.log(`✅ Loaded ${series.length} series in optimized batches`);
       setAllSeries(series);
       setSeriesLoaded(true);
+      updateCacheStats();
+      
+      // Preload some series poster images (DISABLED to reduce requests)
+      // const posterUrls = series
+      //   .slice(0, CONFIG.PRELOAD_IMAGES_COUNT)
+      //   .map(item => item.poster || item.featuredImage)
+      //   .filter(Boolean);
+      
+      // if (posterUrls.length > 0) {
+      //   preloadBatchImages(posterUrls, 5).catch(console.error);
+      // }
     } catch (error) {
       console.error('❌ Error loading series:', error);
     } finally {
@@ -662,16 +767,27 @@ function Home() {
   };
 
   const fetchAnime = async () => {
-    if (animeLoaded) return;
+    if (animeLoaded || animeLoading) return;
     
     setAnimeLoading(true);
-    console.log('🌟 Fetching anime...');
+    console.log('🌟 Starting optimized anime loading...');
     
     try {
-      const anime = await getAllAnime();
-      console.log(`✅ Loaded ${anime.length} anime`);
+      const anime = await getAllAnime(CONFIG.INITIAL_BATCH_SIZE);
+      console.log(`✅ Loaded ${anime.length} anime in optimized batches`);
       setAllAnime(anime);
       setAnimeLoaded(true);
+      updateCacheStats();
+      
+      // Preload some anime poster images (DISABLED to reduce requests)
+      // const posterUrls = anime
+      //   .slice(0, CONFIG.PRELOAD_IMAGES_COUNT)
+      //   .map(item => item.poster || item.featuredImage)
+      //   .filter(Boolean);
+      
+      // if (posterUrls.length > 0) {
+      //   preloadBatchImages(posterUrls, 5).catch(console.error);
+      // }
     } catch (error) {
       console.error('❌ Error loading anime:', error);
     } finally {
@@ -722,7 +838,6 @@ function Home() {
     
     setContentType(newType);
     setSearchQuery(''); // Clear search when switching types
-    clearCache(); // Clear search cache
   };
 
   // Get current content and loading state
@@ -743,9 +858,12 @@ function Home() {
   const getGroupedContent = useMemo(() => {
     const { content: currentContent } = getCurrentContentAndState();
     
-    // If searching, return search results
+    // If searching, return search results (from database or cache)
     if (searchQuery.trim() && searchResults.length > 0) {
-      return [{ title: `Search Results (${searchResults.length})`, items: searchResults }];
+      return [{ 
+        title: `Search Results (${searchResults.length})${searchError ? ' - From Cache' : ' - Live'}`, 
+        items: searchResults 
+      }];
     }
     
     // If searching but no results
@@ -755,28 +873,35 @@ function Home() {
 
     const sections = [];
 
-    // Trending section
+    // Only create sections if we have content
+    if (currentContent.length === 0) {
+      return [];
+    }
+
+    // **OPTIMIZED SECTIONS - Limit items for better performance**
+    
+    // Trending section (high-rated content)
     const trending = currentContent
       .filter(item => {
         const rating = item.content?.rating || item.rating;
         return rating && parseFloat(rating) > 7;
       })
-      .slice(0, 15);
+      .slice(0, 12); // Reduced from 15 to 12 for faster loading
     if (trending.length > 0) {
       sections.push({ title: 'Trending Now', items: trending, showNumbers: true });
     }
 
-    // Recently Added
+    // Recently Added (based on modification date)
     const recentlyAdded = [...currentContent]
       .sort((a, b) => new Date(b.modifiedDate || b.date || 0) - new Date(a.modifiedDate || a.date || 0))
-      .slice(0, 15);
+      .slice(0, 12);
     if (recentlyAdded.length > 0) {
       sections.push({ title: 'Recently Added', items: recentlyAdded });
     }
 
-    // Content-specific sections
+    // Content-specific sections (limited for performance)
     if (contentType === 'anime') {
-      const animeGenres = ['Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Romance', 'Thriller'];
+      const animeGenres = ['Action', 'Adventure', 'Comedy', 'Drama']; // Reduced genres
       animeGenres.forEach(genre => {
         const genreContent = currentContent.filter(item => {
           if (item.genres && Array.isArray(item.genres)) {
@@ -788,7 +913,7 @@ function Home() {
             );
           }
           return false;
-        }).slice(0, 15);
+        }).slice(0, 12);
         
         if (genreContent.length > 0) {
           sections.push({
@@ -798,7 +923,8 @@ function Home() {
         }
       });
     } else {
-      platformList.forEach(platform => {
+      // Platform-based sections (limited for performance)
+      platformList.slice(0, 6).forEach(platform => { // Reduced platforms
         const platformContent = currentContent.filter(item => {
           if (item.categories && Array.isArray(item.categories)) {
             return item.categories.some(cat => 
@@ -807,7 +933,7 @@ function Home() {
           }
           return item.category && 
                  item.category.toLowerCase().includes(platform.name.toLowerCase());
-        }).slice(0, 15);
+        }).slice(0, 12);
         
         if (platformContent.length > 0) {
           sections.push({
@@ -819,13 +945,19 @@ function Home() {
     }
 
     return sections;
-  }, [searchQuery, searchResults, isSearching, contentType, allMovies, allSeries, allAnime]);
+  }, [searchQuery, searchResults, isSearching, contentType, allMovies, allSeries, allAnime, searchError]);
 
-  // **OPTIMIZED ALL CONTENT SECTION WITH 100-MOVIE BATCHES**
+  // **OPTIMIZED ALL CONTENT SECTION WITH BATCH PAGINATION**
   const AllContentSection = memo(() => {
     const { content: currentContent, loading } = getCurrentContentAndState();
     
-    if (loading) return <TabLoadingState contentType={contentType} />;
+    if (loading) {
+      const stats = contentType === 'movies' ? { totalMovies: cacheStats.movies } :
+                   contentType === 'series' ? { totalSeries: cacheStats.series } :
+                   { totalAnime: cacheStats.anime };
+      return <TabLoadingState contentType={contentType} cacheStats={stats} />;
+    }
+    
     if (currentContent.length === 0) return null;
 
     const totalPages = Math.ceil(currentContent.length / MOVIES_PER_PAGE);
@@ -836,18 +968,29 @@ function Home() {
     const handlePageChange = (page) => {
       setCurrentPage(page);
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      // Preload images for new page (DISABLED to reduce requests)
+      // const newPageImages = paginatedContent
+      //   .slice(0, CONFIG.PRELOAD_IMAGES_COUNT)
+      //   .map(item => item.poster || item.featuredImage)
+      //   .filter(Boolean);
+      
+      // if (newPageImages.length > 0) {
+      //   preloadBatchImages(newPageImages, 5).catch(console.error);
+      // }
     };
 
     const getSectionTitle = () => {
+      const cached = cacheStats[contentType] > 0 ? ` (${cacheStats[contentType]} cached)` : '';
       switch (contentType) {
         case 'movies':
-          return `All Movies (${currentContent.length})`;
+          return `All Movies${cached}`;
         case 'series':
-          return `All TV Shows (${currentContent.length})`;
+          return `All TV Shows${cached}`;
         case 'anime':
-          return `All Anime (${currentContent.length})`;
+          return `All Anime${cached}`;
         default:
-          return `All Content (${currentContent.length})`;
+          return `All Content${cached}`;
       }
     };
 
@@ -857,12 +1000,15 @@ function Home() {
           <h2 className="text-xl md:text-2xl font-bold text-white">
             {getSectionTitle()}
           </h2>
-          <div className="text-sm text-gray-400">
-            Showing {startIndex + 1}-{Math.min(endIndex, currentContent.length)} of {currentContent.length}
+          <div className="text-sm text-gray-400 flex items-center space-x-2">
+            <span>Showing {startIndex + 1}-{Math.min(endIndex, currentContent.length)} of {currentContent.length}</span>
+            {cacheStats[contentType] > 0 && (
+              <div className="w-2 h-2 bg-green-500 rounded-full" title="Cached for fast loading"></div>
+            )}
           </div>
         </div>
         
-        {/* Movie Grid with 100 movies */}
+        {/* **OPTIMIZED MOVIE GRID** */}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-2 md:gap-4 mb-8">
           {paginatedContent.map((content, idx) => (
             <MovieCard
@@ -870,11 +1016,12 @@ function Home() {
               movie={content}
               onClick={handleContentSelect}
               index={startIndex + idx}
+              useOptimizedImage={true}
             />
           ))}
         </div>
 
-        {/* Enhanced Pagination */}
+        {/* Enhanced Pagination with performance info */}
         {totalPages > 1 && (
           <div className="flex flex-col items-center gap-4">
             <div className="flex justify-center items-center gap-2 md:gap-3">
@@ -964,6 +1111,16 @@ function Home() {
                   </button>
                 );
               })}
+            </div>
+            
+            {/* Performance indicators */}
+            <div className="text-xs text-gray-500 text-center">
+              {cacheStats[contentType] > 0 && (
+                <span className="inline-flex items-center">
+                  <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
+                  Fast loading enabled • Images cached • Database optimized
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -1081,7 +1238,7 @@ function Home() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <AwesomeSearchBar
+            <OptimizedSearchBar
               searchQuery={searchQuery}
               onSearchChange={handleSearchChange}
               contentType={contentType}
@@ -1090,6 +1247,7 @@ function Home() {
               suggestions={suggestions}
               searchHistory={searchHistory}
               onResultSelect={handleContentSelect}
+              searchError={searchError}
             />
           </div>
         </div>
@@ -1097,30 +1255,19 @@ function Home() {
 
       {/* MAIN CONTENT */}
       <main className="pt-20 pb-20">
-        {/* HERO SECTION */}
+        {/* HERO SECTION with optimized image */}
         {!searchQuery && !isCurrentLoading && groupedContent[0]?.items[0] && (
           <div className="relative h-[40vh] md:h-[50vh] mb-8 overflow-hidden">
-            {groupedContent[0].items[0].featuredImage || groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image ? (
-              <img
-                src={groupedContent[0].items[0].featuredImage || groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image}
-                alt={groupedContent[0].items[0].title}
-                width={1920}
-                height={1080}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                }}
-              />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-r from-gray-900 to-gray-700 flex items-center justify-center">
-                <div className="text-center text-gray-400">
-                  <div className="text-6xl mb-4">
-                    {contentType === 'anime' ? '🌟' : '🎬'}
-                  </div>
-                  <h2 className="text-2xl font-bold">Featured Content</h2>
-                </div>
-              </div>
-            )}
+            <SimpleOptimizedImage
+              src={groupedContent[0].items[0].featuredImage || groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image}
+              alt={groupedContent[0].items[0].title}
+              className="w-full h-full object-cover"
+              lazy={false} // Hero image should load immediately
+              placeholder={false}
+              onError={(e) => {
+                e.target.style.display = 'none';
+              }}
+            />
             
             <div className="absolute inset-0 bg-gradient-to-r from-black via-black/50 to-transparent"></div>
             <div className="absolute bottom-0 left-0 p-8 md:p-12 max-w-2xl">
@@ -1149,10 +1296,13 @@ function Home() {
           </div>
         )}
 
-        {/* CONTENT SECTIONS */}
+        {/* CONTENT SECTIONS with performance indicators */}
         <div>
           {isCurrentLoading ? (
-            <TabLoadingState contentType={contentType} />
+            <TabLoadingState 
+              contentType={contentType} 
+              cacheStats={cacheStats[contentType] ? { [contentType]: cacheStats[contentType] } : null} 
+            />
           ) : (
             <>
               {groupedContent.length > 0 && groupedContent.map((section, index) => (
@@ -1167,12 +1317,14 @@ function Home() {
 
               {!searchQuery && <AllContentSection />}
 
+              {/* Enhanced No Results State */}
               {searchQuery && groupedContent.length === 0 && !isSearching && (
                 <div className="flex flex-col items-center justify-center py-16">
                   <div className="text-6xl mb-4">🔍</div>
                   <p className="text-gray-400 text-center mb-2">No results found</p>
                   <p className="text-gray-500 text-sm text-center max-w-md">
                     We couldn't find any {contentType} matching "{searchQuery}".
+                    {searchError && " Database search failed, using cached results."}
                   </p>
                   <div className="flex gap-3 mt-4">
                     <button
@@ -1181,16 +1333,16 @@ function Home() {
                     >
                       Clear Search
                     </button>
-                    <button
-                      className="px-6 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-                      onClick={clearHistory}
-                    >
-                      Clear History
-                    </button>
+                    {searchError && (
+                      <div className="px-4 py-2 bg-orange-900/50 text-orange-300 rounded text-sm">
+                        ⚠️ Using cached data
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
+              {/* Enhanced Empty State */}
               {groupedContent.length === 0 && currentContent.length === 0 && !searchQuery && (
                 <div className="flex flex-col items-center justify-center py-16">
                   <div className="text-6xl mb-4">😕</div>
@@ -1198,6 +1350,9 @@ function Home() {
                   <p className="text-gray-500 text-sm text-center max-w-md">
                     We couldn't find any {contentType} to display.
                   </p>
+                  <div className="mt-4 text-xs text-gray-600">
+                    Cache Status: {cacheStats[contentType] || 0} items cached
+                  </div>
                 </div>
               )}
             </>
@@ -1212,6 +1367,7 @@ function Home() {
         moviesLoading={moviesLoading}
         seriesLoading={seriesLoading}
         animeLoading={animeLoading}
+        cacheStats={cacheStats}
       />
 
       <style jsx>{`

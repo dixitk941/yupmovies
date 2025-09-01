@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Info, Plus, Heart } from 'lucide-react';
+import SimpleOptimizedImage from '../components/SimpleOptimizedImage';
 
-const MovieCard = ({ movie, onClick, index, showNumber }) => {
+const MovieCard = ({ movie, onClick, index, showNumber, useOptimizedImage = false }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -138,6 +139,25 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
           {/* Image or Default Placeholder */}
           {imgError || !imageSrc ? (
             <DefaultPlaceholder title={cleanTitle} />
+          ) : useOptimizedImage ? (
+            <SimpleOptimizedImage
+              src={imageSrc}
+              alt={cleanTitle}
+              className={`w-full h-full object-cover transition-opacity duration-500 ${
+                isLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
+              onLoad={() => setIsLoaded(true)}
+              onError={handleImageError}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+              width={112}
+              height={168}
+              priority={index < 6} // Only prioritize first 6 images
+              lazy={index >= 6} // Lazy load images after first 6
+            />
           ) : (
             <img
               src={imageSrc}
@@ -149,7 +169,8 @@ const MovieCard = ({ movie, onClick, index, showNumber }) => {
               }`}
               onLoad={() => setIsLoaded(true)}
               onError={handleImageError}
-              loading="lazy"
+              loading={index >= 6 ? "lazy" : "eager"}
+              decoding="async"
               draggable="false"
               style={{
                 width: '100%',

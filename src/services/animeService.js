@@ -11,17 +11,282 @@ import {
   parseContentMetadata
 } from './utils.js';
 
-// Anime cache
-let animeCache = new Map();
-let animeCategoryIndex = new Map();
-let lastAnimeCacheUpdate = null;
-
-// Cache management for anime
-const isAnimeCacheValid = () => {
-  return lastAnimeCacheUpdate && (Date.now() - lastAnimeCacheUpdate < CACHE_DURATION);
+// **OPTIMIZED BATCH LOADING CONFIGURATION**
+const CONFIG = {
+  BATCH_SIZE: 500, // Load 500 anime at a time
+  MAX_CONCURRENT_REQUESTS: 3,
+  CACHE_DURATION_MS: 15 * 60 * 1000, // 15 minutes
+  SESSION_STORAGE_KEY: 'animeCacheData_v2',
+  SESSION_METADATA_KEY: 'animeCacheMetadata_v2'
 };
 
-// UPDATED: Enhanced anime episode parser - exact same format as series
+// **SESSION STORAGE HELPERS**
+const saveToSessionStorage = (key, data) => {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(data));
+    return true;
+  } catch (error) {
+    console.warn('Failed to save anime to sessionStorage:', error);
+    return false;
+  }
+};
+
+const loadFromSessionStorage = (key) => {
+  try {
+    const data = sessionStorage.getItem(key);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.warn('Failed to load anime from sessionStorage:', error);
+    return null;
+  }
+};
+
+// **ENHANCED ANIME CACHE WITH SESSION STORAGE**
+class AnimeCache {
+  constructor() {
+    this.cache = new Map();
+    this.categoryIndex = new Map();
+    this.searchCache = new Map();
+    this.lastUpdate = null;
+    this.isLoading = false;
+    this.loadingPromise = null;
+    this.dataVersion = '2.0';
+  }
+
+  isValid() {
+    return this.lastUpdate && (Date.now() - this.lastUpdate) < CONFIG.CACHE_DURATION_MS;
+  }
+
+  saveToSessionStorage() {
+    try {
+      const cacheData = Array.from(this.cache.entries());
+      const categoryIndexData = Array.from(this.categoryIndex.entries()).map(([key, value]) => [
+        key, 
+        Array.from(value)
+      ]);
+      
+      const metadata = {
+        lastUpdate: this.lastUpdate,
+        dataVersion: this.dataVersion,
+        totalAnime: this.cache.size,
+        timestamp: Date.now()
+      };
+
+      const sessionData = {
+        cache: cacheData,
+        categoryIndex: categoryIndexData,
+        metadata
+      };
+
+      saveToSessionStorage(CONFIG.SESSION_STORAGE_KEY, sessionData);
+      saveToSessionStorage(CONFIG.SESSION_METADATA_KEY, metadata);
+    } catch (error) {
+      console.warn('Failed to save anime cache to sessionStorage:', error);
+    }
+  }
+
+  loadFromSessionStorage() {
+    try {
+      const metadata = loadFromSessionStorage(CONFIG.SESSION_METADATA_KEY);
+      if (!metadata || metadata.dataVersion !== this.dataVersion) {
+        return false;
+      }
+
+      if (Date.now() - metadata.timestamp > CONFIG.CACHE_DURATION_MS) {
+        return false;
+      }
+
+      const sessionData = loadFromSessionStorage(CONFIG.SESSION_STORAGE_KEY);
+      if (!sessionData || !sessionData.cache) {
+        return false;
+      }
+
+      this.cache.clear();
+      this.categoryIndex.clear();
+      
+      sessionData.cache.forEach(([key, value]) => {
+        this.cache.set(key, value);
+      });
+
+      sessionData.categoryIndex.forEach(([key, valueArray]) => {
+        this.categoryIndex.set(key, new Set(valueArray));
+      });
+
+      this.lastUpdate = metadata.lastUpdate;
+      return true;
+    } catch (error) {
+      console.warn('Failed to load anime cache from sessionStorage:', error);
+      return false;
+    }
+  }
+
+  set(anime) {
+    this.cache.clear();
+    this.categoryIndex.clear();
+    this.searchCache.clear();
+    
+    anime.forEach(item => {
+      const transformed = transformAnimeData(item);
+      this.cache.set(transformed.id, transformed);
+      
+      transformed.categories.forEach(category => {
+        if (!this.categoryIndex.has(category)) {
+          this.categoryIndex.set(category, new Set());
+        }
+        this.categoryIndex.get(category).add(transformed.id);
+      });
+    });
+    
+    this.lastUpdate = Date.now();
+    this.saveToSessionStorage();
+  }
+
+  search(query) {
+    if (!query || query.length < 2) return [];
+    
+    const searchKey = query.toLowerCase();
+    if (this.searchCache.has(searchKey)) {
+      return this.searchCache.get(searchKey);
+    }
+    
+    const results = Array.from(this.cache.values()).filter(anime => {
+      if (!anime) return false;
+      
+      const titleMatch = anime.title && anime.title.toLowerCase().includes(searchKey);
+      const categoryMatch = anime.categories && anime.categories.some(cat => 
+        cat && cat.toLowerCase().includes(searchKey));
+      const genreMatch = anime.genres && anime.genres.some(genre => 
+        genre && genre.toLowerCase().includes(searchKey));
+      
+      return titleMatch || categoryMatch || genreMatch;
+    });
+    
+    if (this.searchCache.size < 100) {
+      this.searchCache.set(searchKey, results);
+    }
+    
+    return results;
+  }
+
+  getAll() {
+    return Array.from(this.cache.values());
+  }
+
+  get(id) {
+    return this.cache.get(id);
+  }
+
+  size() {
+    return this.cache.size;
+  }
+
+  clear() {
+    this.cache.clear();
+    this.categoryIndex.clear();
+    this.searchCache.clear();
+    this.lastUpdate = null;
+    try {
+      sessionStorage.removeItem(CONFIG.SESSION_STORAGE_KEY);
+      sessionStorage.removeItem(CONFIG.SESSION_METADATA_KEY);
+    } catch (error) {
+      console.warn('Failed to clear anime sessionStorage:', error);
+    }
+  }
+}
+
+// **GLOBAL CACHE INSTANCE**
+const animeCache = new AnimeCache();
+
+// **OPTIMIZED BATCH FETCHER FOR ANIME**
+class AnimeBatchFetcher {
+  constructor() {
+    this.requestCount = 0;
+  }
+
+  async fetchBatch(offset, limit) {
+    try {
+      const { data, error } = await supabase
+        .from('anime')
+        .select('*')
+        .eq('status', 'publish')
+        .order('modified_date', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error(`❌ Anime batch fetch failed:`, error.message);
+      return [];
+    }
+  }
+
+  async fetchProgressiveBatches() {
+    // Quick first batch
+    const quickBatch = await this.fetchBatch(0, 100);
+    
+    if (quickBatch.length > 0) {
+      animeCache.set(quickBatch);
+    }
+
+    // Background batches
+    const remainingBatches = [
+      { offset: 100, limit: CONFIG.BATCH_SIZE },
+      { offset: 100 + CONFIG.BATCH_SIZE, limit: CONFIG.BATCH_SIZE },
+    ];
+
+    const results = [quickBatch];
+    
+    for (const config of remainingBatches) {
+      const batchResult = await this.fetchBatch(config.offset, config.limit);
+      results.push(batchResult);
+
+      const allData = results.flat();
+      if (allData.length > animeCache.size()) {
+        animeCache.set(allData);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    return results.flat();
+  }
+}
+
+// **MAIN LOADING FUNCTION WITH OPTIMIZATION**
+const loadAllAnime = async (forceRefresh = false) => {
+  if (!forceRefresh && animeCache.isValid() && animeCache.size() > 0) {
+    return animeCache.getAll();
+  }
+
+  if (!forceRefresh && animeCache.loadFromSessionStorage() && animeCache.isValid()) {
+    return animeCache.getAll();
+  }
+
+  if (animeCache.isLoading && animeCache.loadingPromise) {
+    return animeCache.loadingPromise;
+  }
+
+  animeCache.isLoading = true;
+
+  try {
+    const fetcher = new AnimeBatchFetcher();
+    animeCache.loadingPromise = fetcher.fetchProgressiveBatches();
+    
+    const allAnime = await animeCache.loadingPromise;
+    
+    if (allAnime.length > 0) {
+      animeCache.set(allAnime);
+    }
+
+    return animeCache.getAll();
+  } catch (error) {
+    console.error('💥 Error loading anime:', error);
+    return [];
+  } finally {
+    animeCache.isLoading = false;
+    animeCache.loadingPromise = null;
+  }
+};
 const parseAnimeEpisodes = (seasonData) => {
   if (!seasonData || seasonData.trim() === '') return [];
   
@@ -365,54 +630,31 @@ const transformAnimeData = (row) => {
 // Rest of the service functions remain the same...
 const updateAnimeCache = (data) => {
   animeCache.clear();
-  animeCategoryIndex.clear();
   
   data.forEach(item => {
     const transformed = transformAnimeData(item);
-    animeCache.set(transformed.id, transformed);
+    animeCache.cache.set(transformed.id, transformed);
     
     // Index anime by categories
     transformed.categories.forEach(category => {
-      if (!animeCategoryIndex.has(category)) {
-        animeCategoryIndex.set(category, new Set());
+      if (!animeCache.categoryIndex.has(category)) {
+        animeCache.categoryIndex.set(category, new Set());
       }
-      animeCategoryIndex.get(category).add(transformed.id);
+      animeCache.categoryIndex.get(category).add(transformed.id);
     });
   });
   
-  lastAnimeCacheUpdate = Date.now();
+  animeCache.lastUpdate = Date.now();
 };
 
 const fetchAllAnime = async () => {
-  if (isAnimeCacheValid() && animeCache.size > 0) {
-    return Array.from(animeCache.values());
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('anime')
-      .select('*')
-      .eq('status', 'publish')
-      .order('modified_date', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching anime:', error);
-      return [];
-    }
-
-    console.log(`📺 Fetched ${data.length} anime from database`);
-    updateAnimeCache(data);
-    return Array.from(animeCache.values());
-  } catch (error) {
-    console.error("Error in fetchAllAnime:", error);
-    return [];
-  }
+  return await loadAllAnime();
 };
 
 // Export functions
 export const getAllAnime = async (limitCount = 1000) => {
   try {
-    const anime = await fetchAllAnime();
+    const anime = await loadAllAnime();
     return anime.slice(0, limitCount || anime.length);
   } catch (error) {
     console.error("Error fetching anime:", error);
@@ -422,9 +664,9 @@ export const getAllAnime = async (limitCount = 1000) => {
 
 export const getAnimeById = async (id) => {
   try {
-    await fetchAllAnime();
-    if (animeCache.has(id)) {
-      return animeCache.get(id);
+    await loadAllAnime();
+    if (animeCache.cache.has(id)) {
+      return animeCache.cache.get(id);
     }
 
     let { data, error } = await supabase
@@ -486,18 +728,17 @@ export const getAnimeEpisodeDownloadLinks = async (animeId, seasonNumber, episod
   }
 };
 
-// Rest of the export functions (getAnimeByCategory, searchAnime, etc.) remain the same...
 export const getAnimeByCategory = async (category, limitCount = 20) => {
   try {
-    await fetchAllAnime();
+    await loadAllAnime();
     
-    if (!animeCategoryIndex.has(category)) {
+    if (!animeCache.categoryIndex.has(category)) {
       return [];
     }
     
-    const itemIds = Array.from(animeCategoryIndex.get(category));
+    const itemIds = Array.from(animeCache.categoryIndex.get(category));
     const items = itemIds
-      .map(id => animeCache.get(id))
+      .map(id => animeCache.cache.get(id))
       .filter(item => item)
       .slice(0, limitCount);
     
@@ -512,24 +753,15 @@ export const searchAnime = async (searchQuery, filters = {}) => {
   if (!searchQuery || searchQuery.trim() === '') return [];
   
   try {
-    const trimmedQuery = searchQuery.trim().toLowerCase();
-    const anime = await fetchAllAnime();
+    await loadAllAnime();
     
-    let results = anime.filter(item => {
-      const titleMatch = item.title.toLowerCase().includes(trimmedQuery);
-      const categoryMatch = item.categories.some(cat => 
-        cat.toLowerCase().includes(trimmedQuery)
-      );
-      const genreMatch = item.genres.some(genre => 
-        genre.toLowerCase().includes(trimmedQuery)
-      );
-      
-      return titleMatch || categoryMatch || genreMatch;
-    });
+    const results = animeCache.search(searchQuery.trim());
 
     // Apply filters
+    let filteredResults = results;
+
     if (filters.genre) {
-      results = results.filter(item => 
+      filteredResults = filteredResults.filter(item => 
         item.genres.some(genre => 
           genre.toLowerCase().includes(filters.genre.toLowerCase())
         )
@@ -537,7 +769,7 @@ export const searchAnime = async (searchQuery, filters = {}) => {
     }
 
     if (filters.language) {
-      results = results.filter(item => 
+      filteredResults = filteredResults.filter(item => 
         item.languages.some(lang => 
           lang.toLowerCase().includes(filters.language.toLowerCase())
         )
@@ -545,24 +777,10 @@ export const searchAnime = async (searchQuery, filters = {}) => {
     }
 
     if (filters.year) {
-      results = results.filter(item => item.releaseYear === parseInt(filters.year));
+      filteredResults = filteredResults.filter(item => item.releaseYear === parseInt(filters.year));
     }
 
-    // Sort by relevance
-    results.sort((a, b) => {
-      const aTitle = a.title.toLowerCase();
-      const bTitle = b.title.toLowerCase();
-      
-      if (aTitle === trimmedQuery && bTitle !== trimmedQuery) return -1;
-      if (aTitle !== trimmedQuery && bTitle === trimmedQuery) return 1;
-      
-      if (aTitle.startsWith(trimmedQuery) && !bTitle.startsWith(trimmedQuery)) return -1;
-      if (!aTitle.startsWith(trimmedQuery) && bTitle.startsWith(trimmedQuery)) return 1;
-      
-      return new Date(b.modifiedDate) - new Date(a.modifiedDate);
-    });
-
-    return results.slice(0, filters.limit || 50);
+    return filteredResults.slice(0, filters.limit || 50);
   } catch (error) {
     console.error("Error searching anime:", error);
     return [];
@@ -571,14 +789,25 @@ export const searchAnime = async (searchQuery, filters = {}) => {
 
 export const clearAnimeCache = () => {
   animeCache.clear();
-  animeCategoryIndex.clear();
-  lastAnimeCacheUpdate = null;
 };
 
 export const refreshAnime = async () => {
-  clearAnimeCache();
-  return await fetchAllAnime();
+  animeCache.clear();
+  return await loadAllAnime(true);
 };
 
-export const getAnimeCategoryIndex = () => animeCategoryIndex;
-export const getAnimeCache = () => animeCache;
+// Initialize with session storage check
+setTimeout(() => {
+  if (!animeCache.loadFromSessionStorage() || !animeCache.isValid()) {
+    loadAllAnime().catch(console.error);
+  }
+}, 150);
+
+export const getAnimeCacheStats = () => ({
+  totalAnime: animeCache.size(),
+  isValid: animeCache.isValid(),
+  lastUpdate: animeCache.lastUpdate
+});
+
+export const getAnimeCategoryIndex = () => animeCache.categoryIndex;
+export const getAnimeCache = () => animeCache.cache;

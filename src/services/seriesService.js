@@ -11,14 +11,281 @@ import {
   parseContentMetadata
 } from './utils.js';
 
-// Series cache
-let seriesCache = new Map();
-let seriesCategoryIndex = new Map();
-let lastSeriesCacheUpdate = null;
+// **OPTIMIZED BATCH LOADING CONFIGURATION**
+const CONFIG = {
+  BATCH_SIZE: 500, // Load 500 series at a time
+  MAX_CONCURRENT_REQUESTS: 3,
+  CACHE_DURATION_MS: 15 * 60 * 1000, // 15 minutes
+  SESSION_STORAGE_KEY: 'seriesCacheData_v2',
+  SESSION_METADATA_KEY: 'seriesCacheMetadata_v2'
+};
 
-// Cache management for series
-const isSeriesCacheValid = () => {
-  return lastSeriesCacheUpdate && (Date.now() - lastSeriesCacheUpdate < CACHE_DURATION);
+// **SESSION STORAGE HELPERS**
+const saveToSessionStorage = (key, data) => {
+  try {
+    sessionStorage.setItem(key, JSON.stringify(data));
+    return true;
+  } catch (error) {
+    console.warn('Failed to save series to sessionStorage:', error);
+    return false;
+  }
+};
+
+const loadFromSessionStorage = (key) => {
+  try {
+    const data = sessionStorage.getItem(key);
+    return data ? JSON.parse(data) : null;
+  } catch (error) {
+    console.warn('Failed to load series from sessionStorage:', error);
+    return null;
+  }
+};
+
+// **ENHANCED SERIES CACHE WITH SESSION STORAGE**
+class SeriesCache {
+  constructor() {
+    this.cache = new Map();
+    this.categoryIndex = new Map();
+    this.searchCache = new Map();
+    this.lastUpdate = null;
+    this.isLoading = false;
+    this.loadingPromise = null;
+    this.dataVersion = '2.0';
+  }
+
+  isValid() {
+    return this.lastUpdate && (Date.now() - this.lastUpdate) < CONFIG.CACHE_DURATION_MS;
+  }
+
+  saveToSessionStorage() {
+    try {
+      const cacheData = Array.from(this.cache.entries());
+      const categoryIndexData = Array.from(this.categoryIndex.entries()).map(([key, value]) => [
+        key, 
+        Array.from(value)
+      ]);
+      
+      const metadata = {
+        lastUpdate: this.lastUpdate,
+        dataVersion: this.dataVersion,
+        totalSeries: this.cache.size,
+        timestamp: Date.now()
+      };
+
+      const sessionData = {
+        cache: cacheData,
+        categoryIndex: categoryIndexData,
+        metadata
+      };
+
+      saveToSessionStorage(CONFIG.SESSION_STORAGE_KEY, sessionData);
+      saveToSessionStorage(CONFIG.SESSION_METADATA_KEY, metadata);
+    } catch (error) {
+      console.warn('Failed to save series cache to sessionStorage:', error);
+    }
+  }
+
+  loadFromSessionStorage() {
+    try {
+      const metadata = loadFromSessionStorage(CONFIG.SESSION_METADATA_KEY);
+      if (!metadata || metadata.dataVersion !== this.dataVersion) {
+        return false;
+      }
+
+      if (Date.now() - metadata.timestamp > CONFIG.CACHE_DURATION_MS) {
+        return false;
+      }
+
+      const sessionData = loadFromSessionStorage(CONFIG.SESSION_STORAGE_KEY);
+      if (!sessionData || !sessionData.cache) {
+        return false;
+      }
+
+      this.cache.clear();
+      this.categoryIndex.clear();
+      
+      sessionData.cache.forEach(([key, value]) => {
+        this.cache.set(key, value);
+      });
+
+      sessionData.categoryIndex.forEach(([key, valueArray]) => {
+        this.categoryIndex.set(key, new Set(valueArray));
+      });
+
+      this.lastUpdate = metadata.lastUpdate;
+      return true;
+    } catch (error) {
+      console.warn('Failed to load series cache from sessionStorage:', error);
+      return false;
+    }
+  }
+
+  set(series) {
+    this.cache.clear();
+    this.categoryIndex.clear();
+    this.searchCache.clear();
+    
+    series.forEach(item => {
+      const transformed = transformSeriesData(item);
+      this.cache.set(transformed.id, transformed);
+      
+      transformed.categories.forEach(category => {
+        if (!this.categoryIndex.has(category)) {
+          this.categoryIndex.set(category, new Set());
+        }
+        this.categoryIndex.get(category).add(transformed.id);
+      });
+    });
+    
+    this.lastUpdate = Date.now();
+    this.saveToSessionStorage();
+  }
+
+  search(query) {
+    if (!query || query.length < 2) return [];
+    
+    const searchKey = query.toLowerCase();
+    if (this.searchCache.has(searchKey)) {
+      return this.searchCache.get(searchKey);
+    }
+    
+    const results = Array.from(this.cache.values()).filter(series => {
+      if (!series) return false;
+      
+      const titleMatch = series.title && series.title.toLowerCase().includes(searchKey);
+      const categoryMatch = series.categories && series.categories.some(cat => 
+        cat && cat.toLowerCase().includes(searchKey));
+      const genreMatch = series.genres && series.genres.some(genre => 
+        genre && genre.toLowerCase().includes(searchKey));
+      
+      return titleMatch || categoryMatch || genreMatch;
+    });
+    
+    if (this.searchCache.size < 100) {
+      this.searchCache.set(searchKey, results);
+    }
+    
+    return results;
+  }
+
+  getAll() {
+    return Array.from(this.cache.values());
+  }
+
+  get(id) {
+    return this.cache.get(id);
+  }
+
+  size() {
+    return this.cache.size;
+  }
+
+  clear() {
+    this.cache.clear();
+    this.categoryIndex.clear();
+    this.searchCache.clear();
+    this.lastUpdate = null;
+    try {
+      sessionStorage.removeItem(CONFIG.SESSION_STORAGE_KEY);
+      sessionStorage.removeItem(CONFIG.SESSION_METADATA_KEY);
+    } catch (error) {
+      console.warn('Failed to clear series sessionStorage:', error);
+    }
+  }
+}
+
+// **GLOBAL CACHE INSTANCE**
+const seriesCache = new SeriesCache();
+
+// **OPTIMIZED BATCH FETCHER FOR SERIES**
+class SeriesBatchFetcher {
+  constructor() {
+    this.requestCount = 0;
+  }
+
+  async fetchBatch(offset, limit) {
+    try {
+      const { data, error } = await supabase
+        .from('series')
+        .select('*')
+        .eq('status', 'publish')
+        .order('modified_date', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error(`❌ Series batch fetch failed:`, error.message);
+      return [];
+    }
+  }
+
+  async fetchProgressiveBatches() {
+    // Quick first batch
+    const quickBatch = await this.fetchBatch(0, 100);
+    
+    if (quickBatch.length > 0) {
+      seriesCache.set(quickBatch);
+    }
+
+    // Background batches
+    const remainingBatches = [
+      { offset: 100, limit: CONFIG.BATCH_SIZE },
+      { offset: 100 + CONFIG.BATCH_SIZE, limit: CONFIG.BATCH_SIZE },
+    ];
+
+    const results = [quickBatch];
+    
+    for (const config of remainingBatches) {
+      const batchResult = await this.fetchBatch(config.offset, config.limit);
+      results.push(batchResult);
+
+      const allData = results.flat();
+      if (allData.length > seriesCache.size()) {
+        seriesCache.set(allData);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    return results.flat();
+  }
+}
+
+// **MAIN LOADING FUNCTION WITH OPTIMIZATION**
+const loadAllSeries = async (forceRefresh = false) => {
+  if (!forceRefresh && seriesCache.isValid() && seriesCache.size() > 0) {
+    return seriesCache.getAll();
+  }
+
+  if (!forceRefresh && seriesCache.loadFromSessionStorage() && seriesCache.isValid()) {
+    return seriesCache.getAll();
+  }
+
+  if (seriesCache.isLoading && seriesCache.loadingPromise) {
+    return seriesCache.loadingPromise;
+  }
+
+  seriesCache.isLoading = true;
+
+  try {
+    const fetcher = new SeriesBatchFetcher();
+    seriesCache.loadingPromise = fetcher.fetchProgressiveBatches();
+    
+    const allSeries = await seriesCache.loadingPromise;
+    
+    if (allSeries.length > 0) {
+      seriesCache.set(allSeries);
+    }
+
+    return seriesCache.getAll();
+  } catch (error) {
+    console.error('💥 Error loading series:', error);
+    return [];
+  } finally {
+    seriesCache.isLoading = false;
+    seriesCache.loadingPromise = null;
+  }
 };
 
 // UPDATED: Enhanced series episode parser for your actual data format
@@ -293,50 +560,29 @@ const updateSeriesCache = (data) => {
   
   data.forEach(item => {
     const transformed = transformSeriesData(item);
-    seriesCache.set(transformed.id, transformed);
+    seriesCache.cache.set(transformed.id, transformed);
     
     // Index series by categories
     transformed.categories.forEach(category => {
-      if (!seriesCategoryIndex.has(category)) {
-        seriesCategoryIndex.set(category, new Set());
+      if (!seriesCache.categoryIndex.has(category)) {
+        seriesCache.categoryIndex.set(category, new Set());
       }
-      seriesCategoryIndex.get(category).add(transformed.id);
+      seriesCache.categoryIndex.get(category).add(transformed.id);
     });
   });
   
-  lastSeriesCacheUpdate = Date.now();
+  seriesCache.lastUpdate = Date.now();
 };
 
 // Fetch all series from database
 const fetchAllSeries = async () => {
-  if (isSeriesCacheValid() && seriesCache.size > 0) {
-    return Array.from(seriesCache.values());
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('series')
-      .select('*')
-      .eq('status', 'publish')
-      .order('modified_date', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching series:', error);
-      return [];
-    }
-
-    updateSeriesCache(data);
-    return Array.from(seriesCache.values());
-  } catch (error) {
-    console.error("Error in fetchAllSeries:", error);
-    return [];
-  }
+  return await loadAllSeries();
 };
 
 // All export functions
 export const getAllSeries = async (limitCount = 1000) => {
   try {
-    const series = await fetchAllSeries();
+    const series = await loadAllSeries();
     return series.slice(0, limitCount || series.length);
   } catch (error) {
     console.error("Error fetching series:", error);
@@ -346,9 +592,9 @@ export const getAllSeries = async (limitCount = 1000) => {
 
 export const getSeriesById = async (id) => {
   try {
-    await fetchAllSeries();
-    if (seriesCache.has(id)) {
-      return seriesCache.get(id);
+    await loadAllSeries();
+    if (seriesCache.cache.has(id)) {
+      return seriesCache.cache.get(id);
     }
 
     let { data, error } = await supabase
@@ -413,15 +659,15 @@ export const getEpisodeDownloadLinks = async (seriesId, seasonNumber, episodeNum
 // Rest of export functions...
 export const getSeriesByCategory = async (category, limitCount = 20) => {
   try {
-    await fetchAllSeries();
+    await loadAllSeries();
     
-    if (!seriesCategoryIndex.has(category)) {
+    if (!seriesCache.categoryIndex.has(category)) {
       return [];
     }
     
-    const itemIds = Array.from(seriesCategoryIndex.get(category));
+    const itemIds = Array.from(seriesCache.categoryIndex.get(category));
     const items = itemIds
-      .map(id => seriesCache.get(id))
+      .map(id => seriesCache.cache.get(id))
       .filter(item => item)
       .slice(0, limitCount);
     
@@ -434,7 +680,7 @@ export const getSeriesByCategory = async (category, limitCount = 20) => {
 
 export const getSeriesByGenre = async (genre, limitCount = 20) => {
   try {
-    const series = await fetchAllSeries();
+    const series = await loadAllSeries();
     
     const filtered = series
       .filter(item => item.genres.some(g => 
@@ -451,7 +697,7 @@ export const getSeriesByGenre = async (genre, limitCount = 20) => {
 
 export const getSeriesByYear = async (year, limitCount = 20) => {
   try {
-    const series = await fetchAllSeries();
+    const series = await loadAllSeries();
     
     const filtered = series
       .filter(item => item.releaseYear === parseInt(year))
@@ -466,7 +712,7 @@ export const getSeriesByYear = async (year, limitCount = 20) => {
 
 export const getSeriesByLanguage = async (language, limitCount = 20) => {
   try {
-    const series = await fetchAllSeries();
+    const series = await loadAllSeries();
     
     const filtered = series
       .filter(item => item.languages.some(lang => 
@@ -485,24 +731,15 @@ export const searchSeries = async (searchQuery, filters = {}) => {
   if (!searchQuery || searchQuery.trim() === '') return [];
   
   try {
-    const trimmedQuery = searchQuery.trim().toLowerCase();
-    const series = await fetchAllSeries();
+    await loadAllSeries();
     
-    let results = series.filter(item => {
-      const titleMatch = item.title.toLowerCase().includes(trimmedQuery);
-      const categoryMatch = item.categories.some(cat => 
-        cat.toLowerCase().includes(trimmedQuery)
-      );
-      const genreMatch = item.genres.some(genre => 
-        genre.toLowerCase().includes(trimmedQuery)
-      );
-      
-      return titleMatch || categoryMatch || genreMatch;
-    });
+    const results = seriesCache.search(searchQuery.trim());
 
     // Apply filters
+    let filteredResults = results;
+
     if (filters.genre) {
-      results = results.filter(item => 
+      filteredResults = filteredResults.filter(item => 
         item.genres.some(genre => 
           genre.toLowerCase().includes(filters.genre.toLowerCase())
         )
@@ -510,7 +747,7 @@ export const searchSeries = async (searchQuery, filters = {}) => {
     }
 
     if (filters.language) {
-      results = results.filter(item => 
+      filteredResults = filteredResults.filter(item => 
         item.languages.some(lang => 
           lang.toLowerCase().includes(filters.language.toLowerCase())
         )
@@ -518,29 +755,10 @@ export const searchSeries = async (searchQuery, filters = {}) => {
     }
 
     if (filters.year) {
-      results = results.filter(item => item.releaseYear === parseInt(filters.year));
+      filteredResults = filteredResults.filter(item => item.releaseYear === parseInt(filters.year));
     }
 
-    // Sort by relevance
-    results.sort((a, b) => {
-      const aTitle = a.title.toLowerCase();
-      const bTitle = b.title.toLowerCase();
-      
-      if (aTitle === trimmedQuery && bTitle !== trimmedQuery) return -1;
-      if (aTitle !== trimmedQuery && bTitle === trimmedQuery) return 1;
-      
-      if (aTitle.startsWith(trimmedQuery) && !bTitle.startsWith(trimmedQuery)) return -1;
-      if (!aTitle.startsWith(trimmedQuery) && bTitle.startsWith(trimmedQuery)) return 1;
-      
-      const aIncludes = aTitle.includes(trimmedQuery);
-      const bIncludes = bTitle.includes(trimmedQuery);
-      if (aIncludes && !bIncludes) return -1;
-      if (!aIncludes && bIncludes) return 1;
-      
-      return new Date(b.modifiedDate) - new Date(a.modifiedDate);
-    });
-
-    return results.slice(0, filters.limit || 50);
+    return filteredResults.slice(0, filters.limit || 50);
   } catch (error) {
     console.error("Error searching series:", error);
     return [];
@@ -549,15 +767,26 @@ export const searchSeries = async (searchQuery, filters = {}) => {
 
 export const clearSeriesCache = () => {
   seriesCache.clear();
-  seriesCategoryIndex.clear();
-  lastSeriesCacheUpdate = null;
 };
 
 export const refreshSeries = async () => {
-  clearSeriesCache();
-  return await fetchAllSeries();
+  seriesCache.clear();
+  return await loadAllSeries(true);
 };
 
+// Initialize with session storage check
+setTimeout(() => {
+  if (!seriesCache.loadFromSessionStorage() || !seriesCache.isValid()) {
+    loadAllSeries().catch(console.error);
+  }
+}, 100);
+
+export const getSeriesCacheStats = () => ({
+  totalSeries: seriesCache.size(),
+  isValid: seriesCache.isValid(),
+  lastUpdate: seriesCache.lastUpdate
+});
+
 // Export series categories index for combined operations
-export const getSeriesCategoryIndex = () => seriesCategoryIndex;
-export const getSeriesCache = () => seriesCache;
+export const getSeriesCategoryIndex = () => seriesCache.categoryIndex;
+export const getSeriesCache = () => seriesCache.cache;

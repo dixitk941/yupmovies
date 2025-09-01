@@ -110,6 +110,7 @@ const AllContentSection = memo(({ contentType = 'movies', onContentSelect }) => 
             movie={movie}
             onClick={onContentSelect}
             index={idx}
+            useOptimizedImage={true}
           />
         ))}
       </div>

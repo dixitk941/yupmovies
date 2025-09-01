@@ -145,6 +145,7 @@ const MovieSection = ({ title, movies, showNumbers }) => {
                   onClick={setSelectedMovie} 
                   index={index}
                   showNumber={showNumbers}
+                  useOptimizedImage={true}
                 />
               </div>
             ))
