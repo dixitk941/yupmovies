@@ -37,6 +37,37 @@ function useDevToolsProtection() {
   useEffect(() => {
     if (isLocalhost()) return; // Skip protection in development
 
+    // Set viewport meta tag to prevent zooming
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
+    if (viewportMeta) {
+      viewportMeta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+    } else {
+      // Create viewport meta if it doesn't exist
+      const meta = document.createElement('meta');
+      meta.name = 'viewport';
+      meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+      document.head.appendChild(meta);
+    }
+    
+    // Add CSS to disable zooming
+    const style = document.createElement('style');
+    style.textContent = `
+      html, body {
+        touch-action: pan-x pan-y;
+        -ms-touch-action: pan-x pan-y;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        overscroll-behavior: none;
+      }
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
+    `;
+    document.head.appendChild(style);
+
     // Console warnings and deterrents
     console.clear();
     console.log('%cSTOP!', 'color: red; font-size: 50px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);');
@@ -89,7 +120,15 @@ function useDevToolsProtection() {
         (e.ctrlKey && e.shiftKey && e.keyCode === 73) || // Ctrl+Shift+I
         (e.ctrlKey && e.shiftKey && e.keyCode === 74) || // Ctrl+Shift+J
         (e.ctrlKey && e.keyCode === 85) || // Ctrl+U
-        (e.ctrlKey && e.shiftKey && e.keyCode === 67) // Ctrl+Shift+C
+        (e.ctrlKey && e.shiftKey && e.keyCode === 67) || // Ctrl+Shift+C
+        // Block zoom keyboard shortcuts
+        (e.ctrlKey && e.keyCode === 107) || // Ctrl + Plus (+)
+        (e.ctrlKey && e.keyCode === 109) || // Ctrl + Minus (-)
+        (e.ctrlKey && e.keyCode === 187) || // Ctrl + Plus (+) in some browsers
+        (e.ctrlKey && e.keyCode === 189) || // Ctrl + Minus (-) in some browsers
+        (e.ctrlKey && e.keyCode === 61) || // Ctrl + = (zoom in)
+        (e.ctrlKey && e.keyCode === 173) || // Ctrl + - (zoom out)
+        (e.ctrlKey && (e.wheelDelta || e.detail)) // Ctrl + mouse wheel
       ) {
         e.preventDefault();
         e.stopPropagation();
@@ -106,6 +145,54 @@ function useDevToolsProtection() {
       }
     };
 
+    // Prevent zooming with mouse wheel or trackpad
+    const handleWheel = (e) => {
+      // Block zoom attempts
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+    
+    // Prevent pinch-to-zoom on touch devices
+    const handleTouchMove = (e) => {
+      // Detect pinch gestures
+      if (e.touches && e.touches.length > 1) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+
+    // Prevent touch gestures with multiple fingers (pinch)
+    const handleTouchStart = (e) => {
+      // Block multi-touch gestures
+      if (e.touches && e.touches.length > 1) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+    
+    // Handle gesture events for Safari/iOS
+    const handleGestureStart = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    };
+    
+    // Reset zoom level if somehow changed
+    const checkAndResetZoom = () => {
+      if (document.documentElement.clientWidth !== window.innerWidth) {
+        // Force reset zoom
+        document.body.style.zoom = 1;
+        // Alternative method
+        document.body.style.transform = 'scale(1)';
+        document.body.style.transformOrigin = '0 0';
+      }
+    };
+
     // Monitor window focus (DevTools might change focus)
     let isWindowFocused = true;
     const handleFocus = () => { isWindowFocused = true; };
@@ -114,6 +201,9 @@ function useDevToolsProtection() {
     // Periodic checks
     const devToolsCheckInterval = setInterval(() => {
       detectDevTools();
+      
+      // Check and reset zoom level
+      checkAndResetZoom();
       
       // Additional check for performance timing (DevTools affects performance) - only if window size indicates DevTools might be open
       const heightDiff = window.outerHeight - window.innerHeight;
@@ -163,6 +253,13 @@ function useDevToolsProtection() {
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keydown', handleSelectAll);
+    document.addEventListener('wheel', handleWheel, { passive: false });
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchstart', handleTouchStart, { passive: false });
+    document.addEventListener('gesturestart', handleGestureStart, { passive: false });
+    document.addEventListener('gesturechange', handleGestureStart, { passive: false });
+    document.addEventListener('gestureend', handleGestureStart, { passive: false });
+    window.addEventListener('resize', checkAndResetZoom);
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
 
@@ -194,6 +291,13 @@ function useDevToolsProtection() {
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keydown', handleSelectAll);
+      document.removeEventListener('wheel', handleWheel, { passive: false });
+      document.removeEventListener('touchmove', handleTouchMove, { passive: false });
+      document.removeEventListener('touchstart', handleTouchStart, { passive: false });
+      document.removeEventListener('gesturestart', handleGestureStart, { passive: false });
+      document.removeEventListener('gesturechange', handleGestureStart, { passive: false });
+      document.removeEventListener('gestureend', handleGestureStart, { passive: false });
+      window.removeEventListener('resize', checkAndResetZoom);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
       

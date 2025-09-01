@@ -3,13 +3,80 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Vite + React + TS</title>
+    <style>
+      html, body {
+        touch-action: manipulation;
+        -ms-touch-action: manipulation;
+        touch-action: pan-x pan-y;
+        -ms-touch-action: pan-x pan-y;
+        overscroll-behavior: none;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      
+      html, body, div, span, applet, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, abbr, acronym, address, big, cite, code, del, dfn, em, img, ins, kbd, q, s, samp, small, strike, strong, sub, sup, tt, var, b, u, i, center, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td, article, aside, canvas, details, embed, figure, figcaption, footer, header, hgroup, menu, nav, output, ruby, section, summary, time, mark, audio, video {
+        transform-origin: 0 0 !important;
+        zoom: 1 !important;
+      }
+      
+      ::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+        background: transparent;
+      }
+      
+      * {
+        -webkit-text-size-adjust: none !important;
+        text-size-adjust: none !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <div id="container-7a242fd05ab63fe6816c61fa49ba7f8f"></div>
 
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Block zoom related events at the document level
+      document.addEventListener('wheel', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          return false;
+        }
+      }, { passive: false });
+      
+      document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '=' || e.key === '_' || e.keyCode === 107 || e.keyCode === 109 || e.keyCode === 187 || e.keyCode === 189)) {
+          e.preventDefault();
+          return false;
+        }
+      });
+      
+      // Block pinch events
+      document.addEventListener('touchmove', function(e) {
+        if (e.touches.length > 1) {
+          e.preventDefault();
+          return false;
+        }
+      }, { passive: false });
+      
+      // Block gesturestart which is specific to Safari
+      document.addEventListener('gesturestart', function(e) {
+        e.preventDefault();
+        return false;
+      }, { passive: false });
+      
+      document.addEventListener('gesturechange', function(e) {
+        e.preventDefault();
+        return false;
+      }, { passive: false });
+      
+      document.addEventListener('gestureend', function(e) {
+        e.preventDefault();
+        return false;
+      }, { passive: false });
+    </script>
   </body>
 </html>
