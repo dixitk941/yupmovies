@@ -517,7 +517,7 @@ const MovieDetails = ({ movie, onClose }) => {
 
   return (
     <div 
-      className="fixed inset-0 bg-black z-50 flex items-center justify-center overflow-hidden"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center overflow-hidden"
       onClick={onClose}
       aria-modal="true"
       role="dialog"
@@ -526,7 +526,7 @@ const MovieDetails = ({ movie, onClose }) => {
       {/* Exact replica following your layout order */}
       <div 
         ref={modalRef}
-        className={`relative w-full h-full bg-black overflow-hidden flex flex-col
+        className={`relative w-full h-full bg-[#131313] backdrop-blur-md overflow-hidden flex flex-col
           ${isLoaded ? 'scale-100 opacity-100' : 'scale-95 opacity-0'} transition-all duration-500`}
         onClick={e => e.stopPropagation()}
       >
@@ -542,7 +542,7 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 1. Title and Date Section */}
-        <div className="bg-black px-8 py-4 border-b border-gray-800/50">
+        <div className="bg-gray-900/50 backdrop-blur-sm px-8 py-4 border-b border-gray-700/30">
           <div className="max-w-7xl mx-auto">
             {/* Title - dynamic from movie data */}
             <h1 className="text-xl font-bold text-white mb-1 leading-tight truncate">
@@ -562,7 +562,7 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 2. Image Section with Episode Badge - Series card style */}
-        <div className="bg-black px-8 py-4">
+        <div className="bg-gray-900/30 backdrop-blur-sm px-8 py-4">
           <div className="max-w-7xl mx-auto">
             <div className="w-full max-w-2xl mx-auto relative">
               {/* Series card style image - wider aspect ratio */}
@@ -610,7 +610,7 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 3. VLC Media Player Recommendation Line */}
-        <div className="bg-black px-8 py-4 border-b border-gray-800/50">
+        <div className="bg-gray-900/40 backdrop-blur-sm px-8 py-4 border-b border-gray-700/30">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center space-x-3">
               <div className="bg-orange-600 rounded-full p-2">
@@ -665,9 +665,9 @@ const MovieDetails = ({ movie, onClose }) => {
                 {movieData.downloadLinks && movieData.downloadLinks.length > 0 ? (
                   <div className="space-y-4">
                     {movieData.downloadLinks.map((link, index) => (
-                      <div key={index} className="bg-gray-900/30 border border-gray-700/50 rounded-lg overflow-hidden">
+                      <div key={index} className="bg-black border border-gray-700/30 rounded-lg overflow-hidden shadow-lg">
                         {/* File Information for this specific download */}
-                        <div className="bg-gray-900/60 border-l-4 border-gray-600 p-4">
+                        <div className="bg-black border-l-4 border-gray-600 p-4">
                           <h4 className="text-white font-medium mb-2">File Information:</h4>
                           <div className="text-gray-300 text-sm leading-relaxed">
                             {link.rawDatabaseDetails || link.description || 
@@ -718,7 +718,7 @@ const MovieDetails = ({ movie, onClose }) => {
                         </div>
 
                         {/* Download button row */}
-                        <div className="flex items-center justify-between p-4 hover:bg-gray-900/20 transition-colors">
+                        <div className="flex items-center justify-between p-4 bg-black hover:bg-gray-900/30 transition-colors">
                           {/* Left side - Quality and size */}
                           <div className="flex items-center space-x-4">
                             <span className="text-white font-semibold text-base">{link.quality || 'HD'}</span>
