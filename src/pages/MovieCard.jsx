@@ -215,78 +215,31 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
 
           {/* Download Indicator removed */}
 
-          {/* Gradient Overlay - only for real images */}
-          {!imgError && imageSrc && (
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60"></div>
-          )}
-
-          {/* Mobile Always-On Content */}
-          {isMobile && (
-            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent">
-              <h3 className="text-white font-bold text-xs mb-1 line-clamp-2 leading-tight">
-                {cleanTitle.length > 15 ? cleanTitle.substring(0, 15) + '...' : cleanTitle}
-              </h3>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-gray-300 text-[10px]">{year}</span>
-                {movie.content?.rating && (
-                  <span className="text-yellow-400 text-[10px] font-medium">
-                    ★ {movie.content.rating}
-                  </span>
-                )}
-              </div>
-              {/* Date display for mobile - more prominent */}
-              <div className="text-white text-[10px] mb-1 font-bold bg-red-600 px-2 py-0.5 rounded-sm inline-block shadow-md">
-                {displayDate ? '📅 ' + displayDate : '📅 Unknown Date'}
-              </div>
-              {/* Excerpt at bottom for mobile */}
-              {movie.excerpt && (
-                <div className="bg-blue-600/80 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium">
-                  {movie.excerpt.length > 15 ? movie.excerpt.substring(0, 15) + '...' : movie.excerpt}
-                </div>
-              )}
+          {/* Excerpt badge at the bottom center of the image */}
+          {movie.excerpt && (
+            <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-red-600/90 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium max-w-[80px] text-center whitespace-nowrap overflow-hidden">
+              {movie.excerpt.length > 15 ? movie.excerpt.substring(0, 15) + '...' : movie.excerpt}
             </div>
           )}
 
-          {/* Desktop Content - Always Visible */}
-          {!isMobile && (
-            <>
-              {/* Bottom Info Overlay - Always Visible */}
-              <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black to-transparent z-10">
-                <h3 className="text-white font-bold text-xs mb-1 line-clamp-2 leading-tight">
-                  {cleanTitle.length > 15 ? cleanTitle.substring(0, 15) + '...' : cleanTitle}
-                </h3>
-                
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-gray-300 text-[10px]">{year}</span>
-                  {movie.content?.rating && (
-                    <span className="text-yellow-400 text-[10px] font-medium">
-                      ★ {movie.content.rating}
-                    </span>
-                  )}
-                </div>
+          {/* Watch Now badge below the excerpt badge */}
+          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm text-black text-[8px] px-2 py-0.5 rounded font-medium text-center whitespace-nowrap">
+            Watch Now
+          </div>
 
-                {/* Date display for desktop - HIGHLY VISIBLE */}
-                <div className="text-white text-[10px] mb-1 font-bold bg-red-600 px-2 py-0.5 rounded-sm inline-block shadow-md">
-                  {displayDate ? '📅 ' + displayDate : '📅 Unknown Date'}
-                </div>
+          {/* Gradient Overlay removed for cleaner image */}
+        </div>
 
-                {/* Excerpt at bottom for desktop */}
-                {movie.excerpt && (
-                  <div className="bg-blue-600/80 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium">
-                    {movie.excerpt.length > 15 ? movie.excerpt.substring(0, 15) + '...' : movie.excerpt}
-                  </div>
-                )}
-              </div>
+        {/* Title and Date Section - Below Image */}
+        <div className="p-2 bg-black/90">
+          {/* Date display - above title */}
+          <div className="text-gray-400 text-[10px] mb-1">
+            {displayDate ? displayDate : 'Unknown Date'}
+          </div>
 
-              {/* Debug date information (only in development mode) */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="text-[8px] bg-black/60 p-1 text-gray-400 font-mono mt-1 leading-tight">
-                  md: {movie.modified_date || 'null'}<br/>
-                  d: {movie.date || 'null'}
-                </div>
-              )}
-            </>
-          )}
+          <h3 className="text-white font-bold text-xs line-clamp-2 leading-tight">
+            {cleanTitle.length > 15 ? cleanTitle.substring(0, 15) + '...' : cleanTitle}
+          </h3>
         </div>
       </div>
     </div>
