@@ -59,30 +59,180 @@ function useDevToolsProtection() {
   const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
-    // DEVTOOLS ALLOWED IN ALL ENVIRONMENTS - Protection disabled
-    console.log('%cDEVTOOLS ALLOWED', 'color: green; font-size: 16px; font-weight: bold;');
-    console.log('All DevTools protection has been disabled for development purposes.');
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isLocalhost = window.location.hostname === 'localhost' || 
+                       window.location.hostname === '127.0.0.1' || 
+                       window.location.hostname === '0.0.0.0';
     
-    // Add helpful debug functions to window
-    window.__enableDevtools__ = () => {
-      console.log('DevTools are already enabled in all environments');
+    // Check if protection should be bypassed
+    const bypassProtection = shouldBypassProtection();
+    
+    if (isDevelopment || isLocalhost || bypassProtection) {
+      // Development environment or bypass active - allow DevTools
+      console.log('%cDEVTOOLS ALLOWED', 'color: green; font-size: 16px; font-weight: bold;');
+      console.log('DevTools protection disabled for development environment.');
+      
+      // Add helpful debug functions to window
+      window.__enableDevtools__ = () => {
+        sessionStorage.setItem('devtools_bypass', 'true');
+        console.log('DevTools bypass enabled for this session');
+        window.location.reload();
+      };
+      
+      window.__enableDevtoolsFor__ = (minutes = 60) => {
+        const bypassUntil = Date.now() + (minutes * 60 * 1000);
+        localStorage.setItem('devtools_bypass_until', bypassUntil.toString());
+        console.log(`DevTools enabled for ${minutes} minutes`);
+        window.location.reload();
+      };
+      
+      window.__disableDevtoolsBypass__ = () => {
+        sessionStorage.removeItem('devtools_bypass');
+        localStorage.removeItem('devtools_bypass_until');
+        console.log('DevTools bypass disabled');
+        window.location.reload();
+      };
+      
+      return () => {
+        // Minimal cleanup for development
+      };
+    }
+
+    // Production environment - enable protection
+    console.log('%cPRODUCTION MODE', 'color: red; font-size: 16px; font-weight: bold;');
+    console.warn('Developer tools are disabled in production for security.');
+    
+    let devToolsOpen = false;
+    let lastTime = performance.now();
+    let checks = 0;
+    
+    // Multiple detection methods for production
+    const detection = {
+      // Method 1: Console detection
+      consoleCheck() {
+        const start = performance.now();
+        console.log('%c', 'font-size: 1px;');
+        console.clear();
+        const end = performance.now();
+        return (end - start) > 100;
+      },
+      
+      // Method 2: Debugger detection
+      debuggerCheck() {
+        const start = Date.now();
+        debugger;
+        const end = Date.now();
+        return (end - start) > 100;
+      },
+      
+      // Method 3: Window size detection
+      sizeCheck() {
+        const threshold = 160;
+        return window.outerHeight - window.innerHeight > threshold || 
+               window.outerWidth - window.innerWidth > threshold;
+      },
+      
+      // Method 4: Performance timing
+      timingCheck() {
+        const now = performance.now();
+        const delta = now - lastTime;
+        lastTime = now;
+        return delta > 100;
+      }
     };
     
-    window.__enableDevtoolsFor__ = () => {
-      console.log('DevTools are already enabled in all environments');
+    // Combined detection function
+    const checkDevTools = () => {
+      checks++;
+      let detected = false;
+      
+      try {
+        // Run multiple checks
+        if (detection.consoleCheck() || 
+            detection.sizeCheck() || 
+            (checks > 10 && detection.timingCheck())) {
+          detected = true;
+        }
+        
+        // Periodic debugger check (less frequent to avoid performance issues)
+        if (checks % 50 === 0) {
+          detected = detected || detection.debuggerCheck();
+        }
+        
+        if (detected && !devToolsOpen) {
+          devToolsOpen = true;
+          setIsBlocked(true);
+        }
+      } catch (e) {
+        // If any detection method fails, assume DevTools are open
+        if (!devToolsOpen) {
+          devToolsOpen = true;
+          setIsBlocked(true);
+        }
+      }
     };
     
-    window.__disableDevtoolsBypass__ = () => {
-      console.log('DevTools protection is permanently disabled');
+    // Set up detection intervals
+    const rapidInterval = setInterval(checkDevTools, 500);
+    const slowInterval = setInterval(checkDevTools, 2000);
+    
+    // Use devtools-detector library for additional detection
+    let detectorStarted = false;
+    try {
+      addListener(detected => {
+        if (detected && !devToolsOpen) {
+          devToolsOpen = true;
+          setIsBlocked(true);
+        }
+      });
+      
+      launch();
+      detectorStarted = true;
+    } catch (e) {
+      console.warn('DevTools detector library failed to initialize');
+    }
+    
+    // Disable right-click context menu in production
+    const disableRightClick = (e) => {
+      if (e.button === 2) {
+        e.preventDefault();
+        return false;
+      }
     };
     
-    // No protection measures - just return cleanup function
+    // Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+    const disableKeyShortcuts = (e) => {
+      if (
+        e.keyCode === 123 || // F12
+        (e.ctrlKey && e.shiftKey && e.keyCode === 73) || // Ctrl+Shift+I
+        (e.ctrlKey && e.shiftKey && e.keyCode === 74) || // Ctrl+Shift+J
+        (e.ctrlKey && e.keyCode === 85) // Ctrl+U
+      ) {
+        e.preventDefault();
+        return false;
+      }
+    };
+    
+    // Add event listeners for production
+    document.addEventListener('contextmenu', disableRightClick);
+    document.addEventListener('keydown', disableKeyShortcuts);
+    
+    // Hide DevTools-related functions in production
+    delete window.__enableDevtools__;
+    delete window.__enableDevtoolsFor__;
+    delete window.__disableDevtoolsBypass__;
+    
+    // Cleanup function
     return () => {
-      // Minimal cleanup
+      clearInterval(rapidInterval);
+      clearInterval(slowInterval);
+      document.removeEventListener('contextmenu', disableRightClick);
+      document.removeEventListener('keydown', disableKeyShortcuts);
     };
   }, []);
 
-  return false; // Never block
+  return isBlocked;
 }
 
 // Connection Broken Page - Shows when user comes directly
@@ -317,26 +467,74 @@ function App() {
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
   const [comingFromVerification, setComingFromVerification] = useState(false);
   
-  // DEVTOOLS ALLOWED - All protection disabled
-  const bypassActive = true; // Force bypass to be always active
+  // Environment detection
+  const isProduction = process.env.NODE_ENV === 'production';
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isLocalhost = window.location.hostname === 'localhost' || 
+                     window.location.hostname === '127.0.0.1' || 
+                     window.location.hostname === '0.0.0.0';
   
-  // Remove URL-based bypass handling since it's not needed
+  // Check if protection should be bypassed
+  const bypassActive = shouldBypassProtection() || isDevelopment || isLocalhost;
+  
+  // Handle URL-based bypass
   useEffect(() => {
-    // No special handling needed - DevTools always allowed
+    const urlParams = new URLSearchParams(window.location.search);
+    const bypassKey = urlParams.get('debug');
+    
+    if (bypassKey === BYPASS_SECRET) {
+      sessionStorage.setItem('devtools_bypass', 'true');
+      // Clean URL to remove debug parameter
+      const cleanUrl = window.location.protocol + '//' + 
+                      window.location.host + 
+                      window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
   }, []);
   
-  // Use enhanced DevTools protection (which is now disabled)
+  // Use enhanced DevTools protection
   const isProtectionBlocked = useDevToolsProtection();
 
+  // API tool blocking (only in production without bypass)
   useEffect(() => {
-    // Disable API tool blocking - allow all tools
-    // if (!bypassActive && isApiTool()) setBlock(true);
-  }, [bypassActive]);
+    if (isProduction && !bypassActive && isApiTool()) {
+      setBlock(true);
+    }
+  }, [bypassActive, isProduction]);
 
-  // Disable standard DevTools detection completely
+  // Enhanced DevTools detection for production
   useEffect(() => {
-    // No DevTools detection - always allow
-  }, [bypassActive]);
+    if (isProduction && !bypassActive) {
+      let devToolsInterval;
+      
+      const checkDevToolsAdvanced = () => {
+        const start = performance.now();
+        
+        // Create a test object that will trigger toString if DevTools inspect it
+        const testObj = {};
+        testObj.toString = () => {
+          setIsDevToolsOpen(true);
+          return '';
+        };
+        
+        // Log the object (triggers toString if DevTools are open)
+        console.log('%c%s', 'color: transparent', testObj);
+        
+        const end = performance.now();
+        
+        // Check timing-based detection
+        if (end - start > 100) {
+          setIsDevToolsOpen(true);
+        }
+      };
+      
+      devToolsInterval = setInterval(checkDevToolsAdvanced, 1000);
+      
+      return () => {
+        if (devToolsInterval) clearInterval(devToolsInterval);
+      };
+    }
+  }, [bypassActive, isProduction]);
 
   useEffect(() => {
     if (sessionStorage.getItem("hiiCineSessionValidated") === "1") {
@@ -346,18 +544,25 @@ function App() {
     setIsChecking(false);
   }, []);
 
-  // Never block - DevTools are always allowed
-  // if (!bypassActive && (block || isDevToolsOpen || isProtectionBlocked)) {
-  //   return <NotFoundPage />;
-  // }
+  // Block access if protection is triggered (only in production)
+  if (isProduction && !bypassActive && (block || isDevToolsOpen || isProtectionBlocked)) {
+    return <NotFoundPage />;
+  }
 
   if (isChecking) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-        <div className="absolute top-4 left-4 bg-green-600 text-white px-4 py-2 rounded text-sm">
-          🛠️ DevTools Always Enabled
-        </div>
+        {(isDevelopment || isLocalhost || bypassActive) && (
+          <div className="absolute top-4 left-4 bg-green-600 text-white px-4 py-2 rounded text-sm">
+            🛠️ DevTools Enabled (Development)
+          </div>
+        )}
+        {isProduction && !bypassActive && (
+          <div className="absolute top-4 left-4 bg-red-600 text-white px-4 py-2 rounded text-sm">
+            🔒 Production Mode - DevTools Protected
+          </div>
+        )}
       </div>
     );
   }
@@ -369,9 +574,17 @@ function App() {
         v7_relativeSplatPath: true,
       }}
     >
-      <div className="fixed top-0 left-0 right-0 bg-green-600 text-white text-center py-2 text-sm z-50">
-        🛠️ DevTools Protection Disabled - All Developer Tools Enabled
-      </div>
+      {/* Environment indicator */}
+      {(isDevelopment || isLocalhost || bypassActive) ? (
+        <div className="fixed top-0 left-0 right-0 bg-green-600 text-white text-center py-2 text-sm z-50">
+          🛠️ Development Mode - DevTools Enabled
+        </div>
+      ) : isProduction ? (
+        <div className="fixed top-0 left-0 right-0 bg-red-600 text-white text-center py-2 text-sm z-50">
+          🔒 Production Mode - Secure Access
+        </div>
+      ) : null}
+      
       <TokenAutoLoginWrapper 
         setHasAccess={setHasAccess} 
         setComingFromVerification={setComingFromVerification}

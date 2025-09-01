@@ -1,20 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react';
 import { Play, Info, Plus, Heart } from 'lucide-react';
 import SimpleOptimizedImage from '../components/SimpleOptimizedImage';
 
-const MovieCard = ({ movie, onClick, index, showNumber, useOptimizedImage = false }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [imgError, setImgError] = useState(false);
+// Cache for loaded images to prevent re-loading after modal close
+const loadedImagesCache = new Set();
 
-  // Image selection with fallback
+const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage = false }) => {
   const imageSrc = 
     movie?.featuredImage || 
     movie?.featured_image ||
     movie?.poster || 
     movie?.posterUrl || 
     movie?.image;
+
+  // Use cache to determine if image was already loaded
+  const wasImageLoaded = imageSrc ? loadedImagesCache.has(imageSrc) : false;
+  
+  const [isLoaded, setIsLoaded] = useState(wasImageLoaded);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  
+  // Ref to prevent state updates if component unmounts
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -68,9 +82,20 @@ const MovieCard = ({ movie, onClick, index, showNumber, useOptimizedImage = fals
 
   // Handle image error
   const handleImageError = (e) => {
-    if (!imgError) {
+    if (!imgError && mountedRef.current) {
       setImgError(true);
       setIsLoaded(true);
+    }
+  };
+
+  // Enhanced image load handler with caching
+  const handleImageLoad = () => {
+    if (mountedRef.current) {
+      setIsLoaded(true);
+      // Add to cache to prevent re-loading
+      if (imageSrc) {
+        loadedImagesCache.add(imageSrc);
+      }
     }
   };
 
@@ -146,7 +171,7 @@ const MovieCard = ({ movie, onClick, index, showNumber, useOptimizedImage = fals
               className={`w-full h-full object-cover transition-opacity duration-500 ${
                 isLoaded ? 'opacity-100' : 'opacity-0'
               }`}
-              onLoad={() => setIsLoaded(true)}
+              onLoad={handleImageLoad}
               onError={handleImageError}
               style={{
                 width: '100%',
@@ -167,7 +192,7 @@ const MovieCard = ({ movie, onClick, index, showNumber, useOptimizedImage = fals
               className={`w-full h-full object-cover transition-opacity duration-500 ${
                 isLoaded ? 'opacity-100' : 'opacity-0'
               }`}
-              onLoad={() => setIsLoaded(true)}
+              onLoad={handleImageLoad}
               onError={handleImageError}
               loading={index >= 6 ? "lazy" : "eager"}
               decoding="async"
@@ -289,6 +314,8 @@ const MovieCard = ({ movie, onClick, index, showNumber, useOptimizedImage = fals
       </div>
     </div>
   );
-};
+});
+
+MovieCard.displayName = 'MovieCard';
 
 export default MovieCard;

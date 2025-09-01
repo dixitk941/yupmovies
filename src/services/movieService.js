@@ -472,20 +472,34 @@ export const searchMovies = async (searchQuery, filters = {}) => {
   }
 };
 
-// **FALLBACK DATABASE SEARCH (RARELY USED NOW)**
+// **ENHANCED DATABASE SEARCH WITH ABORT SIGNAL SUPPORT**
 export const searchMoviesDB = async (searchQuery, filters = {}) => {
   if (!searchQuery || searchQuery.trim().length < 2) return [];
 
   try {
     const query = searchQuery.trim();
+    console.log(`🔍 Database search for movies: "${query}"`);
 
     let queryBuilder = supabase
       .from('movies')
-      .select('*')
+      .select(`
+        record_id,
+        title,
+        url_slug,
+        featured_image,
+        poster,
+        categories,
+        links,
+        content,
+        excerpt,
+        status,
+        date,
+        modified_date
+      `)
       .ilike('title', `%${query}%`)
       .eq('status', 'publish')
       .order('modified_date', { ascending: false })
-      .limit(filters.limit || 50);
+      .limit(filters.limit || 30);
 
     if (filters.genre) {
       queryBuilder = queryBuilder.ilike('categories', `%${filters.genre}%`);
@@ -497,16 +511,44 @@ export const searchMoviesDB = async (searchQuery, filters = {}) => {
       queryBuilder = queryBuilder.eq('release_year', filters.year);
     }
 
-    const { data, error } = await queryBuilder;
-    
-    if (error) {
-      console.error('DB search error:', error);
-      return [];
-    }
+    // Add abort signal support for cancelling requests
+    if (filters.signal) {
+      const abortPromise = new Promise((_, reject) => {
+        filters.signal.addEventListener('abort', () => {
+          reject(new Error('Search aborted'));
+        });
+      });
+      
+      const searchPromise = queryBuilder;
+      const result = await Promise.race([searchPromise, abortPromise]);
+      
+      const { data, error } = result;
+      
+      if (error) {
+        console.error('❌ Movie DB search error:', error);
+        return [];
+      }
 
-    return data ? data.map(transformMovieData).filter(Boolean) : [];
+      const transformedResults = data ? data.map(transformMovieData).filter(Boolean) : [];
+      console.log(`✅ Movie DB search completed: ${transformedResults.length} results`);
+      return transformedResults;
+    } else {
+      const { data, error } = await queryBuilder;
+      
+      if (error) {
+        console.error('❌ Movie DB search error:', error);
+        return [];
+      }
+
+      const transformedResults = data ? data.map(transformMovieData).filter(Boolean) : [];
+      console.log(`✅ Movie DB search completed: ${transformedResults.length} results`);
+      return transformedResults;
+    }
   } catch (error) {
-    console.error('DB search failed:', error);
+    if (error.message === 'Search aborted') {
+      throw error; // Re-throw abort errors
+    }
+    console.error('❌ Movie DB search failed:', error);
     return [];
   }
 };

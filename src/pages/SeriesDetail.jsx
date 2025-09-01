@@ -2,21 +2,19 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   X, Download, Star, Heart, ChevronLeft, ChevronRight, Calendar, 
   Clock, Globe, Bookmark, Share2, Info, Play, ChevronDown, 
-  Package, Archive, Image, Tv, Eye, Users, Award, HardDrive 
+  Package, Archive, Tv, Eye, Users, Award, HardDrive 
 } from 'lucide-react';
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
 
 const SeriesDetail = ({ series, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [activeScreenshot, setActiveScreenshot] = useState(0);
   const [activeTab, setActiveTab] = useState('episodes');
   const [expandGenres, setExpandGenres] = useState(false);
   const [activeSeason, setActiveSeason] = useState(null);
   const [seasonEpisodes, setSeasonEpisodes] = useState([]);
   const [availableSeasons, setAvailableSeasons] = useState([]);
   const [showSeasonDropdown, setShowSeasonDropdown] = useState(false);
-  const [screenshots, setScreenshots] = useState([]);
   const [isLoadingSeasons, setIsLoadingSeasons] = useState(true);
   const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
   const [seriesData, setSeriesData] = useState(null);
@@ -58,8 +56,8 @@ const SeriesDetail = ({ series, onClose }) => {
     e.target.onerror = null;
   };
   
-  // SINGLE DOWNLOAD BUTTON WITH QUALITY SELECTOR - Like in the image
-  const EpisodeDownloadSelector = ({ episode, onDownload, isDownloading }) => {
+  // Enhanced Episode Download Selector with file type information
+  const EpisodeDownloadSelector = ({ episode, onDownload, isDownloading, seriesData }) => {
     const episodeId = episode.id || episode.episodeNumber;
     const selectedQuality = episodeQualities[episodeId] || '';
     
@@ -94,37 +92,140 @@ const SeriesDetail = ({ series, onClose }) => {
       return map[quality] || quality || 'HD';
     };
 
+    // Enhanced format info extraction for series
+    const getFormatInfo = (link, seriesInfo) => {
+      const sources = [
+        link?.description || '', 
+        seriesInfo?.categories || '',
+        episode?.description || ''
+      ].filter(Boolean);
+      
+      // File type patterns
+      const fileTypePatterns = [
+        { pattern: /WEB-DL/i, display: 'WEB-DL' },
+        { pattern: /BluRay|Blu-Ray|BRRIP|BRRip/i, display: 'BluRay' },
+        { pattern: /WEBRip|WEB-Rip/i, display: 'WEBRip' },
+        { pattern: /HDRip|HD-Rip/i, display: 'HDRip' },
+        { pattern: /DVDRip|DVD-Rip/i, display: 'DVDRip' },
+        { pattern: /HDTV|HD-TV/i, display: 'HDTV' }
+      ];
+      
+      for (const source of sources) {
+        for (const { pattern, display } of fileTypePatterns) {
+          if (pattern.test(source)) {
+            return display;
+          }
+        }
+      }
+      
+      return '';
+    };
+
+    // Get audio info
+    const getAudioInfo = (link, seriesInfo) => {
+      const sources = [
+        link?.description || '', 
+        seriesInfo?.categories || '',
+        episode?.description || ''
+      ].filter(Boolean);
+      
+      const audioPatterns = [
+        { pattern: /Dual Audio|Multi Audio/i, display: 'Dual' },
+        { pattern: /Hindi.*English|English.*Hindi/i, display: 'Dual' },
+        { pattern: /10Bit|10-Bit/i, display: '10Bit' }
+      ];
+      
+      for (const source of sources) {
+        for (const { pattern, display } of audioPatterns) {
+          if (pattern.test(source)) {
+            return display;
+          }
+        }
+      }
+      
+      return '';
+    };
+
     return (
-      <div className="flex items-center space-x-2 mt-2">
-        {/* Quality Selector Dropdown - Exactly like in the image */}
+      <div className="space-y-2 mt-2">
+        {/* Enhanced Quality Selector with file type info */}
         <div className="relative">
           <select
             value={selectedQuality}
             onChange={(e) => setSelectedQuality(e.target.value)}
-            className="bg-slate-800 text-white border border-orange-600 rounded px-3 py-1.5 text-sm appearance-none cursor-pointer pr-8 hover:border-orange-500 focus:outline-none focus:border-orange-400 transition-colors"
-            style={{ minWidth: '140px' }}
+            className="w-full bg-slate-800 text-white border border-orange-600 rounded px-3 py-2 text-sm appearance-none cursor-pointer pr-8 hover:border-orange-500 focus:outline-none focus:border-orange-400 transition-colors"
+            style={{ minWidth: '200px' }}
           >
             <option value="" disabled className="bg-slate-800">
-              select quality
+              Select quality & format
             </option>
-            {episode.downloadLinks?.map((link, index) => (
-              <option key={index} value={link.quality} className="bg-slate-800">
-                {getQualityDisplay(link.quality)}
-                {link.size && ` (${link.size})`}
-              </option>
-            ))}
+            {episode.downloadLinks?.map((link, index) => {
+              const formatInfo = getFormatInfo(link, seriesData);
+              const audioInfo = getAudioInfo(link, seriesData);
+              const qualityDisplay = getQualityDisplay(link.quality);
+              
+              let optionText = qualityDisplay;
+              if (link.size) {
+                optionText += ` (${link.size})`;
+              }
+              if (formatInfo) {
+                optionText += ` - ${formatInfo}`;
+              }
+              if (audioInfo) {
+                optionText += ` ${audioInfo}`;
+              }
+              
+              return (
+                <option key={index} value={link.quality} className="bg-slate-800">
+                  {optionText}
+                </option>
+              );
+            })}
           </select>
+          
           {/* Custom dropdown arrow */}
           <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
             <ChevronDown size={16} className="text-gray-400" />
           </div>
         </div>
 
-        {/* Single Download Button - Exactly like in the image */}
+        {/* Enhanced info display for selected quality */}
+        {selectedQuality && (
+          <div className="flex items-center gap-2 text-xs">
+            {(() => {
+              const selectedLink = episode.downloadLinks?.find(link => link.quality === selectedQuality);
+              if (!selectedLink) return null;
+              
+              const formatInfo = getFormatInfo(selectedLink, seriesData);
+              const audioInfo = getAudioInfo(selectedLink, seriesData);
+              
+              return (
+                <>
+                  <span className="text-gray-400">Selected:</span>
+                  {formatInfo && (
+                    <span className="bg-blue-900/30 text-blue-400 px-2 py-0.5 rounded">
+                      {formatInfo}
+                    </span>
+                  )}
+                  {audioInfo && (
+                    <span className="bg-green-900/30 text-green-400 px-2 py-0.5 rounded">
+                      {audioInfo}
+                    </span>
+                  )}
+                  <span className="text-gray-500">
+                    {selectedLink.size || 'Size unknown'}
+                  </span>
+                </>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* Download Button */}
         <button
           onClick={handleDownloadClick}
           disabled={isDownloading || !selectedQuality}
-          className={`px-4 py-1.5 rounded text-sm font-semibold transition-all duration-200 ${
+          className={`w-full px-4 py-2 rounded text-sm font-semibold transition-all duration-200 ${
             isDownloading 
               ? 'bg-gray-600 text-gray-300 cursor-not-allowed' 
               : selectedQuality
@@ -132,7 +233,7 @@ const SeriesDetail = ({ series, onClose }) => {
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
           }`}
         >
-          {isDownloading ? 'Downloading...' : 'Click here'}
+          {isDownloading ? 'Downloading...' : 'Download Selected Quality'}
         </button>
       </div>
     );
@@ -221,26 +322,6 @@ const SeriesDetail = ({ series, onClose }) => {
     fetchSeriesData();
   }, [series]);
 
-  // Screenshot parsing
-  useEffect(() => {
-    const currentSeriesData = seriesData || series;
-    if (!currentSeriesData) return;
-    
-    if (currentSeriesData.featuredImage) {
-      setScreenshots([currentSeriesData.featuredImage]);
-    } else if (currentSeriesData.poster && typeof currentSeriesData.poster === 'string') {
-      const imgRegex = /<img[^>]+src="([^">]+)"/g;
-      const extracted = [];
-      let match;
-      while ((match = imgRegex.exec(currentSeriesData.poster)) !== null) {
-        extracted.push(match[1]);
-      }
-      setScreenshots(extracted);
-    } else {
-      setScreenshots([]);
-    }
-  }, [seriesData, series]);
-
   // Download handler
   const handleDownload = useCallback(async (episode, linkIndex = 0, isPackage = false) => {
     const downloadKey = `${episode?.id || episode?.episodeNumber || 'package'}-${linkIndex}`;
@@ -311,8 +392,7 @@ const SeriesDetail = ({ series, onClose }) => {
   const tabs = [
     { id: 'episodes', label: 'Episodes', icon: Play },
     { id: 'packages', label: 'Season Zips', icon: Package },
-    { id: 'details', label: 'Details', icon: Info },
-    ...(screenshots.length > 0 ? [{ id: 'screenshots', label: 'Gallery', icon: Image }] : [])
+    { id: 'details', label: 'Details', icon: Info }
   ];
 
   return (
@@ -526,6 +606,7 @@ const SeriesDetail = ({ series, onClose }) => {
                                 episode={episode}
                                 onDownload={handleDownload}
                                 isDownloading={downloadingLinks.has(`${episode.id || episode.episodeNumber}-0`)}
+                                seriesData={currentSeriesData}
                               />
                             )}
                           </div>
@@ -686,74 +767,6 @@ const SeriesDetail = ({ series, onClose }) => {
                           </div>
                         ))}
                       </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* SCREENSHOTS TAB - ALSO WITH EXTRA PADDING */}
-                {activeTab === 'screenshots' && screenshots.length > 0 && (
-                  <div className="space-y-3 mb-20"> {/* EXTRA BOTTOM MARGIN */}
-                    <div className="text-center">
-                      <h2 className="text-base font-bold text-white mb-1">Gallery</h2>
-                      <p className="text-gray-400 text-sm">Series screenshots</p>
-                    </div>
-                    
-                    <div className="relative">
-                      <div className="relative rounded-lg overflow-hidden">
-                        <img 
-                          src={screenshots[activeScreenshot]} 
-                          alt={`Screenshot ${activeScreenshot + 1}`} 
-                          className="w-full h-auto object-cover"
-                          onError={handleImageError}
-                        />
-                        
-                        {screenshots.length > 1 && (
-                          <>
-                            <div className="absolute inset-0 flex items-center justify-between px-2 opacity-0 hover:opacity-100 transition-opacity">
-                              <button 
-                                onClick={() => setActiveScreenshot((prev) => (prev - 1 + screenshots.length) % screenshots.length)}
-                                className="w-7 h-7 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/80"
-                              >
-                                <ChevronLeft size={14} />
-                              </button>
-                              
-                              <button 
-                                onClick={() => setActiveScreenshot((prev) => (prev + 1) % screenshots.length)}
-                                className="w-7 h-7 bg-black/60 text-white rounded-full flex items-center justify-center hover:bg-black/80"
-                              >
-                                <ChevronRight size={14} />
-                              </button>
-                            </div>
-                            
-                            <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                              {activeScreenshot + 1} / {screenshots.length}
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Thumbnail Grid */}
-                      {screenshots.length > 1 && (
-                        <div className="flex space-x-1.5 mt-2.5 overflow-x-auto pb-1">
-                          {screenshots.map((screenshot, index) => (
-                            <button
-                              key={index}
-                              onClick={() => setActiveScreenshot(index)}
-                              className={`flex-shrink-0 rounded overflow-hidden transition-all ${
-                                activeScreenshot === index 
-                                  ? 'ring-1 ring-purple-500' 
-                                  : 'opacity-60 hover:opacity-100'
-                              }`}
-                            >
-                              <img 
-                                src={screenshot}
-                                alt={`Thumbnail ${index + 1}`}
-                                className="w-12 h-8 object-cover"
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}

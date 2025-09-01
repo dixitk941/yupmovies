@@ -5,7 +5,6 @@ const MovieDetails = ({ movie, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
-  const [activeScreenshot, setActiveScreenshot] = useState(0);
   const [activeTab, setActiveTab] = useState('details');
   const [scrollPosition, setScrollPosition] = useState(0);
   const [hoveredQuality, setHoveredQuality] = useState(null);
@@ -16,71 +15,97 @@ const MovieDetails = ({ movie, onClose }) => {
   const [downloadingLinks, setDownloadingLinks] = useState(new Set());
   const modalRef = useRef(null);
   const contentRef = useRef(null);
-  const screenshotTimerRef = useRef(null);
   const backdropRef = useRef(null);
   
-  // Keep your original parseDownloadLinks function
+  // Enhanced parseDownloadLinks function to handle your specific data format
   const parseDownloadLinks = useCallback((linksString) => {
     if (!linksString || typeof linksString !== 'string') return [];
     
-    // console.log('Raw links string:', linksString);
+    // Only log in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Raw links string:', linksString);
+    }
     
     try {
       const links = [];
       
-      // Your format: "url,description,sizeurl,description,size..."
-      // Use regex to match the pattern: https://...?download,description,size
-      const linkPattern = /(https:\/\/[^,]+\?download),([^,]+),(\d+(?:\.\d+)?[MG]B)/g;
-      let match;
+      // Your format: "https://...?download,description,sizehttps://...?download,description,size..."
+      // Split by 'https://' to separate individual links, then reconstruct URLs
+      const linkParts = linksString.split('https://').filter(part => part.trim());
       
-      while ((match = linkPattern.exec(linksString)) !== null) {
-        const [, url, description, size] = match;
+      for (const part of linkParts) {
+        if (!part.trim()) continue;
         
-        // console.log('Found match:', { url, description, size });
+        // Reconstruct the full URL
+        const fullPart = 'https://' + part;
         
-        // Extract quality from description
-        let quality = 'HD';
-        const qualityMatch = description.match(/(480p|720p|1080p|4K|2160p)/i);
-        if (qualityMatch) {
-          quality = qualityMatch[1].toUpperCase();
-          if (quality === '2160P') quality = '4K';
-        }
+        // Extract URL, description, and size using regex
+        // Pattern: https://...?download,description,size
+        const match = fullPart.match(/(https:\/\/[^,]+\?download),([^,]+),([^,\s]+(?:MB|GB))/i);
         
-        // Fallback quality detection from size if not found in description
-        if (quality === 'HD') {
-          const sizeMatch = size.match(/(\d+(?:\.\d+)?)([MG]B)/i);
-          if (sizeMatch) {
-            const sizeNum = parseFloat(sizeMatch[1]);
-            const unit = sizeMatch[2].toLowerCase();
-            
-            if (unit === 'gb') {
-              if (sizeNum >= 2.5) quality = '1080P';
-              else if (sizeNum >= 1.2) quality = '720P';
-              else quality = '480P';
-            } else if (unit === 'mb') {
-              if (sizeNum >= 1500) quality = '1080P';
-              else if (sizeNum >= 800) quality = '720P';
-              else quality = '480P';
+        if (match) {
+          let [, url, description, size] = match;
+          
+          // Clean up URL - ensure it has ?download parameter
+          if (!url.includes('?download')) {
+            url += '?download';
+          }
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('🎬 Found match:', { url: url.substring(0, 50) + '...', description, size });
+          }
+          
+          // Extract quality from description with enhanced patterns
+          let quality = 'HD';
+          const qualityMatch = description.match(/(480p|720p|1080p|4K|2160p)/i);
+          if (qualityMatch) {
+            quality = qualityMatch[1].toUpperCase();
+            if (quality === '2160P') quality = '4K';
+          }
+          
+          // Fallback quality detection from size if not found in description
+          if (quality === 'HD') {
+            const sizeMatch = size.match(/(\d+(?:\.\d+)?)([MG]B)/i);
+            if (sizeMatch) {
+              const sizeNum = parseFloat(sizeMatch[1]);
+              const unit = sizeMatch[2].toLowerCase();
+              
+              if (unit === 'gb') {
+                if (sizeNum >= 2.5) quality = '1080P';
+                else if (sizeNum >= 1.2) quality = '720P';
+                else quality = '480P';
+              } else if (unit === 'mb') {
+                if (sizeNum >= 1500) quality = '1080P';
+                else if (sizeNum >= 800) quality = '720P';
+                else quality = '480P';
+              }
             }
           }
+          
+          // Clean up description and size
+          description = description.trim();
+          size = size.trim();
+          
+          links.push({
+            url: url.trim(),
+            quality: quality,
+            size: size,
+            description: description,
+            rawDatabaseDetails: description // Store complete database details
+          });
         }
-        
-        links.push({
-          url: url.trim(),
-          quality: quality,
-          size: size.trim(),
-          description: description.trim()
-        });
       }
       
-      // console.log('Final parsed links:', links);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🎯 Final parsed links:', links.map(l => ({ quality: l.quality, size: l.size, description: l.description })));
+      }
       
-      // Sort by quality
+      // Sort by quality order
       const qualityOrder = { '480P': 1, '720P': 2, '1080P': 3, '4K': 4, 'HD': 2.5 };
       return links.sort((a, b) => (qualityOrder[a.quality] || 5) - (qualityOrder[b.quality] || 5));
       
     } catch (error) {
-      // console.error('Error parsing download links:', error);
+      console.error('Error parsing download links:', error);
       return [];
     }
   }, []);
@@ -91,15 +116,8 @@ const MovieDetails = ({ movie, onClose }) => {
     
     // console.log('Raw movie object:', movie);
     
-    // Extract screenshots from poster if it's an HTML string
+    // Screenshots disabled - no longer extracting screenshots
     let screenshots = [];
-    if (movie.poster && typeof movie.poster === 'string' && movie.poster.includes('<img')) {
-      const imgRegex = /<img[^>]+src="([^">]+)"/g;
-      let match;
-      while ((match = imgRegex.exec(movie.poster)) !== null) {
-        screenshots.push(match[1]);
-      }
-    }
     
     // Parse download links using our new parser
     let downloadLinks = [];
@@ -257,20 +275,6 @@ const MovieDetails = ({ movie, onClose }) => {
     return () => window.removeEventListener('keydown', handleEscKey);
   }, [onClose]);
 
-  // Auto-rotate screenshots
-  useEffect(() => {
-    clearTimeout(screenshotTimerRef.current);
-    
-    if (movieData.screenshots?.length > 1 && 
-        ((isMobile && activeTab === 'screenshots') || !isMobile)) {
-      screenshotTimerRef.current = setTimeout(() => {
-        nextScreenshot();
-      }, 5000);
-    }
-    
-    return () => clearTimeout(screenshotTimerRef.current);
-  }, [activeTab, activeScreenshot, movieData.screenshots, isMobile]);
-
   // Direct download handler - No redirects, direct file download
   const handleDirectDownload = async (linkData, index) => {
     if (!linkData || !linkData.url) {
@@ -345,87 +349,116 @@ const MovieDetails = ({ movie, onClose }) => {
     return 'mp4';
   };
 
-  // IMPROVED: Compact Quality Badge with full details
-  const CompactQualityBadge = ({ quality, size, description, isDownloading, index }) => {
+  // Clean Download Info Display Component - Redesigned
+  const DownloadInfoCard = ({ quality, size, description, isDownloading, index, movieData, rawDatabaseDetails }) => {
     const displayQuality = quality || 'HD';
     const displaySize = size || 'Unknown';
-    const displayDescription = description || '';
+    // Use rawDatabaseDetails instead of description for display
+    const databaseDetails = rawDatabaseDetails || description || '';
     
     const getQualityColor = (qual) => {
       switch (qual) {
-        case '480P': return 'from-yellow-500 to-orange-500 text-white';
-        case '720P': return 'from-blue-500 to-cyan-500 text-white';
-        case '1080P': return 'from-green-500 to-emerald-500 text-white';
-        case '4K': return 'from-purple-500 to-pink-500 text-white';
-        case 'HD': return 'from-blue-500 to-cyan-500 text-white';
-        default: return 'from-gray-500 to-gray-600 text-white';
-      }
-    };
-    
-    const getQualityIcon = (qual) => {
-      switch (qual) {
-        case '4K': return '4K';
-        case '1080P': return 'FHD';
-        case '720P': return 'HD';
-        case '480P': return 'SD';
-        case 'HD': return 'HD';
-        default: return 'HD';
+        case '480P': return 'text-yellow-400';
+        case '720P': return 'text-blue-400';
+        case '1080P': return 'text-green-400';
+        case '4K': return 'text-purple-400';
+        case 'HD': return 'text-blue-400';
+        default: return 'text-gray-400';
       }
     };
 
-    // Clean size display
-    const cleanSize = (sizeStr) => {
-      if (!sizeStr || sizeStr === 'Unknown') return '?';
-      const match = sizeStr.match(/(\d+(?:\.\d+)?)(MB|GB)/i);
-      if (match) {
-        return `${match[1]}${match[2].toUpperCase()}`;
-      }
-      return sizeStr.length <= 8 ? sizeStr : sizeStr.substring(0, 8) + '...';
+    // Parse and extract meaningful info from database details
+    const parseDetailsInfo = (rawDetails) => {
+      if (!rawDetails) return [];
+      
+      const info = [];
+      const text = rawDetails.toUpperCase();
+      
+      // File Type
+      if (/WEB-DL|WEBDL/.test(text)) info.push('WEB-DL');
+      else if (/BLURAY|BLU-RAY|BRRIP/.test(text)) info.push('BluRay');
+      else if (/WEBRIP|WEB-RIP/.test(text)) info.push('WEBRip');
+      else if (/HDRIP|HD-RIP/.test(text)) info.push('HDRip');
+      else if (/DVDRIP|DVD-RIP/.test(text)) info.push('DVDRip');
+      else if (/HDTV|HD-TV/.test(text)) info.push('HDTV');
+      else if (/CAMRIP|CAM-RIP|HDCAM/.test(text)) info.push('CAMRip');
+      
+      // Audio
+      if (/DUAL AUDIO|MULTI AUDIO/.test(text)) info.push('Dual Audio');
+      else if (/HINDI.*ENGLISH|ENGLISH.*HINDI/.test(text)) info.push('Hindi + English');
+      else if (/5\.1|DTS|AC3/.test(text)) info.push('5.1 Surround');
+      else if (/ATMOS/.test(text)) info.push('Dolby Atmos');
+      else if (/HINDI/.test(text)) info.push('Hindi');
+      else if (/ENGLISH/.test(text)) info.push('English');
+      
+      // Video Codec
+      if (/H\.?265|X265|HEVC/.test(text)) info.push('HEVC');
+      else if (/H\.?264|X264|AVC/.test(text)) info.push('H.264');
+      
+      // Special features
+      if (/10BIT|10 BIT/.test(text)) info.push('10-bit');
+      if (/HDR/.test(text)) info.push('HDR');
+      if (/IMAX/.test(text)) info.push('IMAX');
+      if (/60FPS|60 FPS/.test(text)) info.push('60fps');
+      
+      return info.slice(0, 4); // Limit to 4 most important items
     };
 
-    // Extract format info from description
-    const getFormatInfo = (desc) => {
-      if (!desc) return '';
-      const formatMatch = desc.match(/(WEB-DL|BluRay|Blu-Ray|WEBRip|HDRip|DVDRip)/i);
-      return formatMatch ? formatMatch[1].toUpperCase() : '';
-    };
-
-    const formatInfo = getFormatInfo(displayDescription);
+    const parsedInfo = parseDetailsInfo(databaseDetails);
 
     return (
-      <div className="flex items-center justify-between w-full text-left">
-        {/* Quality Badge */}
-        <div className={`bg-gradient-to-r ${getQualityColor(displayQuality)} rounded-md px-2 py-1 text-xs font-bold flex-shrink-0`}>
-          {getQualityIcon(displayQuality)}
-        </div>
-        
-        {/* Details */}
-        <div className="flex-1 ml-3 min-w-0">
-          <div className="flex items-center justify-between">
-            <span className="text-white font-medium text-sm truncate">
-              {displayQuality} Quality
-            </span>
-            <span className="text-gray-300 text-xs font-medium ml-2">
-              {cleanSize(displaySize)}
-            </span>
+      <div className="w-full space-y-3">
+        {/* Database Details Line - Only show if we have actual details */}
+        {databaseDetails && databaseDetails.trim() && databaseDetails !== 'No additional details available' && (
+          <div className="bg-gray-900/30 border-l-2 border-gray-600/50 pl-3 py-2">
+            <div className="text-xs text-gray-400 mb-1">Database Details:</div>
+            <div className="text-xs text-gray-300 font-mono leading-relaxed break-words">
+              {databaseDetails}
+            </div>
           </div>
-          {formatInfo && (
-            <div className="text-xs text-gray-400 mt-0.5">
-              {formatInfo}
-            </div>
-          )}
-        </div>
+        )}
 
-        {/* Download Status/Icon */}
-        <div className="flex-shrink-0 ml-3">
-          {isDownloading ? (
-            <div className="flex items-center text-green-400">
-              <div className="w-3 h-3 border border-green-400 border-t-transparent rounded-full animate-spin mr-1"></div>
-              <span className="text-xs">Starting...</span>
+        {/* Parsed Info Tags */}
+        {parsedInfo.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {parsedInfo.map((info, idx) => (
+              <span 
+                key={idx} 
+                className="inline-block text-xs px-2 py-1 bg-gray-800/60 text-gray-300 rounded border border-gray-700/50"
+              >
+                {info}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Download Button */}
+        <div className="flex items-center justify-between p-3 bg-gradient-to-r from-gray-800/40 to-gray-900/40 rounded-lg border border-gray-700/30 hover:border-red-500/50 transition-all duration-200">
+          {/* Quality and Size */}
+          <div className="flex items-center space-x-3">
+            <div className={`text-sm font-bold ${getQualityColor(displayQuality)}`}>
+              {displayQuality}
             </div>
-          ) : (
-            <Download size={16} className="text-gray-300" />
-          )}
+            <div className="w-px h-4 bg-gray-600"></div>
+            <div className="text-sm text-gray-300">
+              {displaySize}
+            </div>
+          </div>
+
+          {/* Download Action */}
+          <div className="flex items-center space-x-2">
+            {isDownloading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-green-400 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-sm text-green-400">Starting...</span>
+              </>
+            ) : (
+              <>
+                <Download size={16} className="text-gray-400" />
+                <span className="text-sm text-white font-medium">Download</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -491,18 +524,6 @@ const MovieDetails = ({ movie, onClose }) => {
       }, 300);
     }, 4000);
   };
-
-  const nextScreenshot = useCallback(() => {
-    if (movieData.screenshots && movieData.screenshots.length > 0) {
-      setActiveScreenshot((prev) => (prev + 1) % movieData.screenshots.length);
-    }
-  }, [movieData.screenshots]);
-
-  const prevScreenshot = useCallback(() => {
-    if (movieData.screenshots && movieData.screenshots.length > 0) {
-      setActiveScreenshot((prev) => (prev - 1 + movieData.screenshots.length) % movieData.screenshots.length);
-    }
-  }, [movieData.screenshots]);
 
   const handleBookmark = () => {
     setIsBookmarked(!isBookmarked);
@@ -662,41 +683,45 @@ const MovieDetails = ({ movie, onClose }) => {
               </div>
             </div>
 
-            {/* IMPROVED MOBILE DOWNLOAD SECTION */}
+            {/* REDESIGNED MOBILE DOWNLOAD SECTION WITH PROPER SCROLLING */}
             {movieData.downloadLinks && movieData.downloadLinks.length > 0 && (
-              <div className="relative z-20 bg-gradient-to-r from-red-900/40 via-purple-900/30 to-red-900/40 border-y border-red-500/30 py-3 px-4">
-                <div className="flex flex-col gap-3">
-                  <div className="text-sm text-white font-medium flex items-center">
-                    <Download size={16} className="mr-2 text-red-400" />
-                    <span>Download Options ({movieData.downloadLinks.length})</span>
+              <div className="relative z-20 bg-gradient-to-r from-gray-900/60 via-slate-900/40 to-gray-900/60 border-y border-gray-700/50 py-4 px-4">
+                <div className="flex flex-col space-y-4">
+                  <div className="text-sm text-white font-medium flex items-center justify-between">
+                    <div className="flex items-center">
+                      <Download size={16} className="mr-2 text-red-400" />
+                      <span>Download Options ({movieData.downloadLinks.length})</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-gray-400">
+                      <HardDrive size={12} />
+                      <span>Direct</span>
+                    </div>
                   </div>
                   
-                  {/* Compact Download List */}
-                  <div className="space-y-2">
+                  {/* Scrollable Download List */}
+                  <div className="space-y-3 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
                     {movieData.downloadLinks.map((link, index) => (
                       <button
                         key={index}
                         onClick={() => handleDirectDownload(link, index)}
                         disabled={downloadingLinks.has(index)}
-                        className={`w-full p-3 bg-gradient-to-r from-slate-800/80 to-slate-900/80 hover:from-red-600/80 hover:to-purple-600/80 rounded-lg border border-gray-700/50 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${
+                        className={`w-full text-left bg-gradient-to-r from-gray-800/80 to-gray-900/80 hover:from-red-600/20 hover:to-purple-600/20 rounded-lg border border-gray-700/50 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden ${
                           downloadingLinks.has(index) ? 'animate-pulse' : ''
                         }`}
                       >
-                        <CompactQualityBadge 
-                          quality={link.quality} 
-                          size={link.size}
-                          description={link.description}
-                          isDownloading={downloadingLinks.has(index)}
-                          index={index}
-                        />
+                        <div className="p-3">
+                          <DownloadInfoCard 
+                            quality={link.quality} 
+                            size={link.size}
+                            description={link.description}
+                            isDownloading={downloadingLinks.has(index)}
+                            index={index}
+                            movieData={movieData}
+                            rawDatabaseDetails={link.rawDatabaseDetails || link.description}
+                          />
+                        </div>
                       </button>
                     ))}
-                  </div>
-                  
-                  {/* Additional info */}
-                  <div className="flex items-center justify-center gap-2 text-xs text-gray-400 mt-2">
-                    <HardDrive size={12} />
-                    <span>Direct download - No redirects</span>
                   </div>
                 </div>
               </div>
@@ -724,21 +749,6 @@ const MovieDetails = ({ movie, onClose }) => {
                 >
                   Seasons
                   {activeTab === 'seasons' && (
-                    <>
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-red-400"></span>
-                      <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
-                    </>
-                  )}
-                </button>
-              )}
-              
-              {movieData.screenshots && movieData.screenshots.length > 0 && (
-                <button 
-                  className={`flex-1 py-3.5 text-sm font-medium relative overflow-hidden ${activeTab === 'screenshots' ? 'text-red-500' : 'text-gray-400'}`}
-                  onClick={() => setActiveTab('screenshots')}
-                >
-                  Photos
-                  {activeTab === 'screenshots' && (
                     <>
                       <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-red-400"></span>
                       <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
@@ -861,14 +871,14 @@ const MovieDetails = ({ movie, onClose }) => {
                     </div>
                   </div>
 
-                  {/* IMPROVED DESKTOP DOWNLOAD BUTTONS */}
+                  {/* REDESIGNED DESKTOP DOWNLOAD SECTION WITH PROPER SCROLLING */}
                   {movieData.downloadLinks && movieData.downloadLinks.length > 0 && (
-                    <div className="bg-gradient-to-r from-red-900/20 via-purple-900/15 to-red-900/20 border border-red-500/20 rounded-xl p-4">
-                      <div className="flex flex-col gap-3">
+                    <div className="bg-gradient-to-r from-gray-900/30 via-slate-900/20 to-gray-900/30 border border-gray-700/30 rounded-xl p-4">
+                      <div className="flex flex-col space-y-4">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-white font-medium flex items-center">
                             <Download size={16} className="mr-2 text-red-400" />
-                            Download Options
+                            Download Options ({movieData.downloadLinks.length})
                           </span>
                           <div className="flex items-center gap-1 text-xs text-gray-400">
                             <HardDrive size={12} />
@@ -876,23 +886,28 @@ const MovieDetails = ({ movie, onClose }) => {
                           </div>
                         </div>
                         
-                        <div className="space-y-2">
+                        {/* Scrollable Download List */}
+                        <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 pr-2">
                           {movieData.downloadLinks.map((link, index) => (
                             <button
                               key={index}
                               onClick={() => handleDirectDownload(link, index)}
                               disabled={downloadingLinks.has(index)}
-                              className={`w-full p-3 bg-gradient-to-r from-slate-800/60 to-slate-900/60 hover:from-red-600/60 hover:to-purple-600/60 rounded-lg border border-gray-700/40 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed ${
+                              className={`w-full text-left bg-gradient-to-r from-gray-800/40 to-gray-900/40 hover:from-red-600/20 hover:to-purple-600/20 rounded-lg border border-gray-700/40 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden ${
                                 downloadingLinks.has(index) ? 'animate-pulse' : ''
                               }`}
                             >
-                              <CompactQualityBadge 
-                                quality={link.quality} 
-                                size={link.size}
-                                description={link.description}
-                                isDownloading={downloadingLinks.has(index)}
-                                index={index}
-                              />
+                              <div className="p-3">
+                                <DownloadInfoCard 
+                                  quality={link.quality} 
+                                  size={link.size}
+                                  description={link.description}
+                                  isDownloading={downloadingLinks.has(index)}
+                                  index={index}
+                                  movieData={movieData}
+                                  rawDatabaseDetails={link.rawDatabaseDetails || link.description}
+                                />
+                              </div>
                             </button>
                           ))}
                         </div>
@@ -902,11 +917,11 @@ const MovieDetails = ({ movie, onClose }) => {
                 </div>
               </div>
 
-              {/* Scrollable content area with bottom padding */}
-              <div ref={contentRef} className="flex-1 overflow-y-auto">
-                <div className="p-4 md:p-6 pb-20"> {/* Added bottom padding */}
+              {/* Scrollable content area with improved scrolling */}
+              <div ref={contentRef} className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+                <div className="p-4 md:p-6 pb-24 space-y-6"> {/* Added space-y-6 for consistent spacing */}
                   {/* Description */}
-                  <div className="mb-6">
+                  <div>
                     <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
                       <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full mr-2"></span>
                       Synopsis
@@ -918,7 +933,7 @@ const MovieDetails = ({ movie, onClose }) => {
                   
                   {/* Genres */}
                   {movieData.genres && movieData.genres.length > 0 && (
-                    <div className="mb-6">
+                    <div>
                       <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
                         <span className="w-1 h-4 bg-gradient-to-b from-purple-500 to-purple-600 rounded-full mr-2"></span>
                         Genres
@@ -946,7 +961,7 @@ const MovieDetails = ({ movie, onClose }) => {
 
                   {/* Languages */}
                   {movieData.languages && movieData.languages.length > 0 && (
-                    <div className="mb-6">
+                    <div>
                       <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
                         <span className="w-1 h-4 bg-gradient-to-b from-green-500 to-green-600 rounded-full mr-2"></span>
                         Languages
@@ -974,7 +989,7 @@ const MovieDetails = ({ movie, onClose }) => {
 
                   {/* Series seasons */}
                   {movieData.isSeries && movieData.seasons && (
-                    <div className="mb-6">
+                    <div>
                       <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
                         <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full mr-2"></span>
                         Seasons Available
@@ -998,65 +1013,23 @@ const MovieDetails = ({ movie, onClose }) => {
                       </div>
                     </div>
                   )}
-                  
-                  {/* Screenshots */}
-                  {movieData.screenshots && movieData.screenshots.length > 0 && (
-                    <div className="mb-8"> {/* Added extra bottom margin */}
-                      <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                        <span className="w-1 h-4 bg-gradient-to-b from-yellow-500 to-yellow-600 rounded-full mr-2"></span>
-                        Screenshots
-                      </h3>
-                      <div className="relative rounded-lg overflow-hidden shadow-xl">
-                        <img 
-                          src={movieData.screenshots[activeScreenshot]}
-                          alt={`Screenshot ${activeScreenshot + 1}`}
-                          className="w-full h-auto object-cover transition-opacity duration-500"
-                          onError={(e) => {
-                            e.target.src = 'https://via.placeholder.com/800x450/1a1a1a/666?text=Screenshot+Not+Available';
-                          }}
-                        />
-                        
-                        {movieData.screenshots.length > 1 && (
-                          <div className="absolute inset-0 flex items-center justify-between px-3 opacity-0 hover:opacity-100 transition-opacity duration-300">
-                            <button 
-                              className="bg-black/50 backdrop-blur-sm text-white rounded-full p-2 transition-transform duration-300 hover:scale-110"
-                              onClick={prevScreenshot}
-                            >
-                              <ChevronLeft size={20} />
-                            </button>
-                            
-                            <button 
-                              className="bg-black/50 backdrop-blur-sm text-white rounded-full p-2 transition-transform duration-300 hover:scale-110"
-                              onClick={nextScreenshot}
-                            >
-                              <ChevronRight size={20} />
-                            </button>
-                          </div>
-                        )}
-                        
-                        <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-xs px-2.5 py-1 rounded-full">
-                          {activeScreenshot + 1}/{movieData.screenshots.length}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Mobile content based on active tab with bottom padding */}
+        {/* Mobile content based on active tab with improved scrolling */}
         {isMobile && (
           <div 
             ref={contentRef}
-            className="flex-1 overflow-y-auto bg-black"
+            className="flex-1 overflow-y-auto bg-black scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800"
           >
-            <div className="p-4 pb-24"> {/* Added extra bottom padding for mobile */}
+            <div className="p-4 pb-28 space-y-6"> {/* Added space-y-6 for consistent spacing and increased bottom padding */}
               {activeTab === 'details' && (
                 <>
                   {/* Description */}
-                  <div className="mb-6">
+                  <div>
                     <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
                       <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full mr-2"></span>
                       Synopsis
@@ -1068,7 +1041,7 @@ const MovieDetails = ({ movie, onClose }) => {
                   
                   {/* Genres */}
                   {movieData.genres && movieData.genres.length > 0 && (
-                    <div className="mb-6">
+                    <div>
                       <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
                         <span className="w-1 h-4 bg-gradient-to-b from-purple-500 to-purple-600 rounded-full mr-2"></span>
                         Genres
@@ -1088,7 +1061,7 @@ const MovieDetails = ({ movie, onClose }) => {
 
                   {/* Languages */}
                   {movieData.languages && movieData.languages.length > 0 && (
-                    <div className="mb-8"> {/* Added extra bottom margin */}
+                    <div>
                       <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
                         <span className="w-1 h-4 bg-gradient-to-b from-green-500 to-green-600 rounded-full mr-2"></span>
                         Languages
@@ -1109,7 +1082,7 @@ const MovieDetails = ({ movie, onClose }) => {
               )}
 
               {activeTab === 'seasons' && movieData.isSeries && movieData.seasons && (
-                <div className="mb-8"> {/* Added extra bottom margin */}
+                <div>
                   <h3 className="text-lg font-bold text-white mb-4">Available Seasons</h3>
                   <div className="space-y-3">
                     {Object.entries(movieData.seasons)
@@ -1126,64 +1099,6 @@ const MovieDetails = ({ movie, onClose }) => {
                           {seasonValue}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'screenshots' && movieData.screenshots && movieData.screenshots.length > 0 && (
-                <div className="mb-8"> {/* Added extra bottom margin */}
-                  <h3 className="text-lg font-bold text-white mb-4">Screenshots</h3>
-                  <div className="relative rounded-lg overflow-hidden shadow-xl mb-4">
-                    <img 
-                      src={movieData.screenshots[activeScreenshot]}
-                      alt={`Screenshot ${activeScreenshot + 1}`}
-                      className="w-full h-auto object-cover transition-opacity duration-500"
-                      onError={(e) => {
-                        e.target.src = 'https://via.placeholder.com/800x450/1a1a1a/666?text=Screenshot+Not+Available';
-                      }}
-                    />
-                    
-                    {movieData.screenshots.length > 1 && (
-                      <div className="absolute inset-0 flex items-center justify-between px-3">
-                        <button 
-                          className="bg-black/50 backdrop-blur-sm text-white rounded-full p-2 transition-transform duration-300 hover:scale-110"
-                          onClick={prevScreenshot}
-                        >
-                          <ChevronLeft size={20} />
-                        </button>
-                        
-                        <button 
-                          className="bg-black/50 backdrop-blur-sm text-white rounded-full p-2 transition-transform duration-300 hover:scale-110"
-                          onClick={nextScreenshot}
-                        >
-                          <ChevronRight size={20} />
-                        </button>
-                      </div>
-                    )}
-                    
-                    <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur-sm text-xs px-2.5 py-1 rounded-full">
-                      {activeScreenshot + 1}/{movieData.screenshots.length}
-                    </div>
-                  </div>
-                  
-                  {/* Thumbnail grid */}
-                  <div className="grid grid-cols-4 gap-2">
-                    {movieData.screenshots.map((screenshot, index) => (
-                      <button
-                        key={index}
-                        className={`rounded overflow-hidden transition-all duration-200 ${
-                          activeScreenshot === index ? 'ring-2 ring-red-600 scale-105' : 'opacity-60 hover:opacity-100'
-                        }`}
-                        onClick={() => setActiveScreenshot(index)}
-                      >
-                        <img 
-                          src={screenshot}
-                          alt={`Thumbnail ${index + 1}`}
-                          className="w-full h-16 object-cover"
-                          loading="lazy"
-                        />
-                      </button>
                     ))}
                   </div>
                 </div>

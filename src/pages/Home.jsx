@@ -5,10 +5,10 @@ import MovieCard from './MovieCard';
 import MovieDetails from './MovieDetails';
 import SeriesDetail from './SeriesDetail';
 
-// **OPTIMIZED IMPORTS WITH BATCH LOADING**
-import { getAllMovies, searchMovies, getCacheStats as getMovieStats } from '../services/movieService';
-import { getAllSeries, searchSeries, getSeriesCacheStats } from '../services/seriesService';
-import { getAllAnime, searchAnime, getAnimeCacheStats } from '../services/animeService';
+// **OPTIMIZED IMPORTS WITH REAL-TIME DATABASE SEARCH**
+import { getAllMovies, searchMovies, searchMoviesDB, getCacheStats as getMovieStats } from '../services/movieService';
+import { getAllSeries, searchSeries, searchSeriesDB, getSeriesCacheStats } from '../services/seriesService';
+import { getAllAnime, searchAnime, searchAnimeDB, getAnimeCacheStats } from '../services/animeService';
 
 // **NEW IMPORTS FOR OPTIMIZATION**
 import { useDirectDatabaseSearch, useLazyDownloadLinks } from '../hooks/useDirectDatabaseSearch';
@@ -19,96 +19,153 @@ const CONFIG = {
   INITIAL_BATCH_SIZE: 500, // First batch - increased for better UX
   ITEMS_PER_PAGE: 100, // Pagination size
   PRELOAD_IMAGES_COUNT: 20, // Number of images to preload
-  SEARCH_MIN_LENGTH: 3, // Increased to match search hook
+  SEARCH_MIN_LENGTH: 2, // Reduced for better UX - search with 2+ characters
   CACHE_PRELOAD_DELAY: 100
 };
 
-// **OPTIMIZED SEARCH HOOK WITH CACHE-ONLY SEARCH** (Database search disabled to reduce requests)
-const useOptimizedSearch = (searchQuery, contentType) => {
-  // Force cache-only search
-  const [cacheSearchResults, setCacheSearchResults] = useState([]);
-  const [cacheIsSearching, setCacheIsSearching] = useState(false);
+// **REAL-TIME DATABASE SEARCH HOOK** (Activates only on search bar focus)
+const useRealTimeSearch = (searchQuery, contentType, isSearchActive) => {
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [searchHistory, setSearchHistory] = useState([]);
-  const searchError = null; // No database search means no error
+  const [searchError, setSearchError] = useState(null);
+  const searchAbortController = useRef(null);
   
-  // Memoize the search function to prevent recreation
-  const performCacheSearch = useCallback(async (query, type) => {
-    if (!query || query.length < CONFIG.SEARCH_MIN_LENGTH) {
-      setCacheSearchResults([]);
+  // Memoize the database search function
+  const performDatabaseSearch = useCallback(async (query, type) => {
+    if (!query || query.length < CONFIG.SEARCH_MIN_LENGTH || !isSearchActive) {
+      setSearchResults([]);
       return;
     }
     
-    setCacheIsSearching(true);
+    // Cancel previous search if still running
+    if (searchAbortController.current) {
+      searchAbortController.current.abort();
+    }
+    
+    // Create new abort controller for this search
+    searchAbortController.current = new AbortController();
+    
+    setIsSearching(true);
+    setSearchError(null);
+    console.log(`🔍 REAL-TIME SEARCH: "${query}" in ${type} (Database)`);
     
     try {
       let results = [];
+      
       switch (type) {
         case 'movies':
-          results = await searchMovies(query, { limit: 20 });
+          console.log('📽️ Searching movies database...');
+          // Use the DB search function instead of cache search
+          results = await searchMoviesDB(query, { 
+            limit: 30,
+            signal: searchAbortController.current.signal 
+          });
           break;
         case 'series':
-          results = await searchSeries(query, { limit: 20 });
+          console.log('📺 Searching series database...');
+          results = await searchSeriesDB(query, { 
+            limit: 30,
+            signal: searchAbortController.current.signal 
+          });
           break;
         case 'anime':
-          results = await searchAnime(query, { limit: 20 });
+          console.log('🌟 Searching anime database...');
+          results = await searchAnimeDB(query, { 
+            limit: 30,
+            signal: searchAbortController.current.signal 
+          });
           break;
         default:
+          console.warn(`❓ Unknown content type: ${type}`);
           results = [];
       }
-      setCacheSearchResults(results);
+      
+      console.log(`✅ REAL-TIME SEARCH: found ${results.length} results for "${query}"`);
+      setSearchResults(results);
+      setSearchError(null);
+      
     } catch (error) {
-      console.error('Cache search failed:', error);
-      setCacheSearchResults([]);
+      if (error.name === 'AbortError') {
+        console.log('🔄 Search aborted - new search started');
+        return;
+      }
+      console.error('❌ Database search failed:', error);
+      setSearchError(error.message || 'Search failed');
+      setSearchResults([]);
     } finally {
-      setCacheIsSearching(false);
+      setIsSearching(false);
     }
-  }, []); // Empty dependencies since we're passing params
+  }, [isSearchActive]); // Include isSearchActive in dependencies
   
-  // Debounced search effect
+  // Debounced search effect - only when search is active
   useEffect(() => {
+    if (!isSearchActive) {
+      setSearchResults([]);
+      setSearchError(null);
+      return;
+    }
+    
     if (!searchQuery || searchQuery.length < CONFIG.SEARCH_MIN_LENGTH) {
-      setCacheSearchResults([]);
+      setSearchResults([]);
+      setSearchError(null);
       return;
     }
 
     const debounceTimeout = setTimeout(() => {
-      performCacheSearch(searchQuery, contentType);
-    }, 500);
+      console.log(`🔍 Triggering real-time search for "${searchQuery}" in ${contentType}`);
+      performDatabaseSearch(searchQuery, contentType);
+    }, 300); // Faster response for real-time feel
     
-    return () => clearTimeout(debounceTimeout);
-  }, [searchQuery, contentType, performCacheSearch]);
+    return () => {
+      clearTimeout(debounceTimeout);
+      // Cancel search when component unmounts or query changes
+      if (searchAbortController.current) {
+        searchAbortController.current.abort();
+      }
+    };
+  }, [searchQuery, contentType, performDatabaseSearch, isSearchActive]);
   
   // Generate suggestions from recent search results
   const suggestions = useMemo(() => {
-    if (!cacheSearchResults || cacheSearchResults.length === 0 || !searchQuery) return [];
+    if (!searchResults || searchResults.length === 0 || !searchQuery) return [];
     
-    return cacheSearchResults
+    return searchResults
       .slice(0, 5)
       .map(item => item?.title)
       .filter(title => title && title.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [cacheSearchResults, searchQuery]);
+  }, [searchResults, searchQuery]);
 
   // Update search history only when we have successful results
   useEffect(() => {
-    if (searchQuery && searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH && cacheSearchResults.length > 0) {
+    if (searchQuery && searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH && searchResults.length > 0) {
       setSearchHistory(prev => {
         const filtered = prev.filter(h => h !== searchQuery);
         return [searchQuery, ...filtered].slice(0, 10);
       });
     }
-  }, [searchQuery, cacheSearchResults.length]);
+  }, [searchQuery, searchResults.length]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (searchAbortController.current) {
+        searchAbortController.current.abort();
+      }
+    };
+  }, []);
 
   return { 
-    searchResults: cacheSearchResults, 
-    isSearching: cacheIsSearching, 
+    searchResults, 
+    isSearching, 
     suggestions, 
     searchHistory,
     searchError
   };
 };
 
-// **OPTIMIZED SEARCH BAR WITH PERFORMANCE IMPROVEMENTS**
-const OptimizedSearchBar = memo(({ 
+// **REAL-TIME SEARCH BAR WITH CLICK-TO-ACTIVATE** 
+const RealTimeSearchBar = memo(({ 
   searchQuery, 
   onSearchChange, 
   contentType, 
@@ -117,16 +174,16 @@ const OptimizedSearchBar = memo(({
   suggestions = [],
   searchHistory = [],
   onResultSelect,
-  searchError = null
+  searchError = null,
+  isSearchActive = false,
+  onSearchActivate,
+  onSearchDeactivate
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [activeTab, setActiveTab] = useState('results');
   const searchRef = useRef(null);
   const dropdownRef = useRef(null);
-
-  // Lazy download links hook (DISABLED to reduce requests)
-  // const { fetchDownloadLinks } = useLazyDownloadLinks();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -138,16 +195,18 @@ const OptimizedSearchBar = memo(({
       ) {
         setShowDropdown(false);
         setIsFocused(false);
+        // Deactivate search when clicking outside
+        onSearchDeactivate?.();
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [onSearchDeactivate]);
 
   useEffect(() => {
-    setShowDropdown(isFocused && (searchResults.length > 0 || isSearching || searchQuery.length >= 1));
-  }, [isFocused, searchResults.length, isSearching, searchQuery]);
+    setShowDropdown(isFocused && isSearchActive && (searchResults.length > 0 || isSearching || searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH));
+  }, [isFocused, searchResults.length, isSearching, searchQuery, isSearchActive]);
 
   const handleInputChange = (e) => {
     const value = e.target.value;
@@ -155,15 +214,17 @@ const OptimizedSearchBar = memo(({
     setActiveTab('results');
   };
 
+  const handleFocus = () => {
+    setIsFocused(true);
+    // Activate search when clicking/focusing on search bar
+    onSearchActivate?.();
+  };
+
   const handleResultClick = async (result) => {
-    // Don't preload download links automatically - only when user actually opens details
-    // if (result.id) {
-    //   fetchDownloadLinks(result.id, contentType).catch(console.error);
-    // }
-    
     onResultSelect(result);
     setShowDropdown(false);
     setIsFocused(false);
+    // Keep search active after selecting a result
   };
 
   const highlightMatch = (text, query) => {
@@ -181,34 +242,35 @@ const OptimizedSearchBar = memo(({
     );
   };
 
-  const getResultTypeIcon = (result) => {
-    if (result.isAnime) return '🌟';
-    if (result.isSeries) return '📺';
-    return '🎬';
-  };
-
   return (
     <div className="relative" ref={searchRef}>
       <div className="relative">
         <input
           type="text"
-          placeholder={`Search ${contentType}... (Cache-only search)`}
+          placeholder={isSearchActive ? `🔴 Live searching ${contentType}...` : `Click to search ${contentType}...`}
           className={`transition-all duration-300 bg-black/60 border rounded-lg px-12 py-3 text-sm focus:outline-none ${
             isFocused 
-              ? `border-${searchError ? 'orange' : 'red'}-500 bg-black/80 w-72 md:w-96 shadow-xl`
+              ? `border-${searchError ? 'orange' : isSearchActive ? 'green' : 'red'}-500 bg-black/80 w-72 md:w-96 shadow-xl`
               : 'border-gray-600 hover:border-gray-400 w-48 md:w-64'
           }`}
           value={searchQuery}
           onChange={handleInputChange}
-          onFocus={() => setIsFocused(true)}
+          onFocus={handleFocus}
         />
         <Search className={`absolute left-4 top-3.5 transition-colors ${
-          isFocused ? (searchError ? 'text-orange-400' : 'text-red-400') : 'text-gray-400'
+          isFocused ? (searchError ? 'text-orange-400' : isSearchActive ? 'text-green-400' : 'text-red-400') : 'text-gray-400'
         }`} size={16} />
+        
+        {/* Search status indicator */}
+        {isSearchActive && (
+          <div className="absolute right-12 top-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" title="Real-time search active"></div>
+          </div>
+        )}
         
         {isSearching && (
           <div className="absolute right-12 top-3.5">
-            <div className={`w-4 h-4 border-2 border-${searchError ? 'orange' : 'red'}-500 border-t-transparent rounded-full animate-spin`}></div>
+            <div className={`w-4 h-4 border-2 border-${searchError ? 'orange' : 'green'}-500 border-t-transparent rounded-full animate-spin`}></div>
           </div>
         )}
         
@@ -223,23 +285,36 @@ const OptimizedSearchBar = memo(({
             <X size={16} />
           </button>
         )}
+        
+        {/* Search deactivate button */}
+        {isSearchActive && (
+          <button
+            onClick={() => {
+              onSearchDeactivate?.();
+              setShowDropdown(false);
+            }}
+            className="absolute right-16 top-2 text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded"
+            title="Stop real-time search"
+          >
+            Stop
+          </button>
+        )}
       </div>
 
-      {/* Enhanced Search Dropdown with Error Handling */}
+      {/* Enhanced Search Dropdown */}
       {showDropdown && (
         <div 
           ref={dropdownRef}
           className="absolute top-full left-0 right-0 mt-2 bg-black/95 backdrop-blur-xl border border-gray-700 rounded-xl shadow-2xl max-h-[500px] overflow-hidden z-50"
         >
-          {/* Error Banner */}
-          {searchError && (
-            <div className="bg-orange-900/50 border-b border-orange-700 p-3">
-              <div className="flex items-center text-orange-300 text-sm">
-                <span className="mr-2">⚠️</span>
-                Database search failed. Using cached results.
-              </div>
+          {/* Status Banner */}
+          <div className={`${isSearchActive ? 'bg-green-900/50 border-green-700' : 'bg-gray-900/50 border-gray-700'} border-b p-3`}>
+            <div className={`flex items-center ${isSearchActive ? 'text-green-300' : 'text-gray-300'} text-sm`}>
+              <span className="mr-2">{isSearchActive ? '🔴' : '⚪'}</span>
+              {isSearchActive ? 'Real-time database search active' : 'Click search bar to activate live search'}
+              {searchError && <span className="ml-2 text-orange-400">⚠️ {searchError}</span>}
             </div>
-          )}
+          </div>
 
           {/* Tab Navigation */}
           <div className="flex border-b border-gray-700">
@@ -247,7 +322,7 @@ const OptimizedSearchBar = memo(({
               onClick={() => setActiveTab('results')}
               className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                 activeTab === 'results' 
-                  ? 'text-red-400 border-b-2 border-red-400 bg-gray-800/50' 
+                  ? `text-${isSearchActive ? 'green' : 'red'}-400 border-b-2 border-${isSearchActive ? 'green' : 'red'}-400 bg-gray-800/50`
                   : 'text-gray-400 hover:text-white'
               }`}
             >
@@ -258,7 +333,7 @@ const OptimizedSearchBar = memo(({
                 onClick={() => setActiveTab('suggestions')}
                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                   activeTab === 'suggestions' 
-                    ? 'text-red-400 border-b-2 border-red-400 bg-gray-800/50' 
+                    ? `text-${isSearchActive ? 'green' : 'red'}-400 border-b-2 border-${isSearchActive ? 'green' : 'red'}-400 bg-gray-800/50`
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
@@ -270,7 +345,7 @@ const OptimizedSearchBar = memo(({
                 onClick={() => setActiveTab('history')}
                 className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                   activeTab === 'history' 
-                    ? 'text-red-400 border-b-2 border-red-400 bg-gray-800/50' 
+                    ? `text-${isSearchActive ? 'green' : 'red'}-400 border-b-2 border-${isSearchActive ? 'green' : 'red'}-400 bg-gray-800/50`
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
@@ -285,16 +360,17 @@ const OptimizedSearchBar = memo(({
               <>
                 {isSearching ? (
                   <div className="p-6 text-center text-gray-400">
-                    <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                    <p>Searching {contentType}...</p>
+                    <div className="w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                    <p>Searching {contentType} database...</p>
+                    <p className="text-xs text-gray-500 mt-1">Real-time results</p>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <div className="p-2">
                     <div className="text-xs text-gray-500 px-3 py-2">
-                      Found {searchResults.length} results {searchError ? '(from cache)' : '(live)'}
+                      Found {searchResults.length} results (database)
                     </div>
                     <div className="grid grid-cols-1 gap-1">
-                      {searchResults.slice(0, 6).map((result, index) => (
+                      {searchResults.slice(0, 8).map((result, index) => (
                         <button
                           key={result.id || index}
                           onClick={() => handleResultClick(result)}
@@ -322,8 +398,8 @@ const OptimizedSearchBar = memo(({
                                   ⭐ {result.content.rating}
                                 </div>
                               )}
-                              <div className="text-xs text-gray-500">
-                                Click for details
+                              <div className="text-xs text-green-500">
+                                🔴 Live result
                               </div>
                             </div>
                           </div>
@@ -332,13 +408,47 @@ const OptimizedSearchBar = memo(({
                       ))}
                     </div>
                   </div>
-                ) : searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH ? (
+                ) : isSearchActive && searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH ? (
                   <div className="p-6 text-center text-gray-400">
                     <div className="text-3xl mb-3">🔍</div>
                     <p className="font-medium">No results found</p>
                     <p className="text-sm text-gray-500 mt-1">
-                      Try different keywords or check spelling
+                      No {contentType} found for "{searchQuery}"
+                      {searchError && " (database error)"}
                     </p>
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs text-gray-600">Try these popular searches:</p>
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        <button
+                          onClick={() => onSearchChange('avatar')}
+                          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                        >
+                          avatar
+                        </button>
+                        <button
+                          onClick={() => onSearchChange('action')}
+                          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                        >
+                          action
+                        </button>
+                        <button
+                          onClick={() => onSearchChange('comedy')}
+                          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+                        >
+                          comedy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : !isSearchActive ? (
+                  <div className="p-6 text-center text-gray-500">
+                    <div className="text-3xl mb-3">👆</div>
+                    <p className="font-medium">Click the search bar to activate real-time search</p>
+                    <p className="text-sm mt-1">Search will query the database directly for live results</p>
+                  </div>
+                ) : searchQuery.length > 0 ? (
+                  <div className="p-4 text-center text-gray-500">
+                    <p className="text-sm">Type at least {CONFIG.SEARCH_MIN_LENGTH} characters to search</p>
                   </div>
                 ) : null}
               </>
@@ -388,7 +498,7 @@ const OptimizedSearchBar = memo(({
     </div>
   );
 });
-OptimizedSearchBar.displayName = 'OptimizedSearchBar';
+RealTimeSearchBar.displayName = 'RealTimeSearchBar';
 
 // Memoized sub-components for better performance with optimized images
 const MovieSkeleton = memo(() => (
@@ -500,7 +610,7 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {items.map((content, idx) => (
-          <div key={content.id || idx} className="flex-shrink-0">
+          <div key={content.id || `${content.title}-${idx}`} className="flex-shrink-0">
             <MovieCard
               movie={content}
               onClick={onContentSelect}
@@ -589,6 +699,7 @@ BottomBar.displayName = 'BottomBar';
 function Home() {
   const [contentType, setContentType] = useState('movies');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchActive, setIsSearchActive] = useState(false); // New state for search activation
   
   // **OPTIMIZED BATCH LOADING STATE**
   const [allMovies, setAllMovies] = useState([]);
@@ -624,14 +735,14 @@ function Home() {
     anime: false
   });
 
-  // **OPTIMIZED SEARCH WITH DIRECT DATABASE CONNECTION**
+  // **REAL-TIME SEARCH WITH ACTIVATION CONTROL**
   const { 
     searchResults, 
     isSearching, 
     suggestions, 
     searchHistory,
     searchError
-  } = useOptimizedSearch(searchQuery, contentType);
+  } = useRealTimeSearch(searchQuery, contentType, isSearchActive);
 
   // **OPTIMIZED PAGINATION**
   const MOVIES_PER_PAGE = CONFIG.ITEMS_PER_PAGE;
@@ -867,13 +978,30 @@ function Home() {
     return false;
   };
 
-  const handleContentSelect = (content) => {
+  const handleContentSelect = useCallback((content) => {
     setSelectedMovie(content);
-  };
+  }, []);
 
   const handleSearchChange = useCallback((value) => {
     setSearchQuery(value);
     setCurrentPage(1);
+    // Keep search active if user is typing
+    if (value && value.length >= CONFIG.SEARCH_MIN_LENGTH) {
+      setIsSearchActive(true);
+    }
+  }, []);
+
+  // Search activation handlers
+  const handleSearchActivate = useCallback(() => {
+    console.log('🔴 Real-time search ACTIVATED');
+    setIsSearchActive(true);
+  }, []);
+
+  const handleSearchDeactivate = useCallback(() => {
+    console.log('⚪ Real-time search DEACTIVATED');
+    setIsSearchActive(false);
+    // Optionally clear search results when deactivating
+    // setSearchQuery('');
   }, []);
 
   const handleContentTypeChange = (newType) => {
@@ -881,6 +1009,8 @@ function Home() {
     
     setContentType(newType);
     setSearchQuery(''); // Clear search when switching types
+    setIsSearchActive(false); // Deactivate search when switching content types
+    console.log(`📱 Content type changed to ${newType}, search deactivated`);
   };
 
   // Get current content and loading state - memoized to prevent recreation
@@ -1056,7 +1186,7 @@ function Home() {
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-2 md:gap-4 mb-8">
           {paginatedContent.map((content, idx) => (
             <MovieCard
-              key={content.id || idx}
+              key={content.id || `${content.title}-${startIndex + idx}`}
               movie={content}
               onClick={handleContentSelect}
               index={startIndex + idx}
@@ -1233,9 +1363,128 @@ function Home() {
   
   const groupedContent = getGroupedContent;
 
+  // Memoize the main content to prevent re-renders when selectedMovie changes
+  const MainContent = useMemo(() => (
+    <>
+      {/* HERO SECTION with optimized image */}
+      {!searchQuery && !isCurrentLoading && groupedContent[0]?.items[0] && (
+        <div className="relative h-[40vh] md:h-[50vh] mb-8 overflow-hidden">
+          <SimpleOptimizedImage
+            src={groupedContent[0].items[0].featuredImage || groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image}
+            alt={groupedContent[0].items[0].title}
+            className="w-full h-full object-cover"
+            lazy={false} // Hero image should load immediately
+            placeholder={false}
+            onError={(e) => {
+              e.target.style.display = 'none';
+            }}
+          />
+          
+          <div className="absolute inset-0 bg-gradient-to-r from-black via-black/50 to-transparent"></div>
+          <div className="absolute bottom-0 left-0 p-8 md:p-12 max-w-2xl">
+            <h1 className="text-2xl md:text-4xl font-bold mb-4 text-white">
+              {groupedContent[0].items[0].title?.replace(/\(\d{4}\)/, '').trim()}
+            </h1>
+            <p className="text-md md:text-lg text-gray-300 mb-6 line-clamp-3">
+              {groupedContent[0].items[0].content?.description || groupedContent[0].items[0].excerpt || "Discover amazing content and enjoy unlimited streaming."}
+            </p>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => handleContentSelect(groupedContent[0].items[0])}
+                className="flex items-center space-x-2 bg-white text-black px-6 py-3 rounded hover:bg-gray-200 transition-colors"
+              >
+                <Play size={20} fill="currentColor" />
+                <span className="font-medium">Play</span>
+              </button>
+              <button
+                onClick={() => handleContentSelect(groupedContent[0].items[0])}
+                className="flex items-center space-x-2 bg-gray-600/70 text-white px-6 py-3 rounded hover:bg-gray-600 transition-colors"
+              >
+                <span className="font-medium">More Info</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONTENT SECTIONS with performance indicators */}
+      <div>
+        {isCurrentLoading ? (
+          <TabLoadingState 
+            contentType={contentType} 
+            cacheStats={cacheStats[contentType] ? { [contentType]: cacheStats[contentType] } : null} 
+          />
+        ) : (
+          <>
+            {groupedContent.length > 0 && groupedContent.map((section, index) => (
+              <ScrollableRow
+                key={`${contentType}-${section.title}-${index}`}
+                title={section.title}
+                items={section.items}
+                showNumbers={section.showNumbers}
+                onContentSelect={handleContentSelect}
+              />
+            ))}
+
+            {!searchQuery && <AllContentSection />}
+
+            {/* Enhanced No Results State */}
+            {searchQuery && groupedContent.length === 0 && !isSearching && (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="text-6xl mb-4">🔍</div>
+                <p className="text-gray-400 text-center mb-2">No results found</p>
+                <p className="text-gray-500 text-sm text-center max-w-md">
+                  We couldn't find any {contentType} matching "{searchQuery}".
+                  {searchError && " Database search failed, using cached results."}
+                </p>
+                <div className="flex gap-3 mt-4">
+                  <button
+                    className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    Clear Search
+                  </button>
+                  {searchError && (
+                    <div className="px-4 py-2 bg-orange-900/50 text-orange-300 rounded text-sm">
+                      ⚠️ Using cached data
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Enhanced Empty State */}
+            {groupedContent.length === 0 && currentContent.length === 0 && !searchQuery && (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="text-6xl mb-4">😕</div>
+                <p className="text-gray-400 text-center mb-2">No content available</p>
+                <p className="text-gray-500 text-sm text-center max-w-md">
+                  We couldn't find any {contentType} to display.
+                </p>
+                <div className="mt-4 text-xs text-gray-600">
+                  Cache Status: {cacheStats[contentType] || 0} items cached
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
+  ), [
+    searchQuery,
+    isCurrentLoading, 
+    groupedContent,
+    contentType,
+    cacheStats,
+    isSearching,
+    searchError,
+    currentContent,
+    handleContentSelect
+  ]);
+
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* ENHANCED HEADER WITH AWESOME SEARCH */}
+      {/* ENHANCED HEADER WITH REAL-TIME DATABASE SEARCH */}
       <header 
         ref={headerRef} 
         className="fixed top-0 w-full bg-black bg-opacity-0 z-50 transition-all duration-300 transform"
@@ -1286,7 +1535,7 @@ function Home() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <OptimizedSearchBar
+            <RealTimeSearchBar
               searchQuery={searchQuery}
               onSearchChange={handleSearchChange}
               contentType={contentType}
@@ -1296,116 +1545,58 @@ function Home() {
               searchHistory={searchHistory}
               onResultSelect={handleContentSelect}
               searchError={searchError}
+              isSearchActive={isSearchActive}
+              onSearchActivate={handleSearchActivate}
+              onSearchDeactivate={handleSearchDeactivate}
             />
+            
+            {/* Search Status Indicator */}
+            {isSearchActive && (
+              <div className="hidden md:flex items-center space-x-2 px-3 py-2 bg-green-900/50 rounded-lg border border-green-700">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-green-300 text-sm font-medium">Live Search</span>
+              </div>
+            )}
+            
+            {/* Debug button - remove in production */}
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                onClick={async () => {
+                  console.log('🧪 Testing search functionality...');
+                  console.log('Current content type:', contentType);
+                  console.log('Search query:', searchQuery);
+                  console.log('Search active:', isSearchActive);
+                  
+                  // Test direct search calls
+                  try {
+                    const testQuery = 'avatar'; // A common movie/series name
+                    console.log(`Testing search for "${testQuery}"`);
+                    
+                    const movieResults = await searchMoviesDB(testQuery, { limit: 5 });
+                    console.log('Movie results:', movieResults.length, movieResults.slice(0, 2).map(m => m.title));
+                    
+                    const seriesResults = await searchSeriesDB(testQuery, { limit: 5 });
+                    console.log('Series results:', seriesResults.length, seriesResults.slice(0, 2).map(s => s.title));
+                    
+                    const animeResults = await searchAnimeDB(testQuery, { limit: 5 });
+                    console.log('Anime results:', animeResults.length, animeResults.slice(0, 2).map(a => a.title));
+                  } catch (error) {
+                    console.error('Search test failed:', error);
+                  }
+                }}
+                className="px-3 py-2 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                title="Test Search (Dev Only)"
+              >
+                🧪
+              </button>
+            )}
           </div>
         </div>
       </header>
 
       {/* MAIN CONTENT */}
       <main className="pt-20 pb-20">
-        {/* HERO SECTION with optimized image */}
-        {!searchQuery && !isCurrentLoading && groupedContent[0]?.items[0] && (
-          <div className="relative h-[40vh] md:h-[50vh] mb-8 overflow-hidden">
-            <SimpleOptimizedImage
-              src={groupedContent[0].items[0].featuredImage || groupedContent[0].items[0].featured_image || groupedContent[0].items[0].poster || groupedContent[0].items[0].image}
-              alt={groupedContent[0].items[0].title}
-              className="w-full h-full object-cover"
-              lazy={false} // Hero image should load immediately
-              placeholder={false}
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
-            />
-            
-            <div className="absolute inset-0 bg-gradient-to-r from-black via-black/50 to-transparent"></div>
-            <div className="absolute bottom-0 left-0 p-8 md:p-12 max-w-2xl">
-              <h1 className="text-2xl md:text-4xl font-bold mb-4 text-white">
-                {groupedContent[0].items[0].title?.replace(/\(\d{4}\)/, '').trim()}
-              </h1>
-              <p className="text-md md:text-lg text-gray-300 mb-6 line-clamp-3">
-                {groupedContent[0].items[0].content?.description || groupedContent[0].items[0].excerpt || "Discover amazing content and enjoy unlimited streaming."}
-              </p>
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={() => handleContentSelect(groupedContent[0].items[0])}
-                  className="flex items-center space-x-2 bg-white text-black px-6 py-3 rounded hover:bg-gray-200 transition-colors"
-                >
-                  <Play size={20} fill="currentColor" />
-                  <span className="font-medium">Play</span>
-                </button>
-                <button
-                  onClick={() => handleContentSelect(groupedContent[0].items[0])}
-                  className="flex items-center space-x-2 bg-gray-600/70 text-white px-6 py-3 rounded hover:bg-gray-600 transition-colors"
-                >
-                  <span className="font-medium">More Info</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* CONTENT SECTIONS with performance indicators */}
-        <div>
-          {isCurrentLoading ? (
-            <TabLoadingState 
-              contentType={contentType} 
-              cacheStats={cacheStats[contentType] ? { [contentType]: cacheStats[contentType] } : null} 
-            />
-          ) : (
-            <>
-              {groupedContent.length > 0 && groupedContent.map((section, index) => (
-                <ScrollableRow
-                  key={index}
-                  title={section.title}
-                  items={section.items}
-                  showNumbers={section.showNumbers}
-                  onContentSelect={handleContentSelect}
-                />
-              ))}
-
-              {!searchQuery && <AllContentSection />}
-
-              {/* Enhanced No Results State */}
-              {searchQuery && groupedContent.length === 0 && !isSearching && (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <div className="text-6xl mb-4">🔍</div>
-                  <p className="text-gray-400 text-center mb-2">No results found</p>
-                  <p className="text-gray-500 text-sm text-center max-w-md">
-                    We couldn't find any {contentType} matching "{searchQuery}".
-                    {searchError && " Database search failed, using cached results."}
-                  </p>
-                  <div className="flex gap-3 mt-4">
-                    <button
-                      className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                      onClick={() => setSearchQuery('')}
-                    >
-                      Clear Search
-                    </button>
-                    {searchError && (
-                      <div className="px-4 py-2 bg-orange-900/50 text-orange-300 rounded text-sm">
-                        ⚠️ Using cached data
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Enhanced Empty State */}
-              {groupedContent.length === 0 && currentContent.length === 0 && !searchQuery && (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <div className="text-6xl mb-4">😕</div>
-                  <p className="text-gray-400 text-center mb-2">No content available</p>
-                  <p className="text-gray-500 text-sm text-center max-w-md">
-                    We couldn't find any {contentType} to display.
-                  </p>
-                  <div className="mt-4 text-xs text-gray-600">
-                    Cache Status: {cacheStats[contentType] || 0} items cached
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        {MainContent}
       </main>
 
       {selectedMovie && renderDetailComponent()}

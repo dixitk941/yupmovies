@@ -774,6 +774,89 @@ export const refreshSeries = async () => {
   return await loadAllSeries(true);
 };
 
+// **REAL-TIME DATABASE SEARCH FUNCTION**
+export const searchSeriesDB = async (searchQuery, filters = {}) => {
+  if (!searchQuery || searchQuery.trim().length < 2) return [];
+
+  try {
+    const query = searchQuery.trim();
+    console.log(`🔍 Database search for series: "${query}"`);
+
+    let queryBuilder = supabase
+      .from('series')
+      .select(`
+        record_id,
+        title,
+        url_slug,
+        featured_image,
+        poster,
+        categories,
+        links,
+        content,
+        excerpt,
+        status,
+        date,
+        modified_date,
+        seasons
+      `)
+      .ilike('title', `%${query}%`)
+      .eq('status', 'publish')
+      .order('modified_date', { ascending: false })
+      .limit(filters.limit || 30);
+
+    // Add category/genre filters if provided
+    if (filters.genre) {
+      queryBuilder = queryBuilder.ilike('categories', `%${filters.genre}%`);
+    }
+    if (filters.language) {
+      queryBuilder = queryBuilder.ilike('categories', `%${filters.language}%`);
+    }
+    if (filters.year) {
+      queryBuilder = queryBuilder.eq('release_year', filters.year);
+    }
+
+    // Add abort signal support for cancelling requests
+    if (filters.signal) {
+      const abortPromise = new Promise((_, reject) => {
+        filters.signal.addEventListener('abort', () => {
+          reject(new Error('Search aborted'));
+        });
+      });
+      
+      const searchPromise = queryBuilder;
+      const result = await Promise.race([searchPromise, abortPromise]);
+      
+      const { data, error } = result;
+      
+      if (error) {
+        console.error('❌ Series DB search error:', error);
+        return [];
+      }
+
+      const transformedResults = data ? data.map(transformSeriesData).filter(Boolean) : [];
+      console.log(`✅ Series DB search completed: ${transformedResults.length} results`);
+      return transformedResults;
+    } else {
+      const { data, error } = await queryBuilder;
+      
+      if (error) {
+        console.error('❌ Series DB search error:', error);
+        return [];
+      }
+
+      const transformedResults = data ? data.map(transformSeriesData).filter(Boolean) : [];
+      console.log(`✅ Series DB search completed: ${transformedResults.length} results`);
+      return transformedResults;
+    }
+  } catch (error) {
+    if (error.message === 'Search aborted') {
+      throw error; // Re-throw abort errors
+    }
+    console.error('❌ Series DB search failed:', error);
+    return [];
+  }
+};
+
 // Initialize with session storage check
 setTimeout(() => {
   if (!seriesCache.loadFromSessionStorage() || !seriesCache.isValid()) {
