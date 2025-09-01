@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info, Play, Film, Tv, HardDrive } from 'lucide-react';
+import { X, Download, Star, ThumbsUp, ChevronLeft, ChevronRight, Calendar, Clock, Globe, Bookmark, Share2, Award, Info, Play, Film, Tv, HardDrive, Image } from 'lucide-react';
 import { getMovieDetailsById, getSeriesDetailsById } from '../services/directMovieService';
 import { formatDateString, debugDate } from '../services/utils.js';
 
@@ -10,7 +10,7 @@ const MovieDetails = ({ movie, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
-  const [activeTab, setActiveTab] = useState('details');
+  const [activeTab, setActiveTab] = useState('download');
   const [scrollPosition, setScrollPosition] = useState(0);
   const [hoveredQuality, setHoveredQuality] = useState(null);
   const [expandGenres, setExpandGenres] = useState(false);
@@ -697,12 +697,12 @@ const MovieDetails = ({ movie, onClose }) => {
           </div>
         </div>
 
-        {/* Mobile layout */}
+        {/* Mobile layout - REDESIGNED with better proportions */}
         {isMobile && (
           <>
-            {/* Hero section */}
-            <div className="relative h-[40vh] w-full overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-r from-gray-900 to-gray-800 animate-pulse"></div>
+            {/* Hero section with image - reduced height to allow more room for content */}
+            <div className="relative h-[30vh] w-full overflow-hidden bg-black">
+              <div className="absolute inset-0 bg-gradient-to-r from-black to-gray-900 animate-pulse"></div>
               
               <div ref={backdropRef} className="absolute inset-0 overflow-hidden">
                 <img 
@@ -721,170 +721,351 @@ const MovieDetails = ({ movie, onClose }) => {
               {/* Overlays */}
               <div className="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-black via-black/90 to-transparent"></div>
               <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-black/90 to-transparent"></div>
-              <div className="absolute inset-y-0 left-0 w-40 bg-gradient-to-r from-black/70 to-transparent"></div>
-              <div className="absolute inset-y-0 right-0 w-40 bg-gradient-to-l from-black/70 to-transparent"></div>
               
               {/* Content */}
               <div className="absolute bottom-0 left-0 right-0 p-4">
-                <div className="flex flex-col gap-4">
-                  <div className="flex-1">
-                    {/* Content type and rating */}
-                    <div className="flex items-center gap-2 mb-2.5">
-                      {movieData.isSeries ? (
-                        <div className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-medium backdrop-blur-sm">
-                          <Tv size={12} className="mr-1" /> Series
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium backdrop-blur-sm">
-                          <Film size={12} className="mr-1" /> Movie
-                        </div>
-                      )}
-                      
-                      {movieData.rating && (
-                        <div className="inline-flex items-center px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-xs font-medium backdrop-blur-sm">
-                          <Star size={12} className="mr-1 fill-yellow-400" /> {movieData.rating}
-                        </div>
-                      )}
-                    </div>
+                <div className="flex flex-col gap-2">
+                  {/* Content type and rating */}
+                  <div className="flex items-center gap-2">
+                    {movieData.isSeries ? (
+                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-medium backdrop-blur-sm">
+                        <Tv size={12} className="mr-1" /> Series
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium backdrop-blur-sm">
+                        <Film size={12} className="mr-1" /> Movie
+                      </div>
+                    )}
                     
-                    <h2 id="movie-details-title" className="text-2xl font-bold text-white mb-2 drop-shadow-lg">
-                      {movieData.title}
-                    </h2>
-                    
-                    {/* Metadata */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-gray-300">
-                      {movieData.year && (
-                        <span className="flex items-center">
-                          <Calendar size={14} className="mr-1 text-gray-400" />
-                          {movieData.year}
-                        </span>
-                      )}
-                      {movieData.duration && (
-                        <span className="flex items-center">
-                          <Clock size={14} className="mr-1 text-gray-400" />
-                          {movieData.duration}
-                        </span>
-                      )}
-                      {movieData.languages.length > 0 && (
-                        <span className="flex items-center">
-                          <Globe size={14} className="mr-1 text-gray-400" />
-                          {movieData.languages[0]}
-                        </span>
-                      )}
-                      {/* DATE ADDED DISPLAY - HIGH VISIBILITY */}
-                      {(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date) && (
-                        <span className="flex items-center bg-red-600/90 text-white px-2 py-0.5 rounded shadow-sm">
-                          <Calendar size={12} className="mr-1" />
-                          Added: {formatDateString(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date)}
-                        </span>
-                      )}
-                      {movieData.qualities.length > 0 && (
-                        <span className="text-xs border border-gray-600 px-1 rounded">
-                          {movieData.qualities[0]}
-                        </span>
-                      )}
-                      {/* DATE ADDED DISPLAY - HIGH VISIBILITY (MOBILE) */}
-                      {(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date) && (
-                        <span className="flex items-center bg-red-600/90 text-white px-2 py-0.5 rounded shadow-sm">
-                          <Calendar size={12} className="mr-1" />
-                          Added: {formatDateString(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date)}
-                        </span>
-                      )}
-                    </div>
+                    {movieData.rating && (
+                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-xs font-medium backdrop-blur-sm">
+                        <Star size={12} className="mr-1 fill-yellow-400" /> {movieData.rating}
+                      </div>
+                    )}
                   </div>
+                  
+                  <h2 id="movie-details-title" className="text-2xl font-bold text-white drop-shadow-lg">
+                    {movieData.title}
+                  </h2>
+                  
+                  {/* Basic metadata */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-300">
+                    {movieData.year && (
+                      <span className="flex items-center">
+                        <Calendar size={14} className="mr-1 text-gray-400" />
+                        {movieData.year}
+                      </span>
+                    )}
+                    {movieData.duration && (
+                      <span className="flex items-center">
+                        <Clock size={14} className="mr-1 text-gray-400" />
+                        {movieData.duration}
+                      </span>
+                    )}
+                    {movieData.languages.length > 0 && (
+                      <span className="flex items-center">
+                        <Globe size={14} className="mr-1 text-gray-400" />
+                        {movieData.languages[0]}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Date badge */}
+                  {(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date) && (
+                    <span className="flex items-center bg-red-600 text-white px-2 py-0.5 rounded text-xs shadow-sm self-start">
+                      <Calendar size={10} className="mr-1" />
+                      Added: {formatDateString(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date)}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* REDESIGNED MOBILE DOWNLOAD SECTION WITH PROPER SCROLLING */}
-            {movieData.downloadLinks && movieData.downloadLinks.length > 0 && (
-              <div className="relative z-20 bg-gradient-to-r from-gray-900/60 via-slate-900/40 to-gray-900/60 border-y border-gray-700/50 py-4 px-4">
-                <div className="flex flex-col space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-white font-medium flex items-center">
-                      <Download size={16} className="mr-2 text-red-400" />
-                      <span>Download Options ({movieData.downloadLinks.length})</span>
-                    </span>
-                    <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-800/80 border border-gray-700/50">
-                      <HardDrive size={12} className={directDetails ? "text-green-400" : "text-yellow-400"} />
-                      <span className={directDetails ? "text-green-400" : "text-yellow-400"}>
-                        {directDetails ? 'Live Database' : 'Cached Data'}
-                      </span>
-                    </div>
-                  </div>                  {/* Scrollable Download List */}
-                  <div className="space-y-3 max-h-80 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
-                    {movieData.downloadLinks.map((link, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleDirectDownload(link, index)}
-                        disabled={downloadingLinks.has(index)}
-                        className={`w-full text-left bg-gradient-to-r from-gray-800/80 to-gray-900/80 hover:from-red-600/20 hover:to-purple-600/20 rounded-lg border border-gray-700/50 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden ${
-                          downloadingLinks.has(index) ? 'animate-pulse' : ''
-                        }`}
-                      >
-                        <div className="p-3">
-                          <DownloadInfoCard 
-                            quality={link.quality} 
-                            size={link.size}
-                            description={link.description}
-                            isDownloading={downloadingLinks.has(index)}
-                            index={index}
-                            movieData={movieData}
-                            rawDatabaseDetails={link.rawDatabaseDetails || link.description}
-                          />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Navigation tabs */}
-            <div className="flex items-center justify-around border-b border-gray-800 bg-black/90 backdrop-blur-sm sticky top-0 z-10">
+            {/* Navigation tabs - REDESIGNED */}
+            <div className="flex items-center justify-around bg-black border-b border-gray-800 sticky top-0 z-20">
               <button 
-                className={`flex-1 py-3.5 text-sm font-medium relative overflow-hidden ${activeTab === 'details' ? 'text-red-500' : 'text-gray-400'}`}
-                onClick={() => setActiveTab('details')}
+                className={`flex-1 py-3 text-sm font-medium relative overflow-hidden ${activeTab === 'download' ? 'text-red-500' : 'text-gray-400'}`}
+                onClick={() => setActiveTab('download')}
               >
-                Details
-                {activeTab === 'details' && (
-                  <>
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-red-400"></span>
-                    <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
-                  </>
+                <div className="flex flex-col items-center">
+                  <Download size={16} className={activeTab === 'download' ? 'text-red-500' : 'text-gray-400'} />
+                  <span className="mt-1">Download</span>
+                </div>
+                {activeTab === 'download' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600"></span>
                 )}
               </button>
               
-              {movieData.isSeries && movieData.seasons && (
-                <button 
-                  className={`flex-1 py-3.5 text-sm font-medium relative overflow-hidden ${activeTab === 'seasons' ? 'text-red-500' : 'text-gray-400'}`}
-                  onClick={() => setActiveTab('seasons')}
-                >
-                  Seasons
-                  {activeTab === 'seasons' && (
-                    <>
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-red-400"></span>
-                      <span className="absolute bottom-0 left-0 w-16 h-0.5 bg-white/30 animate-slide-right"></span>
-                    </>
+              <button 
+                className={`flex-1 py-3 text-sm font-medium relative overflow-hidden ${activeTab === 'details' ? 'text-red-500' : 'text-gray-400'}`}
+                onClick={() => setActiveTab('details')}
+              >
+                <div className="flex flex-col items-center">
+                  <Info size={16} className={activeTab === 'details' ? 'text-red-500' : 'text-gray-400'} />
+                  <span className="mt-1">Details</span>
+                </div>
+                {activeTab === 'details' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600"></span>
+                )}
+              </button>
+              
+              <button 
+                className={`flex-1 py-3 text-sm font-medium relative overflow-hidden ${activeTab === 'preview' ? 'text-red-500' : 'text-gray-400'}`}
+                onClick={() => setActiveTab('preview')}
+              >
+                <div className="flex flex-col items-center">
+                  <Image size={16} className={activeTab === 'preview' ? 'text-red-500' : 'text-gray-400'} />
+                  <span className="mt-1">Preview</span>
+                </div>
+                {activeTab === 'preview' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600"></span>
+                )}
+              </button>
+            </div>
+
+            {/* Tab content container with better overflow handling */}
+            <div 
+              ref={contentRef}
+              className="flex-1 overflow-y-auto bg-black scrollbar-thin scrollbar-thumb-red-600 scrollbar-track-black"
+              style={{WebkitOverflowScrolling: 'touch'}}
+            >
+              {/* DOWNLOAD TAB */}
+              {activeTab === 'download' && (
+                <div className="p-4 pb-12">
+                  {/* Live data indicator */}
+                  <div className="flex justify-end mb-3">
+                    <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-black border border-red-700/50">
+                      <HardDrive size={12} className={directDetails ? "text-red-400" : "text-yellow-400"} />
+                      <span className={directDetails ? "text-red-400" : "text-yellow-400"}>
+                        {directDetails ? 'Live Database' : 'Cached Data'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {movieData.downloadLinks && movieData.downloadLinks.length > 0 ? (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-bold text-white mb-2 sticky top-0 bg-black z-10 py-2">
+                        Download Links ({movieData.downloadLinks.length})
+                      </h3>
+                      
+                      {/* Scrollable download links container with smaller fixed height for mobile */}
+                      <div className="h-[45vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-red-600 scrollbar-track-black rounded-lg relative">
+                        {/* Fade indicator at the bottom to hint scrollable content */}
+                        <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black to-transparent pointer-events-none z-10"></div>
+                        {/* Fixed position indicator that shows there's more content */}
+                        <div className="fixed bottom-24 right-4 bg-red-600 text-white p-2 rounded-full shadow-lg shadow-red-600/30 z-20 animate-pulse">
+                          <Download size={16} />
+                        </div>
+                        <div className="space-y-3 pb-12 relative">
+                          {movieData.downloadLinks.length > 2 && (
+                            <div className="absolute top-2 right-2 animate-bounce flex flex-col items-center z-10 opacity-80">
+                              <div className="w-1 h-6 bg-red-500 rounded-full"></div>
+                              <span className="text-xs text-red-500 mt-1">Scroll</span>
+                            </div>
+                          )}
+                          {movieData.downloadLinks.map((link, index) => (
+                            <button
+                              key={index}
+                              onClick={() => handleDirectDownload(link, index)}
+                              disabled={downloadingLinks.has(index)}
+                              className={`w-full text-left bg-black rounded-lg border border-gray-800 hover:border-red-500 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden ${
+                                downloadingLinks.has(index) ? 'animate-pulse' : ''
+                              }`}
+                            >
+                              <div className="p-3">
+                                {/* Database Details Line - More compact for mobile */}
+                                {(link.rawDatabaseDetails || link.description) && (
+                                  <div className="bg-black border-l-2 border-gray-700 pl-2 py-1 mb-2">
+                                    <div className="text-xs text-gray-300 font-mono leading-normal break-words">
+                                      {link.rawDatabaseDetails || link.description}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Quality and Size - More compact for mobile */}
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center space-x-2">
+                                    <div className={`text-sm font-bold ${
+                                      link.quality === '4K' ? 'text-purple-400' :
+                                      link.quality === '1080P' ? 'text-green-400' :
+                                      link.quality === '720P' ? 'text-blue-400' :
+                                      'text-yellow-400'
+                                    }`}>
+                                      {link.quality}
+                                    </div>
+                                    <div className="w-px h-3 bg-gray-700"></div>
+                                    <div className="text-sm text-gray-300">
+                                      {link.size}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Download Button - Larger and more noticeable */}
+                                  <div className="bg-red-600 hover:bg-red-700 rounded-full p-3 transition-colors shadow-lg shadow-red-600/20">
+                                    {downloadingLinks.has(index) ? (
+                                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                      <Download size={20} className="text-white" />
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                {/* File info tags - More compact for mobile */}
+                                {link.rawDatabaseDetails && (
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {link.rawDatabaseDetails.includes('WEB-DL') && (
+                                      <span className="inline-block text-[10px] px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded border border-gray-700">
+                                        WEB-DL
+                                      </span>
+                                    )}
+                                    {link.rawDatabaseDetails.includes('HEVC') && (
+                                      <span className="inline-block text-[10px] px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded border border-gray-700">
+                                        HEVC
+                                      </span>
+                                    )}
+                                    {link.rawDatabaseDetails.includes('Dual Audio') && (
+                                      <span className="inline-block text-[10px] px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded border border-gray-700">
+                                        Dual Audio
+                                      </span>
+                                    )}
+                                    {link.rawDatabaseDetails.includes('ESub') && (
+                                      <span className="inline-block text-[10px] px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded border border-gray-700">
+                                        Subtitles
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-10 text-center">
+                      <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mb-4">
+                        <Download size={32} className="text-gray-400" />
+                      </div>
+                      <p className="text-gray-400 mb-2">No download links available</p>
+                      <p className="text-xs text-gray-500">Check back later for updates</p>
+                    </div>
                   )}
-                </button>
+                </div>
+              )}
+              
+              {/* DETAILS TAB */}
+              {activeTab === 'details' && (
+                <div className="p-4 pb-20 space-y-6">
+                  {/* Description */}
+                  <div>
+                    <h3 className="text-lg font-bold text-white mb-3">
+                      Synopsis
+                    </h3>
+                    <p className="text-gray-300 text-sm leading-relaxed">
+                      {movieData.description}
+                    </p>
+                  </div>
+                  
+                  {/* Genres */}
+                  {movieData.genres && movieData.genres.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-bold text-white mb-3">
+                        Genres
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {movieData.genres.map((genre, idx) => (
+                          <span 
+                            key={idx}
+                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-black text-white border border-gray-700"
+                          >
+                            {genre}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Languages */}
+                  {movieData.languages && movieData.languages.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-bold text-white mb-3">
+                        Languages
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {movieData.languages.map((language, idx) => (
+                          <span 
+                            key={idx}
+                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-black text-white border border-gray-700"
+                          >
+                            {language}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Series seasons */}
+                  {movieData.isSeries && movieData.seasons && (
+                    <div>
+                      <h3 className="text-lg font-bold text-white mb-3">
+                        Seasons Available
+                      </h3>
+                      <div className="space-y-3">
+                        {Object.entries(movieData.seasons)
+                          .filter(([key, value]) => value && value.trim() !== '')
+                          .map(([seasonKey, seasonValue], idx) => (
+                          <div 
+                            key={idx}
+                            className="bg-black border border-gray-800 rounded-lg p-4"
+                          >
+                            <div className="text-white text-sm font-bold mb-2">
+                              {seasonKey.replace('_', ' ').toUpperCase()}
+                            </div>
+                            <div className="text-gray-400 text-sm">
+                              {seasonValue}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
+              {/* PREVIEW TAB */}
+              {activeTab === 'preview' && (
+                <div className="flex flex-col items-center justify-center p-10 h-[50vh] text-center">
+                  <div className="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center mb-4">
+                    <Image size={40} className="text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">Coming Soon</h3>
+                  <p className="text-gray-400 mb-6">Screenshots will be available soon</p>
+                  
+                  <div className="w-full max-w-md p-6 bg-black border border-gray-800 rounded-lg">
+                    <div className="flex items-center mb-4">
+                      <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse mr-2"></div>
+                      <p className="text-gray-300 text-sm">Preview feature under development</p>
+                    </div>
+                    <div className="h-2 bg-gray-800 rounded-full w-full mb-2.5"></div>
+                    <div className="h-2 bg-gray-800 rounded-full w-3/4"></div>
+                  </div>
+                </div>
               )}
             </div>
           </>
         )}
 
-        {/* Desktop layout */}
+        {/* Desktop layout - REDESIGNED to match mobile tabs */}
         {!isMobile && (
-          <div className="flex flex-col h-full md:flex-row">
+          <div className="flex h-full">
             {/* Left side - Image */}
-            <div className="w-full md:w-2/5 lg:w-1/3 h-[40vh] md:h-full relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-gray-900 to-gray-800 animate-pulse"></div>
+            <div className="w-1/3 h-full relative">
+              <div className="absolute inset-0 bg-black animate-pulse"></div>
               
               <div ref={backdropRef} className="absolute inset-0 overflow-hidden">
                 <img 
                   src={movieData.image} 
                   alt={movieData.title} 
-                  className="w-full h-full object-cover md:object-contain transition-opacity duration-700 opacity-0"
+                  className="w-full h-full object-cover transition-opacity duration-700 opacity-0"
                   onLoad={(e) => {
                     e.target.classList.add('opacity-100');
                   }}
@@ -899,326 +1080,354 @@ const MovieDetails = ({ movie, onClose }) => {
               <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black to-transparent"></div>
               <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black/70 to-transparent"></div>
               
+              {/* Title and basic info */}
+              <div className="absolute bottom-0 left-0 right-0 p-4">
+                <div className="flex flex-col gap-2">
+                  {/* Content type and rating */}
+                  <div className="flex items-center gap-2">
+                    {movieData.isSeries ? (
+                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-medium backdrop-blur-sm">
+                        <Tv size={12} className="mr-1" /> Series
+                      </div>
+                    ) : (
+                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium backdrop-blur-sm">
+                        <Film size={12} className="mr-1" /> Movie
+                      </div>
+                    )}
+                    
+                    {movieData.rating && (
+                      <div className="inline-flex items-center px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-xs font-medium backdrop-blur-sm">
+                        <Star size={12} className="mr-1 fill-yellow-400" /> {movieData.rating}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <h2 id="movie-details-title" className="text-xl font-bold text-white drop-shadow-lg">
+                    {movieData.title}
+                  </h2>
+                  
+                  {/* Basic metadata */}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-300">
+                    {movieData.year && (
+                      <span className="flex items-center">
+                        <Calendar size={14} className="mr-1 text-gray-400" />
+                        {movieData.year}
+                      </span>
+                    )}
+                    {movieData.duration && (
+                      <span className="flex items-center">
+                        <Clock size={14} className="mr-1 text-gray-400" />
+                        {movieData.duration}
+                      </span>
+                    )}
+                    {movieData.languages.length > 0 && (
+                      <span className="flex items-center">
+                        <Globe size={14} className="mr-1 text-gray-400" />
+                        {movieData.languages[0]}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* Date badge */}
+                  {(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date) && (
+                    <span className="flex items-center bg-red-600 text-white px-2 py-0.5 rounded text-xs shadow-sm self-start">
+                      <Calendar size={10} className="mr-1" />
+                      Added: {formatDateString(movieData.modifiedDate || movieData.modified_date || movieData.publishDate || movieData.date)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              
               {/* Action buttons */}
-              <div className="absolute bottom-4 left-4 flex space-x-2">
+              <div className="absolute bottom-16 left-4 flex space-x-2">
                 <button 
                   onClick={handleBookmark}
-                  className={`relative flex items-center justify-center p-2.5 rounded-full transition-all duration-200 overflow-hidden group ${
-                    isBookmarked ? 'bg-red-600/80 hover:bg-red-600' : 'bg-white/15 hover:bg-white/25'
+                  className={`relative flex items-center justify-center p-2 rounded-full transition-all duration-200 ${
+                    isBookmarked ? 'bg-red-600' : 'bg-black border border-gray-700'
                   }`}
                 >
-                  <Bookmark size={18} className={`relative z-10 ${isBookmarked ? 'text-white fill-white' : 'text-white'}`} />
-                  <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
+                  <Bookmark size={16} className={`${isBookmarked ? 'text-white fill-white' : 'text-white'}`} />
                 </button>
                 
                 <button 
                   onClick={handleLike}
-                  className={`relative flex items-center justify-center p-2.5 rounded-full transition-all duration-200 overflow-hidden group ${
-                    isLiked ? 'bg-blue-600/80 hover:bg-blue-600' : 'bg-white/15 hover:bg-white/25'
+                  className={`relative flex items-center justify-center p-2 rounded-full transition-all duration-200 ${
+                    isLiked ? 'bg-red-600' : 'bg-black border border-gray-700'
                   }`}
                 >
-                  <ThumbsUp size={18} className={`relative z-10 ${isLiked ? 'text-white fill-white' : 'text-white'}`} />
-                  <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
+                  <ThumbsUp size={16} className={`${isLiked ? 'text-white fill-white' : 'text-white'}`} />
                 </button>
                 
                 <button 
                   onClick={handleShare}
-                  className="relative flex items-center justify-center bg-white/15 hover:bg-white/25 p-2.5 rounded-full transition-all duration-200 overflow-hidden group"
+                  className="relative flex items-center justify-center bg-black border border-gray-700 p-2 rounded-full transition-all duration-200"
                 >
-                  <Share2 size={18} className="text-white relative z-10" />
-                  <span className="absolute inset-0 bg-white/10 transform scale-0 group-hover:scale-150 rounded-full transition-transform duration-500"></span>
+                  <Share2 size={16} className="text-white" />
                 </button>
               </div>
             </div>
 
-            {/* Right side - Details */}
-            <div className="w-full md:w-3/5 lg:w-2/3 flex flex-col overflow-hidden">
-              {/* Header section with download buttons */}
-              <div className="p-4 md:p-6 bg-gradient-to-r from-[#0a0a0a] to-[#111] border-b border-gray-800/50">
-                <div className="flex flex-col space-y-4">
-                  <div>
-                    {/* Content type and rating */}
-                    <div className="flex items-center gap-2 mb-2">
-                      {movieData.isSeries ? (
-                        <div className="inline-flex items-center px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-medium backdrop-blur-sm">
-                          <Tv size={12} className="mr-1" /> Series
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-medium backdrop-blur-sm">
-                          <Film size={12} className="mr-1" /> Movie
-                        </div>
-                      )}
-                      
-                      {movieData.rating && (
-                        <div className="inline-flex items-center px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 text-xs font-medium backdrop-blur-sm">
-                          <Star size={12} className="mr-1 fill-yellow-400" /> {movieData.rating}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <h2 id="movie-details-title" className="text-2xl md:text-3xl font-bold text-white mb-2">
-                      {movieData.title}
-                    </h2>
-                    
-                    {/* Metadata */}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-gray-300">
-                      {movieData.year && (
-                        <span className="flex items-center">
-                          <Calendar size={14} className="mr-1 text-gray-400" />
-                          {movieData.year}
-                        </span>
-                      )}
-                      {movieData.duration && (
-                        <span className="flex items-center">
-                          <Clock size={14} className="mr-1 text-gray-400" />
-                          {movieData.duration}
-                        </span>
-                      )}
-                      {movieData.languages.length > 0 && (
-                        <span className="flex items-center">
-                          <Globe size={14} className="mr-1 text-gray-400" />
-                          {movieData.languages.slice(0, 2).join(', ')}
-                          {movieData.languages.length > 2 && ` +${movieData.languages.length - 2}`}
-                        </span>
-                      )}
-                    </div>
+            {/* Right side - Content with tabs */}
+            <div className="w-2/3 flex flex-col h-full overflow-hidden bg-black">
+              {/* Tabs navigation */}
+              <div className="flex items-center justify-around border-b border-gray-800 bg-black sticky top-0 z-20">
+                <button 
+                  className={`flex-1 py-3 text-sm font-medium relative overflow-hidden ${activeTab === 'download' ? 'text-red-500' : 'text-gray-400'}`}
+                  onClick={() => setActiveTab('download')}
+                >
+                  <div className="flex flex-col items-center">
+                    <Download size={16} className={activeTab === 'download' ? 'text-red-500' : 'text-gray-400'} />
+                    <span className="mt-1">Download</span>
                   </div>
-
-                  {/* REDESIGNED DESKTOP DOWNLOAD SECTION WITH PROPER SCROLLING */}
-                  {movieData.downloadLinks && movieData.downloadLinks.length > 0 && (
-                    <div className="bg-gradient-to-r from-gray-900/30 via-slate-900/20 to-gray-900/30 border border-gray-700/30 rounded-xl p-4">
-                      <div className="flex flex-col space-y-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-white font-medium flex items-center">
-                            <Download size={16} className="mr-2 text-red-400" />
-                            Download Options ({movieData.downloadLinks.length})
-                          </span>
-                          <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-800/80 border border-gray-700/50">
-                            <HardDrive size={12} className={directDetails ? "text-green-400" : "text-yellow-400"} />
-                            <span className={directDetails ? "text-green-400" : "text-yellow-400"}>
-                              {directDetails ? 'Live Database' : 'Cached Data'}
-                            </span>
+                  {activeTab === 'download' && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600"></span>
+                  )}
+                </button>
+                
+                <button 
+                  className={`flex-1 py-3 text-sm font-medium relative overflow-hidden ${activeTab === 'details' ? 'text-red-500' : 'text-gray-400'}`}
+                  onClick={() => setActiveTab('details')}
+                >
+                  <div className="flex flex-col items-center">
+                    <Info size={16} className={activeTab === 'details' ? 'text-red-500' : 'text-gray-400'} />
+                    <span className="mt-1">Details</span>
+                  </div>
+                  {activeTab === 'details' && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600"></span>
+                  )}
+                </button>
+                
+                <button 
+                  className={`flex-1 py-3 text-sm font-medium relative overflow-hidden ${activeTab === 'preview' ? 'text-red-500' : 'text-gray-400'}`}
+                  onClick={() => setActiveTab('preview')}
+                >
+                  <div className="flex flex-col items-center">
+                    <Image size={16} className={activeTab === 'preview' ? 'text-red-500' : 'text-gray-400'} />
+                    <span className="mt-1">Preview</span>
+                  </div>
+                  {activeTab === 'preview' && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600"></span>
+                  )}
+                </button>
+              </div>
+              
+              {/* Content area */}
+              <div ref={contentRef} className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-black">
+                {/* DOWNLOAD TAB */}
+                {activeTab === 'download' && (
+                  <div className="p-6 pb-20">
+                    {/* Live data indicator */}
+                    <div className="flex justify-end mb-4">
+                      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-black border border-gray-700">
+                        <HardDrive size={12} className={directDetails ? "text-red-400" : "text-yellow-400"} />
+                        <span className={directDetails ? "text-red-400" : "text-yellow-400"}>
+                          {directDetails ? 'Live Database' : 'Cached Data'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {movieData.downloadLinks && movieData.downloadLinks.length > 0 ? (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-bold text-white mb-4 sticky top-0 bg-black z-10 py-2">
+                          Download Links ({movieData.downloadLinks.length})
+                        </h3>
+                        
+                        {/* Scrollable download links container */}
+                        <div className="max-h-[calc(100vh-250px)] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-black rounded-lg">
+                          <div className="space-y-4 pb-4">
+                            {movieData.downloadLinks.map((link, index) => (
+                              <button
+                                key={index}
+                                onClick={() => handleDirectDownload(link, index)}
+                                disabled={downloadingLinks.has(index)}
+                                className={`w-full text-left bg-black rounded-lg border border-gray-800 hover:border-red-500 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden ${
+                                  downloadingLinks.has(index) ? 'animate-pulse' : ''
+                                }`}
+                              >
+                                <div className="p-4">
+                                  {/* Database Details Line */}
+                                  {(link.rawDatabaseDetails || link.description) && (
+                                    <div className="bg-black border-l-2 border-gray-700 pl-2 py-2 mb-3">
+                                      <div className="text-xs text-gray-300 font-mono leading-relaxed break-words">
+                                        {link.rawDatabaseDetails || link.description}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Quality and Size */}
+                                  <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center space-x-3">
+                                      <div className={`text-sm font-bold ${
+                                        link.quality === '4K' ? 'text-purple-400' :
+                                        link.quality === '1080P' ? 'text-green-400' :
+                                        link.quality === '720P' ? 'text-blue-400' :
+                                        'text-yellow-400'
+                                      }`}>
+                                        {link.quality}
+                                      </div>
+                                      <div className="w-px h-4 bg-gray-700"></div>
+                                      <div className="text-sm text-gray-300">
+                                        {link.size}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Download Button */}
+                                    <div className="bg-red-600 hover:bg-red-700 rounded-full p-2 transition-colors">
+                                      {downloadingLinks.has(index) ? (
+                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                      ) : (
+                                        <Download size={20} className="text-white" />
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* File info tags */}
+                                  {link.rawDatabaseDetails && (
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                      {link.rawDatabaseDetails.includes('WEB-DL') && (
+                                        <span className="inline-block text-xs px-2 py-0.5 bg-gray-800 text-gray-300 rounded border border-gray-700">
+                                          WEB-DL
+                                        </span>
+                                      )}
+                                      {link.rawDatabaseDetails.includes('HEVC') && (
+                                        <span className="inline-block text-xs px-2 py-0.5 bg-gray-800 text-gray-300 rounded border border-gray-700">
+                                          HEVC
+                                        </span>
+                                      )}
+                                      {link.rawDatabaseDetails.includes('Dual Audio') && (
+                                        <span className="inline-block text-xs px-2 py-0.5 bg-gray-800 text-gray-300 rounded border border-gray-700">
+                                          Dual Audio
+                                        </span>
+                                      )}
+                                      {link.rawDatabaseDetails.includes('ESub') && (
+                                        <span className="inline-block text-xs px-2 py-0.5 bg-gray-800 text-gray-300 rounded border border-gray-700">
+                                          Subtitles
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                            ))}
                           </div>
-                        </div>                        {/* Scrollable Download List */}
-                        <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 pr-2">
-                          {movieData.downloadLinks.map((link, index) => (
-                            <button
-                              key={index}
-                              onClick={() => handleDirectDownload(link, index)}
-                              disabled={downloadingLinks.has(index)}
-                              className={`w-full text-left bg-gradient-to-r from-gray-800/40 to-gray-900/40 hover:from-red-600/20 hover:to-purple-600/20 rounded-lg border border-gray-700/40 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed overflow-hidden ${
-                                downloadingLinks.has(index) ? 'animate-pulse' : ''
-                              }`}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center p-10 text-center">
+                        <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mb-4">
+                          <Download size={32} className="text-gray-400" />
+                        </div>
+                        <p className="text-gray-400 mb-2">No download links available</p>
+                        <p className="text-xs text-gray-500">Check back later for updates</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* DETAILS TAB */}
+                {activeTab === 'details' && (
+                  <div className="p-6 pb-20 space-y-6">
+                    {/* Description */}
+                    <div>
+                      <h3 className="text-lg font-bold text-white mb-3">
+                        Synopsis
+                      </h3>
+                      <p className="text-gray-300 text-sm leading-relaxed">
+                        {movieData.description}
+                      </p>
+                    </div>
+                    
+                    {/* Genres */}
+                    {movieData.genres && movieData.genres.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-bold text-white mb-3">
+                          Genres
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {movieData.genres.map((genre, idx) => (
+                            <span 
+                              key={idx}
+                              className="inline-block text-xs px-3 py-1.5 rounded-full bg-black text-white border border-gray-700"
                             >
-                              <div className="p-3">
-                                <DownloadInfoCard 
-                                  quality={link.quality} 
-                                  size={link.size}
-                                  description={link.description}
-                                  isDownloading={downloadingLinks.has(index)}
-                                  index={index}
-                                  movieData={movieData}
-                                  rawDatabaseDetails={link.rawDatabaseDetails || link.description}
-                                />
-                              </div>
-                            </button>
+                              {genre}
+                            </span>
                           ))}
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+                    )}
 
-              {/* Scrollable content area with improved scrolling */}
-              <div ref={contentRef} className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
-                <div className="p-4 md:p-6 pb-24 space-y-6"> {/* Added space-y-6 for consistent spacing */}
-                  {/* Description */}
-                  <div>
-                    <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                      <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full mr-2"></span>
-                      Synopsis
-                    </h3>
-                    <p className="text-gray-300 text-sm leading-relaxed">
-                      {movieData.description}
-                    </p>
+                    {/* Languages */}
+                    {movieData.languages && movieData.languages.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-bold text-white mb-3">
+                          Languages
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {movieData.languages.map((language, idx) => (
+                            <span 
+                              key={idx}
+                              className="inline-block text-xs px-3 py-1.5 rounded-full bg-black text-white border border-gray-700"
+                            >
+                              {language}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Series seasons */}
+                    {movieData.isSeries && movieData.seasons && (
+                      <div>
+                        <h3 className="text-lg font-bold text-white mb-3">
+                          Seasons Available
+                        </h3>
+                        <div className="space-y-3">
+                          {Object.entries(movieData.seasons)
+                            .filter(([key, value]) => value && value.trim() !== '')
+                            .map(([seasonKey, seasonValue], idx) => (
+                            <div 
+                              key={idx}
+                              className="bg-black border border-gray-800 rounded-lg p-4"
+                            >
+                              <div className="text-white text-sm font-bold mb-2">
+                                {seasonKey.replace('_', ' ').toUpperCase()}
+                              </div>
+                              <div className="text-gray-400 text-sm">
+                                {seasonValue}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  
-                  {/* Genres */}
-                  {movieData.genres && movieData.genres.length > 0 && (
-                    <div>
-                      <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                        <span className="w-1 h-4 bg-gradient-to-b from-purple-500 to-purple-600 rounded-full mr-2"></span>
-                        Genres
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {movieData.genres.slice(0, expandGenres ? movieData.genres.length : 8).map((genre, idx) => (
-                          <span 
-                            key={idx}
-                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600/20 to-purple-600/20 text-red-300 border border-red-600/30 hover:bg-red-600/30 transition-colors duration-200"
-                          >
-                            {genre}
-                          </span>
-                        ))}
-                        {!expandGenres && movieData.genres.length > 8 && (
-                          <button 
-                            className="text-xs px-3 py-1.5 rounded-full bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors duration-300"
-                            onClick={() => setExpandGenres(true)}
-                          >
-                            +{movieData.genres.length - 8} more
-                          </button>
-                        )}
-                      </div>
+                )}
+                
+                {/* PREVIEW TAB */}
+                {activeTab === 'preview' && (
+                  <div className="flex flex-col items-center justify-center p-10 h-[50vh] text-center">
+                    <div className="w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center mb-4">
+                      <Image size={40} className="text-gray-400" />
                     </div>
-                  )}
-
-                  {/* Languages */}
-                  {movieData.languages && movieData.languages.length > 0 && (
-                    <div>
-                      <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                        <span className="w-1 h-4 bg-gradient-to-b from-green-500 to-green-600 rounded-full mr-2"></span>
-                        Languages
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {movieData.languages.slice(0, expandLanguages ? movieData.languages.length : 4).map((language, idx) => (
-                          <span 
-                            key={idx}
-                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-green-600/20 to-blue-600/20 text-green-300 border border-green-600/30 hover:bg-green-600/30 transition-colors duration-200"
-                          >
-                            {language}
-                          </span>
-                        ))}
-                        {!expandLanguages && movieData.languages.length > 4 && (
-                          <button 
-                            className="text-xs px-3 py-1.5 rounded-full bg-green-600/20 text-green-400 hover:bg-green-600/30 transition-colors duration-300"
-                            onClick={() => setExpandLanguages(true)}
-                          >
-                            +{movieData.languages.length - 4} more
-                          </button>
-                        )}
+                    <h3 className="text-xl font-bold text-white mb-2">Coming Soon</h3>
+                    <p className="text-gray-400 mb-6">Screenshots will be available soon</p>
+                    
+                    <div className="w-full max-w-md p-6 bg-black border border-gray-800 rounded-lg">
+                      <div className="flex items-center mb-4">
+                        <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse mr-2"></div>
+                        <p className="text-gray-300 text-sm">Preview feature under development</p>
                       </div>
+                      <div className="h-2 bg-gray-800 rounded-full w-full mb-2.5"></div>
+                      <div className="h-2 bg-gray-800 rounded-full w-3/4"></div>
                     </div>
-                  )}
-
-                  {/* Series seasons */}
-                  {movieData.isSeries && movieData.seasons && (
-                    <div>
-                      <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                        <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full mr-2"></span>
-                        Seasons Available
-                      </h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                        {Object.entries(movieData.seasons)
-                          .filter(([key, value]) => value && value.trim() !== '')
-                          .map(([seasonKey, seasonValue], idx) => (
-                          <div 
-                            key={idx}
-                            className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/30 rounded-lg p-3 text-center hover:bg-blue-600/30 transition-colors duration-200"
-                          >
-                            <div className="text-blue-300 text-xs font-medium mb-1">
-                              {seasonKey.replace('_', ' ').toUpperCase()}
-                            </div>
-                            <div className="text-gray-400 text-xs truncate">
-                              {seasonValue.length > 20 ? `${seasonValue.substring(0, 20)}...` : seasonValue}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Mobile content based on active tab with improved scrolling */}
-        {isMobile && (
-          <div 
-            ref={contentRef}
-            className="flex-1 overflow-y-auto bg-black scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800"
-          >
-            <div className="p-4 pb-28 space-y-6"> {/* Added space-y-6 for consistent spacing and increased bottom padding */}
-              {activeTab === 'details' && (
-                <>
-                  {/* Description */}
-                  <div>
-                    <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                      <span className="w-1 h-4 bg-gradient-to-b from-blue-500 to-blue-600 rounded-full mr-2"></span>
-                      Synopsis
-                    </h3>
-                    <p className="text-gray-300 text-sm leading-relaxed">
-                      {movieData.description}
-                    </p>
-                  </div>
-                  
-                  {/* Genres */}
-                  {movieData.genres && movieData.genres.length > 0 && (
-                    <div>
-                      <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                        <span className="w-1 h-4 bg-gradient-to-b from-purple-500 to-purple-600 rounded-full mr-2"></span>
-                        Genres
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {movieData.genres.map((genre, idx) => (
-                          <span 
-                            key={idx}
-                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-red-600/20 to-purple-600/20 text-red-300 border border-red-600/30 hover:bg-red-600/30 transition-colors duration-200"
-                          >
-                            {genre}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Languages */}
-                  {movieData.languages && movieData.languages.length > 0 && (
-                    <div>
-                      <h3 className="text-sm uppercase text-gray-400 mb-3 flex items-center">
-                        <span className="w-1 h-4 bg-gradient-to-b from-green-500 to-green-600 rounded-full mr-2"></span>
-                        Languages
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {movieData.languages.map((language, idx) => (
-                          <span 
-                            key={idx}
-                            className="inline-block text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-green-600/20 to-blue-600/20 text-green-300 border border-green-600/30 hover:bg-green-600/30 transition-colors duration-200"
-                          >
-                            {language}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {activeTab === 'seasons' && movieData.isSeries && movieData.seasons && (
-                <div>
-                  <h3 className="text-lg font-bold text-white mb-4">Available Seasons</h3>
-                  <div className="space-y-3">
-                    {Object.entries(movieData.seasons)
-                      .filter(([key, value]) => value && value.trim() !== '')
-                      .map(([seasonKey, seasonValue], idx) => (
-                      <div 
-                        key={idx}
-                        className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border border-blue-600/30 rounded-lg p-4 hover:bg-blue-600/30 transition-colors duration-200"
-                      >
-                        <div className="text-blue-300 text-sm font-medium mb-2">
-                          {seasonKey.replace('_', ' ').toUpperCase()}
-                        </div>
-                        <div className="text-gray-300 text-sm">
-                          {seasonValue}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Mobile content based on active tab is now handled in the tab layout above */}
       </div>
     </div>
   );
