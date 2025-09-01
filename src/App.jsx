@@ -59,219 +59,30 @@ function useDevToolsProtection() {
   const [isBlocked, setIsBlocked] = useState(false);
 
   useEffect(() => {
-    // Skip protection in development or when bypass is active
-    if (isLocalhost() || shouldBypassProtection()) {
-      // Add bypass functions to window for console access
-      window.__enableDevtools__ = (secret) => {
-        if (secret === BYPASS_SECRET) {
-          sessionStorage.setItem('devtools_bypass', 'true');
-          console.log('DevTools protection temporarily disabled for this session');
-          window.location.reload();
-        } else {
-          console.log('Invalid secret key');
-        }
-      };
-      
-      window.__enableDevtoolsFor__ = (secret, hours = 1) => {
-        if (secret === BYPASS_SECRET) {
-          const until = Date.now() + (hours * 60 * 60 * 1000);
-          localStorage.setItem('devtools_bypass_until', until.toString());
-          console.log(`DevTools protection disabled for ${hours} hours until:`, new Date(until));
-          window.location.reload();
-        } else {
-          console.log('Invalid secret key');
-        }
-      };
-      
-      window.__disableDevtoolsBypass__ = () => {
-        sessionStorage.removeItem('devtools_bypass');
-        localStorage.removeItem('devtools_bypass_until');
-        console.log('DevTools protection re-enabled');
-        window.location.reload();
-      };
-      
-      if (shouldBypassProtection()) {
-        console.log('%cDEVTOOLS BYPASS ACTIVE', 'color: green; font-size: 16px; font-weight: bold;');
-        console.log('Protection is temporarily disabled. Use __disableDevtoolsBypass__() to re-enable.');
-      }
-      
-      return; // Skip all protection measures
-    }
-
-    // Console warnings and deterrents
-    console.clear();
-    console.log('%cSTOP!', 'color: red; font-size: 50px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);');
-    console.log('%cThis is a browser feature intended for developers.', 'color: red; font-size: 16px; font-weight: bold;');
-    console.log('%cUnauthorized access to network requests or content may violate terms of service.', 'color: red; font-size: 14px;');
-    console.log('%cThis session is being monitored for security purposes.', 'color: orange; font-size: 12px;');
-
-    // Advanced DevTools Detection
-    const detectDevTools = () => {
-      const threshold = 160;
-      const isDevToolsOpen = 
-        window.outerHeight - window.innerHeight > threshold ||
-        window.outerWidth - window.innerWidth > threshold;
-      
-      if (isDevToolsOpen) {
-        setIsBlocked(true);
-        window.location.reload();
-      }
-    };
-
-    // Detect console interaction
-    let consoleWarned = false;
-    const originalLog = console.log;
-    const originalError = console.error;
-    const originalWarn = console.warn;
-    const originalInfo = console.info;
-    const originalDebug = console.debug;
-
-    const consoleInterceptor = function(...args) {
-      if (!consoleWarned) {
-        consoleWarned = true;
-        alert('🚨 Developer console activity detected!\n\nThis session will be terminated for security reasons.\n\nIf you need assistance, please contact support.');
-        window.location.reload();
-      }
-      return originalLog.apply(console, args);
-    };
-
-    console.log = consoleInterceptor;
-    console.error = consoleInterceptor;
-    console.warn = consoleInterceptor;
-    console.info = consoleInterceptor;
-    console.debug = consoleInterceptor;
-
-    // Disable right-click context menu
-    const handleContextMenu = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    };
-
-    // Detect common developer keyboard shortcuts
-    const handleKeyDown = (e) => {
-      // F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U, Ctrl+Shift+C
-      if (
-        e.keyCode === 123 || // F12
-        (e.ctrlKey && e.shiftKey && e.keyCode === 73) || // Ctrl+Shift+I
-        (e.ctrlKey && e.shiftKey && e.keyCode === 74) || // Ctrl+Shift+J
-        (e.ctrlKey && e.keyCode === 85) || // Ctrl+U
-        (e.ctrlKey && e.shiftKey && e.keyCode === 67) // Ctrl+Shift+C
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-        alert('🚨 Developer tools access is restricted!\n\nThis action has been logged for security purposes.');
-        return false;
-      }
-    };
-
-    // Detect select all (Ctrl+A) to prevent source viewing
-    const handleSelectAll = (e) => {
-      if (e.ctrlKey && e.keyCode === 65) {
-        e.preventDefault();
-        return false;
-      }
-    };
-
-    // Monitor window focus (DevTools might change focus)
-    let isWindowFocused = true;
-    const handleFocus = () => { isWindowFocused = true; };
-    const handleBlur = () => { isWindowFocused = false; };
-
-    // Periodic checks
-    const devToolsCheckInterval = setInterval(() => {
-      detectDevTools();
-      
-      // Additional check for performance timing (DevTools affects performance)
-      const start = performance.now();
-      debugger; // This will pause if DevTools is open
-      const end = performance.now();
-      if (end - start > 100) {
-        setIsBlocked(true);
-        window.location.reload();
-      }
-    }, 1000);
-
-    // Network request monitoring and obfuscation
-    const originalFetch = window.fetch;
-    window.fetch = function(...args) {
-      // Add random delay to make network inspection harder
-      const delay = Math.random() * 100;
-      return new Promise(resolve => {
-        setTimeout(() => {
-          resolve(originalFetch.apply(this, args));
-        }, delay);
-      });
-    };
-
-    // XMLHttpRequest monitoring
-    const originalXHROpen = XMLHttpRequest.prototype.open;
-    const originalXHRSend = XMLHttpRequest.prototype.send;
+    // DEVTOOLS ALLOWED IN ALL ENVIRONMENTS - Protection disabled
+    console.log('%cDEVTOOLS ALLOWED', 'color: green; font-size: 16px; font-weight: bold;');
+    console.log('All DevTools protection has been disabled for development purposes.');
     
-    XMLHttpRequest.prototype.open = function(method, url, ...args) {
-      this._url = url;
-      return originalXHROpen.apply(this, [method, url, ...args]);
+    // Add helpful debug functions to window
+    window.__enableDevtools__ = () => {
+      console.log('DevTools are already enabled in all environments');
     };
     
-    XMLHttpRequest.prototype.send = function(...args) {
-      // Log suspicious network activity
-      if (this._url && !this._url.includes('localhost')) {
-        console.warn('Network request intercepted:', this._url);
-      }
-      return originalXHRSend.apply(this, args);
+    window.__enableDevtoolsFor__ = () => {
+      console.log('DevTools are already enabled in all environments');
     };
-
-    // Add event listeners
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keydown', handleSelectAll);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-
-    // Detect if user is inspecting elements
-    const detectInspection = () => {
-      const element = document.createElement('div');
-      element.id = 'detect-inspection';
-      element.style.display = 'none';
-      document.body.appendChild(element);
-      
-      let isInspecting = false;
-      Object.defineProperty(element, 'id', {
-        get: function() {
-          isInspecting = true;
-          setIsBlocked(true);
-          alert('🚨 Element inspection detected!\n\nThis session will be terminated.');
-          window.location.reload();
-          return 'detect-inspection';
-        },
-        configurable: false
-      });
+    
+    window.__disableDevtoolsBypass__ = () => {
+      console.log('DevTools protection is permanently disabled');
     };
-
-    detectInspection();
-
-    // Cleanup function
+    
+    // No protection measures - just return cleanup function
     return () => {
-      clearInterval(devToolsCheckInterval);
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('keydown', handleSelectAll);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-      
-      // Restore original functions
-      console.log = originalLog;
-      console.error = originalError;
-      console.warn = originalWarn;
-      console.info = originalInfo;
-      console.debug = originalDebug;
-      window.fetch = originalFetch;
-      XMLHttpRequest.prototype.open = originalXHROpen;
-      XMLHttpRequest.prototype.send = originalXHRSend;
+      // Minimal cleanup
     };
   }, []);
 
-  return shouldBypassProtection() ? false : isBlocked;
+  return false; // Never block
 }
 
 // Connection Broken Page - Shows when user comes directly
@@ -506,47 +317,25 @@ function App() {
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
   const [comingFromVerification, setComingFromVerification] = useState(false);
   
-  // Check for bypass early
-  const bypassActive = shouldBypassProtection();
+  // DEVTOOLS ALLOWED - All protection disabled
+  const bypassActive = true; // Force bypass to be always active
   
-  // Handle URL-based bypass
+  // Remove URL-based bypass handling since it's not needed
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const bypassKey = urlParams.get('debug');
-    if (bypassKey === BYPASS_SECRET) {
-      sessionStorage.setItem('devtools_bypass', 'true');
-      // Clean URL to remove debug parameter
-      const cleanUrl = window.location.protocol + '//' + 
-                      window.location.host + 
-                      window.location.pathname;
-      window.history.replaceState({}, document.title, cleanUrl);
-    }
+    // No special handling needed - DevTools always allowed
   }, []);
   
-  // Use enhanced DevTools protection
+  // Use enhanced DevTools protection (which is now disabled)
   const isProtectionBlocked = useDevToolsProtection();
 
   useEffect(() => {
-    if (!bypassActive && isApiTool()) setBlock(true);
+    // Disable API tool blocking - allow all tools
+    // if (!bypassActive && isApiTool()) setBlock(true);
   }, [bypassActive]);
 
-  // Standard DevTools detection (keeping your original code)
+  // Disable standard DevTools detection completely
   useEffect(() => {
-    if (!isLocalhost() && !bypassActive) {
-      const handleDevToolsStatus = (isOpen) => {
-        if (isOpen) {
-          window.location.reload();
-          setIsDevToolsOpen(true);
-        } else {
-          setIsDevToolsOpen(false);
-        }
-      };
-      addListener(handleDevToolsStatus);
-      launch();
-      return () => {
-        addListener(handleDevToolsStatus);
-      };
-    }
+    // No DevTools detection - always allow
   }, [bypassActive]);
 
   useEffect(() => {
@@ -557,20 +346,18 @@ function App() {
     setIsChecking(false);
   }, []);
 
-  // Block only if bypass is not active
-  if (!bypassActive && (block || isDevToolsOpen || isProtectionBlocked)) {
-    return <NotFoundPage />;
-  }
+  // Never block - DevTools are always allowed
+  // if (!bypassActive && (block || isDevToolsOpen || isProtectionBlocked)) {
+  //   return <NotFoundPage />;
+  // }
 
   if (isChecking) {
     return (
       <div className="min-h-screen bg-[#121212] flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
-        {bypassActive && (
-          <div className="absolute top-4 left-4 bg-green-600 text-white px-4 py-2 rounded text-sm">
-            🛠️ Debug Mode Active
-          </div>
-        )}
+        <div className="absolute top-4 left-4 bg-green-600 text-white px-4 py-2 rounded text-sm">
+          🛠️ DevTools Always Enabled
+        </div>
       </div>
     );
   }
@@ -582,11 +369,9 @@ function App() {
         v7_relativeSplatPath: true,
       }}
     >
-      {bypassActive && (
-        <div className="fixed top-0 left-0 right-0 bg-green-600 text-white text-center py-2 text-sm z-50">
-          🛠️ DevTools Protection Bypassed - Debug Mode Active
-        </div>
-      )}
+      <div className="fixed top-0 left-0 right-0 bg-green-600 text-white text-center py-2 text-sm z-50">
+        🛠️ DevTools Protection Disabled - All Developer Tools Enabled
+      </div>
       <TokenAutoLoginWrapper 
         setHasAccess={setHasAccess} 
         setComingFromVerification={setComingFromVerification}
