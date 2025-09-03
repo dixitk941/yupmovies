@@ -426,7 +426,7 @@ const MovieDetails = ({ movie, onClose }) => {
         toast.classList.add('bg-green-800', 'text-green-100', 'border', 'border-green-600');
         break;
       case 'error':
-        toast.classList.add('bg-red-800', 'text-red-100', 'border', 'border-red-600');
+        toast.classList.add('bg-red-800', 'text-red-100', 'border', 'border-[#ff0000]');
         break;
       case 'info':
       default:
@@ -596,7 +596,7 @@ const MovieDetails = ({ movie, onClose }) => {
                       
                       {/* Excerpt badge at the bottom center of the image */}
                       {movieData.excerpt && (
-                        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-red-600/90 backdrop-blur-sm text-white text-[6px] px-1 py-0.5 rounded font-medium max-w-[60px] text-center whitespace-nowrap overflow-hidden">
+                        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-[#ff0000] backdrop-blur-sm text-white text-[6px] px-1 py-0.5 rounded font-medium max-w-[60px] text-center whitespace-nowrap overflow-hidden">
                           {movieData.excerpt.length > 10 ? movieData.excerpt.substring(0, 10) + '...' : movieData.excerpt}
                         </div>
                       )}
@@ -744,7 +744,7 @@ const MovieDetails = ({ movie, onClose }) => {
                           <button 
                             onClick={() => handleDirectDownload(link, index)}
                             disabled={downloadingLinks.has(index)}
-                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-[5px] font-medium transition-colors disabled:opacity-50 flex items-center space-x-2 text-sm"
+                            className="bg-[#ff0000] hover:bg-red-700 text-white px-4 py-2 rounded-[5px] font-medium transition-colors disabled:opacity-50 flex items-center space-x-2 text-sm"
                           >
                             {downloadingLinks.has(index) ? (
                               <>

@@ -129,7 +129,7 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
         </div>
         <div className="text-[9px] opacity-60">No Image</div>
       </div>
-      <div className="absolute inset-0 border-2 border-dashed border-gray-700 opacity-30 rounded-lg"></div>
+      <div className="absolute inset-0 border-2 border-dashed border-gray-700 opacity-30 "></div>
     </div>
   );
 
@@ -147,7 +147,7 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
       {/* Main Card */}
       <div
         className={`
-          relative cursor-pointer rounded-lg overflow-hidden bg-black/80 backdrop-blur-sm
+          relative cursor-pointer  overflow-hidden bg-black/80 backdrop-blur-sm
           transition-all duration-300 ease-out
           w-[112px] flex-shrink-0
           ${isMobile ? 'active:scale-95' : ''}
@@ -217,13 +217,13 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
 
           {/* Excerpt badge at the bottom center of the image */}
           {movie.excerpt && (
-            <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 bg-red-600/90 backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium w-[70px] text-center whitespace-nowrap overflow-hidden">
+            <div className="absolute bottom-5 left-1/2 transform -translate-x-1/2 bg-[#ff0000] backdrop-blur-sm text-white text-[10px] px-1.5 py-0.5 rounded-[2px]  font-bold w-[80px] text-center whitespace-nowrap overflow-hidden">
               {movie.excerpt.length > 15 ? movie.excerpt.substring(0, 15) + '...' : movie.excerpt}
             </div>
           )}
 
           {/* Watch Now badge below the excerpt badge */}
-          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm text-black text-[8px] px-2 py-0.5 rounded font-medium w-[70px] text-center whitespace-nowrap">
+          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm text-black text-[10px] px-2 py-0.5 rounded-[2px] font-medium w-[80px] text-center whitespace-nowrap">
             Watch Now
           </div>
 
@@ -231,15 +231,15 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
         </div>
 
         {/* Title and Date Section - Below Image */}
-        <div className="p-2 bg-black/90">
+        <div className="pt-1 bg-black/90">
           {/* Date display - above title */}
           <div className="text-gray-400 text-[8px] mb-1">
             {displayDate ? displayDate : 'Unknown Date'}
           </div>
 
-          <h3 className="text-white font-bold text-[12px] line-clamp-2 leading-tight">
-            {cleanTitle.length > 15 ? cleanTitle.substring(0, 15) + '...' : cleanTitle}
-          </h3>
+        <h3 className="text-white font-bold text-[12px] leading-tight text-left truncate">
+  {cleanTitle}
+</h3>
         </div>
       </div>
     </div>

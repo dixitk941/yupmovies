@@ -54,7 +54,7 @@ const SeriesDetail = ({ series, onClose }) => {
     
     const styles = {
       success: 'bg-green-600 text-white',
-      error: 'bg-red-600 text-white',
+      error: 'bg-[#ff0000] text-white',
       info: 'bg-blue-600 text-white'
     };
     
@@ -286,7 +286,7 @@ const SeriesDetail = ({ series, onClose }) => {
         <div className="relative h-56 flex-shrink-0">
           <button 
             onClick={onClose}
-            className="absolute top-3 right-3 z-40 w-7 h-7 bg-black/80 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-all"
+            className="absolute top-3 right-3 z-40 w-7 h-7 bg-black/80 hover:bg-[#ff0000] text-white rounded-full flex items-center justify-center transition-all"
           >
             <X size={14} />
           </button>
@@ -302,7 +302,7 @@ const SeriesDetail = ({ series, onClose }) => {
           
           <div className="absolute bottom-3 left-3 right-3">
             <div className="mb-2">
-              <span className="bg-red-600 text-white px-2.5 py-1 rounded text-xs font-semibold">
+              <span className="bg-[#ff0000] text-white px-2.5 py-1 rounded text-xs font-semibold">
                 S{latestSeason?.seasonNumber || 1} Episode {currentEpisodeInSeason}
               </span>
             </div>
@@ -346,7 +346,7 @@ const SeriesDetail = ({ series, onClose }) => {
             >
               {tab}
               {activeTab === tab && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600"></div>
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ff0000]"></div>
               )}
             </button>
           ))}
@@ -370,7 +370,7 @@ const SeriesDetail = ({ series, onClose }) => {
                     >
                       <span>
                         {activeSeason 
-                          ? `S${activeSeason.seasonNumber} (${activeSeason.totalEpisodes})` 
+                          ? `Season ${activeSeason.seasonNumber} (${activeSeason.totalEpisodes} Episodes)` 
                           : availableSeasons.length === 0 
                             ? 'No Seasons' 
                             : 'Select Season'
@@ -400,7 +400,7 @@ const SeriesDetail = ({ series, onClose }) => {
                   <button
                     onClick={toggleSortOrder}
                     disabled={seasonEpisodes.length === 0}
-                    className="flex items-center gap-1.5 px-3 py-2.5 bg-black border border-gray-700 rounded text-white font-medium text-sm hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 px-3 py-2.5 bg-black rounded text-white font-medium text-sm hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ArrowUpDown size={14} />
                     <span>{sortOrder === 'desc' ? 'Latest' : 'Oldest'}</span>
@@ -409,7 +409,7 @@ const SeriesDetail = ({ series, onClose }) => {
 
                 {/* Season Information - Dynamic based on real data */}
                 {activeSeason && (
-                  <div className="bg-black border border-gray-700 rounded p-3">
+                  <div className="bg-black rounded p-3">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-white font-medium text-sm">Season {activeSeason.seasonNumber} Information</h3>
                       <div className="flex gap-1.5">
@@ -440,7 +440,7 @@ const SeriesDetail = ({ series, onClose }) => {
                 <div className="space-y-2 pb-16">
                   {isLoadingSeasons ? (
                     <div className="text-center py-8">
-                      <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                      <div className="w-8 h-8 border-2 border-[#ff0000] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
                       <p className="text-gray-400 text-sm">Loading episodes...</p>
                     </div>
                   ) : sortedEpisodes.length > 0 ? (
@@ -454,7 +454,7 @@ const SeriesDetail = ({ series, onClose }) => {
                         <div key={episode.id || `episode-${index}`} className="flex items-center justify-between p-2.5">
                           <div className="flex-1">
                             <h4 className="text-white font-medium text-sm">Episode {episodeNumber < 10 ? `0${episodeNumber}` : episodeNumber}</h4>
-                            <p className="text-gray-400 text-xs">{episode.downloadLinks?.length || 0} qualities available</p>
+                            <p className="text-gray-400 font-light text-[9px]">{episode.downloadLinks?.length || 0} qualities available</p>
                           </div>
                           
                           <div className="flex items-center gap-3">
@@ -502,7 +502,7 @@ const SeriesDetail = ({ series, onClose }) => {
                                 }
                               }}
                               disabled={isDownloading || !hasQualitySelected}
-                              className={`${hasQualitySelected ? 'bg-red-600 hover:bg-red-700' : 'bg-black border border-gray-700 hover:bg-gray-800'} disabled:opacity-50 text-white px-4 py-2 rounded text-sm font-medium transition-all flex items-center gap-2`}
+                              className={`${hasQualitySelected ? 'bg-[#ff0000] hover:bg-red-700' : 'bg-black border border-gray-700 hover:bg-gray-800'} disabled:opacity-50 text-white px-4 py-2 rounded text-sm font-medium transition-all flex items-center gap-2`}
                             >
                               <Download size={14} />
                               {isDownloading ? 'Downloading...' : 'Download'}
@@ -531,7 +531,7 @@ const SeriesDetail = ({ series, onClose }) => {
             {activeTab === 'Season Zips' && (
               <div className="space-y-3 pb-16">
                 <div className="text-center py-4">
-                  <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center mx-auto mb-2">
+                  <div className="w-10 h-10 bg-[#ff0000] rounded-xl flex items-center justify-center mx-auto mb-2">
                     <Archive size={20} className="text-white" />
                   </div>
                   <h3 className="text-white font-medium mb-1">Season Packages</h3>
@@ -540,7 +540,7 @@ const SeriesDetail = ({ series, onClose }) => {
 
                 {isLoadingSeasons ? (
                   <div className="text-center py-8">
-                    <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                    <div className="w-8 h-8 border-2 border-[#ff0000] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
                     <p className="text-gray-400 text-sm">Loading season packages...</p>
                   </div>
                 ) : currentSeriesData?.seasonZipLinks?.length > 0 ? (
@@ -577,7 +577,7 @@ const SeriesDetail = ({ series, onClose }) => {
                                 handleDownload(zipLink, null, true);
                               }}
                               disabled={isDownloading}
-                              className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-3 py-1.5 rounded text-xs font-medium transition-all flex items-center gap-1"
+                              className="bg-[#ff0000] hover:bg-red-700 disabled:opacity-50 text-white px-3 py-1.5 rounded text-xs font-medium transition-all flex items-center gap-1"
                             >
                               <Download size={12} />
                               {isDownloading ? 'DL...' : 'Download'}
@@ -596,7 +596,7 @@ const SeriesDetail = ({ series, onClose }) => {
                     <p className="text-gray-400 text-sm mb-4">Season zip packages are not yet available for this series.</p>
                     <button
                       onClick={() => setActiveTab('Episodes')}
-                      className="bg-red-600 hover:bg-red-700 rounded px-3 py-1.5 text-white text-xs font-medium transition-all"
+                      className="bg-[#ff0000] hover:bg-red-700 rounded px-3 py-1.5 text-white text-xs font-medium transition-all"
                     >
                       Browse Episodes
                     </button>
