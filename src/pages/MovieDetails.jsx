@@ -663,7 +663,7 @@ const MovieDetails = ({ movie, onClose }) => {
             <div className="p-3">
               <div className="max-w-7xl mx-auto">
                 {/* Download Options header */}
-               <div className="mb-5 mt-3 shadow-lg">
+               <div className="mb-5 mt-3">
   <h3 className="text-white text-[12px] font-regular flex items-center gap-2">
     <span className="bg-[#2f2f2f] px-3 py-1 rounded">
       Download Options
