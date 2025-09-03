@@ -658,7 +658,7 @@ const MovieDetails = ({ movie, onClose }) => {
         <div className="flex-1 overflow-y-auto bg-[#131313]">
           {/* Download Tab - Exact match to image */}
           {activeTab === 'download' && (
-            <div className="p-8">
+            <div className="p-3">
               <div className="max-w-7xl mx-auto">
                 {/* Download Options header */}
                 <div className="mb-6 shadow-lg">
