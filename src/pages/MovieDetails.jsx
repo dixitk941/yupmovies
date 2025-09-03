@@ -542,15 +542,15 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 1. Title and Date Section */}
-        <div className="bg-[#131313] px-8 py-4 border-b border-gray-700/30">
+        <div className="bg-[#131313] px-2 py-4 border-b border-gray-700/30">
           <div className="max-w-7xl mx-auto">
             {/* Title - dynamic from movie data */}
-            <h1 className="text-xl font-bold text-white mb-1 leading-tight truncate">
+            <h1 className="text-[24px] font-bold text-white mb-1 leading-tight truncate">
               {movieData.title || 'Unknown Title'}
             </h1>
             
             {/* Updated date - dynamic from movie data */}
-            <div className="text-gray-300 text-xs">
+            <div className="text-gray-300 text-[12px]">
               {(movieData.modifiedDate || movieData.modified_date) ? 
                 `Updated on ${formatDateString(movieData.modifiedDate || movieData.modified_date)}` :
                 (movieData.publishDate || movieData.date) ? 
@@ -562,15 +562,15 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 2. Image Section with Episode Badge - Series card style */}
-        <div className="bg-[#131313] px-0 py-4">
+        <div className="bg-[#131313] ">
           <div className="max-w-7xl mx-auto">
             <div className="w-full max-w-2xl mx-auto relative">
               {/* Series card style image - wider aspect ratio */}
-              <div className="w-full h-48 rounded-lg overflow-hidden border border-gray-700/50 relative bg-gray-900">
+              <div className="w-full h-48  overflow-hidden relative bg-gray-900">
                 <img 
                   src={movieData.image} 
                   alt={movieData.title} 
-                  className="w-full h-full object-cover"
+                  className="w-full h-full opacity-80 object-cover"
                   onError={(e) => {
                     e.target.src = 'https://via.placeholder.com/640x192/1a1a1a/666?text=No+Image';
                   }}
@@ -581,14 +581,14 @@ const MovieDetails = ({ movie, onClose }) => {
                 
                 {/* Movie Card at left bottom corner */}
                 <div className="absolute bottom-4 left-4">
-                  <div className="relative cursor-pointer rounded-lg overflow-hidden bg-black/80 backdrop-blur-sm w-20 transition-all duration-300">
+                  <div className="relative cursor-pointer  overflow-hidden bg-black/80 backdrop-blur-sm w-30 transition-all duration-300">
                     {/* Card container with fixed aspect ratio */}
-                    <div className="relative w-full" style={{ aspectRatio: '2/3' }}>
+                    <div className="relative" style={{ aspectRatio: '2/3' }}>
                       {/* Movie poster */}
                       <img
                         src={movieData.image}
                         alt={movieData.title}
-                        className="w-full h-full object-cover"
+                        className="w-full h-40"
                         onError={(e) => {
                           e.target.src = 'https://via.placeholder.com/80x120/1a1a1a/666?text=No+Image';
                         }}
@@ -615,21 +615,23 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 3. VLC Media Player Recommendation Line */}
-        <div className="bg-[#131313] px-8 py-4 border-b border-gray-700/30">
+        <div className="bg-[#131313] px-2 py-4">
           <div className="max-w-7xl mx-auto">
-            <div className="flex items-center justify-center space-x-3">
-              <div className="bg-orange-600 rounded-full p-2">
-                <Info size={16} className="text-white" />
+            <div className="flex items-center justify-center space-x-2">
+              <div className="">
+<svg width="20" height="21" viewBox="0 0 20 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M17.6453 8.53281C17.3508 8.225 17.0461 7.90781 16.9312 7.62891C16.825 7.37344 16.8187 6.95 16.8125 6.53984C16.8008 5.77734 16.7883 4.91328 16.1875 4.3125C15.5867 3.71172 14.7227 3.69922 13.9602 3.6875C13.55 3.68125 13.1266 3.675 12.8711 3.56875C12.593 3.45391 12.275 3.14922 11.9672 2.85469C11.4281 2.33672 10.8156 1.75 10 1.75C9.18437 1.75 8.57266 2.33672 8.03281 2.85469C7.725 3.14922 7.40781 3.45391 7.12891 3.56875C6.875 3.675 6.45 3.68125 6.03984 3.6875C5.27734 3.69922 4.41328 3.71172 3.8125 4.3125C3.21172 4.91328 3.20312 5.77734 3.1875 6.53984C3.18125 6.95 3.175 7.37344 3.06875 7.62891C2.95391 7.90703 2.64922 8.225 2.35469 8.53281C1.83672 9.07188 1.25 9.68437 1.25 10.5C1.25 11.3156 1.83672 11.9273 2.35469 12.4672C2.64922 12.775 2.95391 13.0922 3.06875 13.3711C3.175 13.6266 3.18125 14.05 3.1875 14.4602C3.19922 15.2227 3.21172 16.0867 3.8125 16.6875C4.41328 17.2883 5.27734 17.3008 6.03984 17.3125C6.45 17.3187 6.87344 17.325 7.12891 17.4312C7.40703 17.5461 7.725 17.8508 8.03281 18.1453C8.57188 18.6633 9.18437 19.25 10 19.25C10.8156 19.25 11.4273 18.6633 11.9672 18.1453C12.275 17.8508 12.5922 17.5461 12.8711 17.4312C13.1266 17.325 13.55 17.3187 13.9602 17.3125C14.7227 17.3008 15.5867 17.2883 16.1875 16.6875C16.7883 16.0867 16.8008 15.2227 16.8125 14.4602C16.8187 14.05 16.825 13.6266 16.9312 13.3711C17.0461 13.093 17.3508 12.775 17.6453 12.4672C18.1633 11.9281 18.75 11.3156 18.75 10.5C18.75 9.68437 18.1633 9.07266 17.6453 8.53281ZM16.743 11.6023C16.3687 11.993 15.9812 12.3969 15.7758 12.893C15.5789 13.3695 15.5703 13.9141 15.5625 14.4414C15.5547 14.9883 15.5461 15.5609 15.3031 15.8031C15.0602 16.0453 14.4914 16.0547 13.9414 16.0625C13.4141 16.0703 12.8695 16.0789 12.393 16.2758C11.8969 16.4812 11.493 16.8687 11.1023 17.243C10.7117 17.6172 10.3125 18 10 18C9.6875 18 9.28516 17.6156 8.89766 17.243C8.51016 16.8703 8.10313 16.4812 7.60703 16.2758C7.13047 16.0789 6.58594 16.0703 6.05859 16.0625C5.51172 16.0547 4.93906 16.0461 4.69687 15.8031C4.45469 15.5602 4.44531 14.9914 4.4375 14.4414C4.42969 13.9141 4.42109 13.3695 4.22422 12.893C4.01875 12.3969 3.63125 11.993 3.25703 11.6023C2.88281 11.2117 2.5 10.8125 2.5 10.5C2.5 10.1875 2.88437 9.78516 3.25703 9.39766C3.62969 9.01016 4.01875 8.60313 4.22422 8.10703C4.42109 7.63047 4.42969 7.08594 4.4375 6.55859C4.44531 6.01172 4.45391 5.43906 4.69687 5.19687C4.93984 4.95469 5.50859 4.94531 6.05859 4.9375C6.58594 4.92969 7.13047 4.92109 7.60703 4.72422C8.10313 4.51875 8.50703 4.13125 8.89766 3.75703C9.28828 3.38281 9.6875 3 10 3C10.3125 3 10.7148 3.38437 11.1023 3.75703C11.4898 4.12969 11.8969 4.51875 12.393 4.72422C12.8695 4.92109 13.4141 4.92969 13.9414 4.9375C14.4883 4.94531 15.0609 4.95391 15.3031 5.19687C15.5453 5.43984 15.5547 6.00859 15.5625 6.55859C15.5703 7.08594 15.5789 7.63047 15.7758 8.10703C15.9812 8.60313 16.3687 9.00703 16.743 9.39766C17.1172 9.78828 17.5 10.1875 17.5 10.5C17.5 10.8125 17.1156 11.2148 16.743 11.6023ZM9.375 11.125V6.75C9.375 6.58424 9.44085 6.42527 9.55806 6.30806C9.67527 6.19085 9.83424 6.125 10 6.125C10.1658 6.125 10.3247 6.19085 10.4419 6.30806C10.5592 6.42527 10.625 6.58424 10.625 6.75V11.125C10.625 11.2908 10.5592 11.4497 10.4419 11.5669C10.3247 11.6842 10.1658 11.75 10 11.75C9.83424 11.75 9.67527 11.6842 9.55806 11.5669C9.44085 11.4497 9.375 11.2908 9.375 11.125ZM10.9375 13.9375C10.9375 14.1229 10.8825 14.3042 10.7795 14.4583C10.6765 14.6125 10.5301 14.7327 10.3588 14.8036C10.1875 14.8746 9.99896 14.8932 9.8171 14.857C9.63525 14.8208 9.4682 14.7315 9.33709 14.6004C9.20598 14.4693 9.11669 14.3023 9.08051 14.1204C9.04434 13.9385 9.06291 13.75 9.13386 13.5787C9.20482 13.4074 9.32498 13.261 9.47915 13.158C9.63332 13.055 9.81458 13 10 13C10.2486 13 10.4871 13.0988 10.6629 13.2746C10.8387 13.4504 10.9375 13.6889 10.9375 13.9375Z" fill="white"/>
+</svg>
               </div>
               <div className="text-[10px] text-gray-300 leading-relaxed">
-                For immersive experience always use <span className="text-white font-semibold">VLC Media Player</span>. It supports all the audio codex
+                For immersive experience always use <span className="text-white underline font-semibold">VLC Media Player</span>. It supports all the audio codex
               </div>
             </div>
           </div>
         </div>
 
         {/* 4. Tabs Section */}
-<div className="bg-black border-b border-gray-800 mx-[5%] mt-[10px] rounded-sm">
+<div className="bg-black border-b border-gray-800 mx-[5%] mt-[8px] rounded-[5px]">
           <div className="flex max-w-7xl mx-auto">
             {[
               { id: 'download', label: 'Download', active: true },
@@ -641,7 +643,7 @@ const MovieDetails = ({ movie, onClose }) => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-8 py-4 text-sm font-medium transition-colors relative ${
                   (activeTab === tab.id || (tab.id === 'download' && activeTab === 'download'))
-                    ? 'text-red-500'
+                    ? 'text-white font-bold'
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
@@ -661,12 +663,17 @@ const MovieDetails = ({ movie, onClose }) => {
             <div className="p-3">
               <div className="max-w-7xl mx-auto">
                 {/* Download Options header */}
-                <div className="mb-6 shadow-lg">
-                  <h3 className="text-white text-lg font-medium">
-                    Download Options 
-                    <span className="text-gray-400 text-sm ml-2">({movieData.downloadLinks?.length || 0})</span>
-                  </h3>
-                </div>
+               <div className="mb-5 mt-3 shadow-lg">
+  <h3 className="text-white text-[12px] font-regular flex items-center gap-2">
+    <span className="bg-[#2f2f2f] px-2 py-1 rounded">
+      Download Options
+      <span className="text-white font-bold text-[14px] ml-2">
+      {movieData.downloadLinks?.length || 0}
+    </span>
+    </span>
+   
+  </h3>
+</div>
 
                 {/* Dynamic Download Links - Show all available links with individual file info */}
                 {movieData.downloadLinks && movieData.downloadLinks.length > 0 ? (
@@ -674,7 +681,7 @@ const MovieDetails = ({ movie, onClose }) => {
                     {movieData.downloadLinks.map((link, index) => (
                       <div key={index} className="bg-black border border-gray-700/30 rounded-lg overflow-hidden shadow-lg">
                         {/* File Information for this specific download */}
-                        <div className="bg-black border-l-4 border-gray-600 p-4">
+                        <div className="bg-black border-l-2 border-white p-2">
                           <h4 className="text-white text-[12px] mb-2">File Information:</h4>
                           <div className="text-gray-300 text-[10px] leading-relaxed">
                             {link.rawDatabaseDetails || link.description || 
@@ -684,28 +691,28 @@ const MovieDetails = ({ movie, onClose }) => {
                           {/* Dynamic Tags based on link details */}
                           <div className="flex flex-wrap gap-2 mt-3">
                             {link.quality && (
-                              <span className="bg-gray-800 text-white px-3 py-1 rounded-md text-xs font-medium">
+                              <span className="border border-[343434] text-white px-3 py-1 rounded-md text-xs font-regular">
                                 {link.quality}
                               </span>
                             )}
                             {link.rawDatabaseDetails?.includes('BluRay') && (
-                              <span className="bg-gray-800 text-white px-3 py-1 rounded-md text-xs font-medium">
+                              <span className="border border-[343434] text-white px-3 py-1 rounded-md text-xs font-regular">
                                 BluRay
                               </span>
                             )}
                             {link.rawDatabaseDetails?.includes('WEB-DL') && (
-                              <span className="bg-gray-800 text-white px-3 py-1 rounded-md text-xs font-medium">
+                              <span className="border border-[343434] text-white px-3 py-1 rounded-md text-xs font-regular">
                                 WEB-DL
                               </span>
                             )}
                             {(link.rawDatabaseDetails?.includes('Hindi') && link.rawDatabaseDetails?.includes('English')) ? (
-                              <span className="bg-gray-800 text-white px-3 py-1 rounded-md text-xs font-medium">
+                              <span className="border border-[343434] text-white px-3 py-1 rounded-md text-xs font-regular">
                                 Hindi + English
                               </span>
                             ) : (
                               <>
                                 {movieData.languages?.map((lang, idx) => (
-                                  <span key={idx} className="bg-gray-800 text-white px-3 py-1 rounded-md text-xs font-medium">
+                                  <span key={idx} className="border border-[343434] text-white px-3 py-1 rounded-md text-xs font-regular">
                                     {lang}
                                   </span>
                                 ))}
@@ -725,7 +732,7 @@ const MovieDetails = ({ movie, onClose }) => {
                         </div>
 
                         {/* Download button row */}
-                        <div className="flex items-center justify-between p-4 bg-black hover:bg-gray-900/30 transition-colors">
+                        <div className="flex items-center justify-between p-2 bg-black hover:bg-gray-900/30 transition-colors">
                           {/* Left side - Quality and size */}
                           <div className="flex items-center space-x-4">
                             <span className="text-white font-semibold text-base">{link.quality || 'HD'}</span>
@@ -737,7 +744,7 @@ const MovieDetails = ({ movie, onClose }) => {
                           <button 
                             onClick={() => handleDirectDownload(link, index)}
                             disabled={downloadingLinks.has(index)}
-                            className="bg-red-600 hover:bg-red-700 text-white px-8 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center space-x-2 text-sm"
+                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-[5px] font-medium transition-colors disabled:opacity-50 flex items-center space-x-2 text-sm"
                           >
                             {downloadingLinks.has(index) ? (
                               <>
