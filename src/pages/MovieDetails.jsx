@@ -542,7 +542,7 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 1. Title and Date Section */}
-        <div className="bg-[#131313] px-2 py-4 border-b border-gray-700/30">
+        <div className="bg-[#131313] px-3 py-4 border-b border-gray-700/30">
           <div className="max-w-7xl mx-auto">
             {/* Title - dynamic from movie data */}
             <h1 className="text-[24px] font-bold text-white mb-1 leading-tight truncate">
@@ -615,7 +615,7 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 3. VLC Media Player Recommendation Line */}
-        <div className="bg-[#131313] px-2 py-4">
+        <div className="bg-[#131313] px-3 py-4">
           <div className="max-w-7xl mx-auto">
             <div className="flex items-center justify-center space-x-2">
               <div className="">
@@ -665,7 +665,7 @@ const MovieDetails = ({ movie, onClose }) => {
                 {/* Download Options header */}
                <div className="mb-5 mt-3 shadow-lg">
   <h3 className="text-white text-[12px] font-regular flex items-center gap-2">
-    <span className="bg-[#2f2f2f] px-2 py-1 rounded">
+    <span className="bg-[#2f2f2f] px-3 py-1 rounded">
       Download Options
       <span className="text-white font-bold text-[14px] ml-2">
       {movieData.downloadLinks?.length || 0}
