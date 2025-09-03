@@ -631,7 +631,7 @@ const MovieDetails = ({ movie, onClose }) => {
         </div>
 
         {/* 4. Tabs Section */}
-<div className="bg-black border-b border-gray-800 mx-[5%] mt-[8px] rounded-[5px]">
+<div className="bg-black border-b border-gray-800 mx-[3%] mt-[8px] rounded-[5px]">
           <div className="flex max-w-7xl mx-auto">
             {[
               { id: 'download', label: 'Download', active: true },
