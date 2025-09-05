@@ -11,6 +11,9 @@ import {
   parseContentMetadata
 } from './utils.js';
 
+// **PRODUCTION-SAFE LOGGING**
+import logger from '../utils/logger.js';
+
 // **CONFIGURATION**
 const CONFIG = {
   INITIAL_LOAD_COUNT: 100,
@@ -481,7 +484,7 @@ export const searchMoviesDB = async (searchQuery, filters = {}) => {
 
   try {
     const query = searchQuery.trim();
-    console.log(`🔍 Database search for movies: "${query}"`);
+    logger.log(`🔍 Database search for movies: "${query}"`);
 
     let queryBuilder = supabase
       .from('movies')
@@ -528,23 +531,23 @@ export const searchMoviesDB = async (searchQuery, filters = {}) => {
       const { data, error } = result;
       
       if (error) {
-        console.error('❌ Movie DB search error:', error);
+        logger.error('❌ Movie DB search error:', error);
         return [];
       }
 
       const transformedResults = data ? data.map(transformMovieData).filter(Boolean) : [];
-      console.log(`✅ Movie DB search completed: ${transformedResults.length} results`);
+      logger.log(`✅ Movie DB search completed: ${transformedResults.length} results`);
       return transformedResults;
     } else {
       const { data, error } = await queryBuilder;
       
       if (error) {
-        console.error('❌ Movie DB search error:', error);
+        logger.error('❌ Movie DB search error:', error);
         return [];
       }
 
       const transformedResults = data ? data.map(transformMovieData).filter(Boolean) : [];
-      console.log(`✅ Movie DB search completed: ${transformedResults.length} results`);
+      logger.log(`✅ Movie DB search completed: ${transformedResults.length} results`);
       return transformedResults;
     }
   } catch (error) {

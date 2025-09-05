@@ -14,6 +14,9 @@ import { getAllAnime, searchAnime, searchAnimeDB, getAnimeCacheStats } from '../
 import { useDirectDatabaseSearch, useLazyDownloadLinks } from '../hooks/useDirectDatabaseSearch';
 import SimpleOptimizedImage from '../components/SimpleOptimizedImage';
 
+// **PRODUCTION-SAFE LOGGING**
+import logger from '../utils/logger';
+
 // **OPTIMIZED BATCH LOADING CONFIGURATION**
 const CONFIG = {
   INITIAL_BATCH_SIZE: 500, // First batch - increased for better UX
@@ -23,16 +26,16 @@ const CONFIG = {
   CACHE_PRELOAD_DELAY: 100
 };
 
-// **REAL-TIME DATABASE SEARCH HOOK** (Activates only on search bar focus)
-const useRealTimeSearch = (searchQuery, contentType, isSearchActive) => {
+// **GLOBAL REAL-TIME DATABASE SEARCH HOOK** - Searches across all content types
+const useGlobalRealTimeSearch = (searchQuery, isSearchActive) => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchHistory, setSearchHistory] = useState([]);
   const [searchError, setSearchError] = useState(null);
   const searchAbortController = useRef(null);
   
-  // Memoize the database search function
-  const performDatabaseSearch = useCallback(async (query, type) => {
+  // Memoize the global database search function
+  const performGlobalDatabaseSearch = useCallback(async (query) => {
     if (!query || query.length < CONFIG.SEARCH_MIN_LENGTH || !isSearchActive) {
       setSearchResults([]);
       return;
@@ -48,51 +51,75 @@ const useRealTimeSearch = (searchQuery, contentType, isSearchActive) => {
     
     setIsSearching(true);
     setSearchError(null);
-    console.log(`🔍 REAL-TIME SEARCH: "${query}" in ${type} (Database)`);
+    logger.log(`🔍 GLOBAL REAL-TIME SEARCH: "${query}" (All Content Types)`);
     
     try {
-      let results = [];
+      // Search all content types simultaneously
+      const searchPromises = [
+        searchMoviesDB(query, { 
+          limit: 15,
+          signal: searchAbortController.current.signal 
+        }).then(results => results.map(item => ({ ...item, contentType: 'movies' }))),
+        
+        searchSeriesDB(query, { 
+          limit: 15,
+          signal: searchAbortController.current.signal 
+        }).then(results => results.map(item => ({ ...item, contentType: 'series' }))),
+        
+        searchAnimeDB(query, { 
+          limit: 15,
+          signal: searchAbortController.current.signal 
+        }).then(results => results.map(item => ({ ...item, contentType: 'anime' })))
+      ];
       
-      switch (type) {
-        case 'movies':
-          console.log('📽️ Searching movies database...');
-          // Use the DB search function instead of cache search
-          results = await searchMoviesDB(query, { 
-            limit: 30,
-            signal: searchAbortController.current.signal 
-          });
-          break;
-        case 'series':
-          console.log('📺 Searching series database...');
-          results = await searchSeriesDB(query, { 
-            limit: 30,
-            signal: searchAbortController.current.signal 
-          });
-          break;
-        case 'anime':
-          console.log('🌟 Searching anime database...');
-          results = await searchAnimeDB(query, { 
-            limit: 30,
-            signal: searchAbortController.current.signal 
-          });
-          break;
-        default:
-          console.warn(`❓ Unknown content type: ${type}`);
-          results = [];
+      logger.log('🔄 Searching movies, series, and anime simultaneously...');
+      const [movieResults, seriesResults, animeResults] = await Promise.all(searchPromises);
+      
+      // Combine and sort results by relevance/date
+      const allResults = [...movieResults, ...seriesResults, ...animeResults]
+        .sort((a, b) => {
+          // Sort by modified date (newest first)
+          const dateA = new Date(a.modifiedDate || a.modified_date || a.date || 0);
+          const dateB = new Date(b.modifiedDate || b.modified_date || b.date || 0);
+          return dateB - dateA;
+        })
+        .slice(0, 30); // Limit total results to 30
+      
+      logger.log(`✅ GLOBAL SEARCH: found ${allResults.length} results (${movieResults.length} movies, ${seriesResults.length} series, ${animeResults.length} anime)`);
+      
+      // Debug: Log the first few results to see their structure
+      if (allResults.length > 0) {
+        logger.log('🔍 Sample search result structure:', {
+          firstResult: allResults[0],
+          hasImage: !!(allResults[0]?.poster || allResults[0]?.featuredImage || allResults[0]?.featured_image),
+          imageUrl: allResults[0]?.poster || allResults[0]?.featuredImage || allResults[0]?.featured_image
+        });
       }
       
-      console.log(`✅ REAL-TIME SEARCH: found ${results.length} results for "${query}"`);
-      setSearchResults(results);
+      setSearchResults(allResults);
       setSearchError(null);
       
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.log('🔄 Search aborted - new search started');
+        logger.log('🔄 Search aborted - new search started');
         return;
       }
-      console.error('❌ Database search failed:', error);
+      logger.error('❌ Global database search failed:', error);
       setSearchError(error.message || 'Search failed');
-      setSearchResults([]);
+      
+      // Return fallback cache search results if database search fails
+      try {
+        logger.log('🔄 Falling back to cache search...');
+        const fallbackResults = [];
+        
+        // Simple cache search implementation
+        // Note: This would require implementing cache search functions
+        // For now, just return empty results
+        setSearchResults(fallbackResults);
+      } catch (fallbackError) {
+        logger.error('❌ Fallback cache search also failed:', fallbackError);
+        setSearchResults([]);
+      }
     } finally {
       setIsSearching(false);
     }
@@ -113,8 +140,8 @@ const useRealTimeSearch = (searchQuery, contentType, isSearchActive) => {
     }
 
     const debounceTimeout = setTimeout(() => {
-      console.log(`🔍 Triggering real-time search for "${searchQuery}" in ${contentType}`);
-      performDatabaseSearch(searchQuery, contentType);
+      logger.log(`🔍 Triggering global search for "${searchQuery}"`);
+      performGlobalDatabaseSearch(searchQuery);
     }, 300); // Faster response for real-time feel
     
     return () => {
@@ -124,7 +151,7 @@ const useRealTimeSearch = (searchQuery, contentType, isSearchActive) => {
         searchAbortController.current.abort();
       }
     };
-  }, [searchQuery, contentType, performDatabaseSearch, isSearchActive]);
+  }, [searchQuery, performGlobalDatabaseSearch, isSearchActive]);
   
   // Generate suggestions from recent search results
   const suggestions = useMemo(() => {
@@ -168,7 +195,6 @@ const useRealTimeSearch = (searchQuery, contentType, isSearchActive) => {
 const RealTimeSearchBar = memo(({ 
   searchQuery, 
   onSearchChange, 
-  contentType, 
   searchResults = [], 
   isSearching = false,
   suggestions = [],
@@ -247,7 +273,7 @@ const RealTimeSearchBar = memo(({
       <div className="relative group">
         <input
           type="text"
-          placeholder={`Search ${contentType}...`}
+          placeholder="Search movies, series, anime..."
           className={`bg-gray-800 border border-gray-700 rounded-lg px-12 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-red-500 transition-colors duration-200 ${
             isFocused ? 'w-80 border-red-500' : 'w-64'
           }`}
@@ -284,38 +310,138 @@ const RealTimeSearchBar = memo(({
           {isSearching ? (
             <div className="p-4 text-center">
               <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              <p className="text-gray-400 text-sm">Searching...</p>
+              <p className="text-gray-400 text-sm">Searching across all content...</p>
             </div>
           ) : searchResults.length > 0 ? (
             <div className="max-h-80 overflow-y-auto">
-              {searchResults.slice(0, 6).map((result, index) => (
-                <button
-                  key={result.id || index}
-                  onClick={() => handleResultClick(result)}
-                  className="w-full p-3 hover:bg-gray-800 text-left flex items-center space-x-3 border-b border-gray-800 last:border-b-0"
-                >
-                  <div className="w-12 h-16 bg-gray-700 rounded overflow-hidden flex-shrink-0">
-                    <SimpleOptimizedImage
-                      src={result.poster || result.featuredImage}
-                      alt={result.title}
-                      className="w-full h-full object-cover"
-                      lazy={true}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-white text-sm font-medium truncate">
-                      {result.title}
-                    </div>
-                    <div className="text-gray-400 text-xs truncate">
-                      {result.releaseYear} • {result.categories?.slice(0, 1).join(', ')}
-                    </div>
-                  </div>
-                </button>
-              ))}
+              {/* Group results by content type */}
+              {(() => {
+                const groupedResults = {
+                  movies: searchResults.filter(r => r.contentType === 'movies'),
+                  series: searchResults.filter(r => r.contentType === 'series'),
+                  anime: searchResults.filter(r => r.contentType === 'anime')
+                };
+
+                return (
+                  <>
+                    {/* Movies Section */}
+                    {groupedResults.movies.length > 0 && (
+                      <div>
+                        <div className="px-3 py-2 bg-gray-800 text-gray-300 text-xs font-medium border-b border-gray-700">
+                          MOVIES ({groupedResults.movies.length})
+                        </div>
+                        {groupedResults.movies.slice(0, 3).map((result, index) => (
+                          <button
+                            key={`movie-${result.id || index}`}
+                            onClick={() => handleResultClick(result)}
+                            className="w-full p-3 hover:bg-gray-800 text-left flex items-center space-x-3 border-b border-gray-800 last:border-b-0"
+                          >
+                            <div className="w-12 h-16 bg-gray-700 rounded overflow-hidden flex-shrink-0">
+                              <SimpleOptimizedImage
+                                src={result.poster || result.featuredImage || result.featured_image}
+                                alt={result.title}
+                                className="w-full h-full object-cover"
+                                lazy={true}
+                                fallbackSrc="https://via.placeholder.com/120x160/1f1f1f/ffffff?text=No+Image"
+                                onError={(e) => {
+                                  logger.log('🖼️ Movie image load error for:', result.title, 'URL:', result.poster || result.featuredImage || result.featured_image);
+                                }}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-white text-sm font-medium truncate">
+                                {highlightMatch(result.title, searchQuery)}
+                              </div>
+                              <div className="text-gray-400 text-xs truncate">
+                                {result.releaseYear} • Movie • {result.categories?.slice(0, 1).join(', ')}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Series Section */}
+                    {groupedResults.series.length > 0 && (
+                      <div>
+                        <div className="px-3 py-2 bg-gray-800 text-gray-300 text-xs font-medium border-b border-gray-700">
+                          TV SERIES ({groupedResults.series.length})
+                        </div>
+                        {groupedResults.series.slice(0, 3).map((result, index) => (
+                          <button
+                            key={`series-${result.id || index}`}
+                            onClick={() => handleResultClick(result)}
+                            className="w-full p-3 hover:bg-gray-800 text-left flex items-center space-x-3 border-b border-gray-800 last:border-b-0"
+                          >
+                            <div className="w-12 h-16 bg-gray-700 rounded overflow-hidden flex-shrink-0">
+                              <SimpleOptimizedImage
+                                src={result.poster || result.featuredImage || result.featured_image}
+                                alt={result.title}
+                                className="w-full h-full object-cover"
+                                lazy={true}
+                                fallbackSrc="https://via.placeholder.com/120x160/1f1f1f/ffffff?text=No+Image"
+                                onError={(e) => {
+                                  logger.log('🖼️ Series image load error for:', result.title, 'URL:', result.poster || result.featuredImage || result.featured_image);
+                                }}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-white text-sm font-medium truncate">
+                                {highlightMatch(result.title, searchQuery)}
+                              </div>
+                              <div className="text-gray-400 text-xs truncate">
+                                {result.releaseYear} • Series • {result.categories?.slice(0, 1).join(', ')}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Anime Section */}
+                    {groupedResults.anime.length > 0 && (
+                      <div>
+                        <div className="px-3 py-2 bg-gray-800 text-gray-300 text-xs font-medium border-b border-gray-700">
+                          ANIME ({groupedResults.anime.length})
+                        </div>
+                        {groupedResults.anime.slice(0, 3).map((result, index) => (
+                          <button
+                            key={`anime-${result.id || index}`}
+                            onClick={() => handleResultClick(result)}
+                            className="w-full p-3 hover:bg-gray-800 text-left flex items-center space-x-3 border-b border-gray-800 last:border-b-0"
+                          >
+                            <div className="w-12 h-16 bg-gray-700 rounded overflow-hidden flex-shrink-0">
+                              <SimpleOptimizedImage
+                                src={result.poster || result.featuredImage || result.featured_image}
+                                alt={result.title}
+                                className="w-full h-full object-cover"
+                                lazy={true}
+                                fallbackSrc="https://via.placeholder.com/120x160/1f1f1f/ffffff?text=No+Image"
+                                onError={(e) => {
+                                  logger.log('🖼️ Anime image load error for:', result.title, 'URL:', result.poster || result.featuredImage || result.featured_image);
+                                }}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-white text-sm font-medium truncate">
+                                {highlightMatch(result.title, searchQuery)}
+                              </div>
+                              <div className="text-gray-400 text-xs truncate">
+                                {result.releaseYear} • Anime • {result.categories?.slice(0, 1).join(', ')}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           ) : searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH ? (
             <div className="p-4 text-center">
               <p className="text-gray-400 text-sm">No results found for "{searchQuery}"</p>
+              <p className="text-gray-500 text-xs mt-1">Try searching with different keywords</p>
             </div>
           ) : null}
         </div>
@@ -528,14 +654,14 @@ function Home() {
     anime: false
   });
 
-  // **REAL-TIME SEARCH WITH ACTIVATION CONTROL**
+  // **GLOBAL REAL-TIME SEARCH WITH ACTIVATION CONTROL**
   const { 
     searchResults, 
     isSearching, 
     suggestions, 
     searchHistory,
     searchError
-  } = useRealTimeSearch(searchQuery, contentType, isSearchActive);
+  } = useGlobalRealTimeSearch(searchQuery, isSearchActive);
 
   // **OPTIMIZED PAGINATION**
   const MOVIES_PER_PAGE = 20; // Changed from CONFIG.ITEMS_PER_PAGE (100) to 20 as requested
@@ -566,11 +692,11 @@ function Home() {
         if (JSON.stringify(prevStats) === JSON.stringify(newStats)) {
           return prevStats; // No change, return same object reference
         }
-        console.log('📊 Cache stats updated:', newStats);
+        logger.log('📊 Cache stats updated:', newStats);
         return newStats;
       });
     } catch (error) {
-      console.warn('Error updating cache stats:', error);
+      logger.warn('Error updating cache stats:', error);
     }
   }, []);
 
@@ -598,18 +724,18 @@ function Home() {
   // **OPTIMIZED BATCH FETCH FUNCTIONS**
   const fetchMovies = useCallback(async () => {
     if (moviesLoaded || moviesLoading || fetchingRef.current.movies) {
-      console.log('🎬 Movies already loaded/loading, skipping...');
+      logger.log('🎬 Movies already loaded/loading, skipping...');
       return;
     }
     
     fetchingRef.current.movies = true;
     setMoviesLoading(true);
-    console.log('🎬 Starting optimized movie loading...');
+    logger.log('🎬 Starting optimized movie loading...');
     
     try {
       // This now loads in progressive batches (500 initially, then more in background)
       const movies = await getAllMovies(CONFIG.INITIAL_BATCH_SIZE);
-      console.log(`✅ Loaded ${movies.length} movies in optimized batches`);
+      logger.log(`✅ Loaded ${movies.length} movies in optimized batches`);
       setAllMovies(movies);
       setMoviesLoaded(true);
       
@@ -618,12 +744,12 @@ function Home() {
         try {
           updateCacheStats();
         } catch (error) {
-          console.warn('Cache stats update after movie load failed:', error);
+          logger.warn('Cache stats update after movie load failed:', error);
         }
       }, 1000);
       
     } catch (error) {
-      console.error('❌ Error loading movies:', error);
+      logger.error('❌ Error loading movies:', error);
     } finally {
       setMoviesLoading(false);
       fetchingRef.current.movies = false;
@@ -632,17 +758,17 @@ function Home() {
 
   const fetchSeries = useCallback(async () => {
     if (seriesLoaded || seriesLoading || fetchingRef.current.series) {
-      console.log('📺 Series already loaded/loading, skipping...');
+      logger.log('📺 Series already loaded/loading, skipping...');
       return;
     }
     
     fetchingRef.current.series = true;
     setSeriesLoading(true);
-    console.log('📺 Starting optimized series loading...');
+    logger.log('📺 Starting optimized series loading...');
     
     try {
       const series = await getAllSeries(CONFIG.INITIAL_BATCH_SIZE);
-      console.log(`✅ Loaded ${series.length} series in optimized batches`);
+      logger.log(`✅ Loaded ${series.length} series in optimized batches`);
       setAllSeries(series);
       setSeriesLoaded(true);
       
@@ -651,12 +777,12 @@ function Home() {
         try {
           updateCacheStats();
         } catch (error) {
-          console.warn('Cache stats update after series load failed:', error);
+          logger.warn('Cache stats update after series load failed:', error);
         }
       }, 1000);
       
     } catch (error) {
-      console.error('❌ Error loading series:', error);
+      logger.error('❌ Error loading series:', error);
     } finally {
       setSeriesLoading(false);
       fetchingRef.current.series = false;
@@ -665,17 +791,17 @@ function Home() {
 
   const fetchAnime = useCallback(async () => {
     if (animeLoaded || animeLoading || fetchingRef.current.anime) {
-      console.log('🌟 Anime already loaded/loading, skipping...');
+      logger.log('🌟 Anime already loaded/loading, skipping...');
       return;
     }
     
     fetchingRef.current.anime = true;
     setAnimeLoading(true);
-    console.log('🌟 Starting optimized anime loading...');
+    logger.log('🌟 Starting optimized anime loading...');
     
     try {
       const anime = await getAllAnime(CONFIG.INITIAL_BATCH_SIZE);
-      console.log(`✅ Loaded ${anime.length} anime in optimized batches`);
+      logger.log(`✅ Loaded ${anime.length} anime in optimized batches`);
       setAllAnime(anime);
       setAnimeLoaded(true);
       
@@ -684,12 +810,12 @@ function Home() {
         try {
           updateCacheStats();
         } catch (error) {
-          console.warn('Cache stats update after anime load failed:', error);
+          logger.warn('Cache stats update after anime load failed:', error);
         }
       }, 1000);
       
     } catch (error) {
-      console.error('❌ Error loading anime:', error);
+      logger.error('❌ Error loading anime:', error);
     } finally {
       setAnimeLoading(false);
       fetchingRef.current.anime = false;
@@ -706,14 +832,14 @@ function Home() {
     const shouldFetchAnime = contentType === 'anime' && !animeLoaded && !animeLoading;
     
     if (shouldFetchMovies) {
-      console.log('🎬 Content type changed to movies, fetching...');
-      fetchMovies().catch(console.error);
+      logger.log('🎬 Content type changed to movies, fetching...');
+      fetchMovies().catch(logger.error);
     } else if (shouldFetchSeries) {
-      console.log('📺 Content type changed to series, fetching...');
-      fetchSeries().catch(console.error);
+      logger.log('📺 Content type changed to series, fetching...');
+      fetchSeries().catch(logger.error);
     } else if (shouldFetchAnime) {
-      console.log('🌟 Content type changed to anime, fetching...');
-      fetchAnime().catch(console.error);
+      logger.log('🌟 Content type changed to anime, fetching...');
+      fetchAnime().catch(logger.error);
     }
   }, [contentType, fetchMovies, fetchSeries, fetchAnime]); // Keep only necessary dependencies
 
@@ -1235,7 +1361,6 @@ function Home() {
             <RealTimeSearchBar
               searchQuery={searchQuery}
               onSearchChange={handleSearchChange}
-              contentType={contentType}
               searchResults={searchResults}
               isSearching={isSearching}
               suggestions={suggestions}

@@ -11,6 +11,9 @@ import {
   parseContentMetadata
 } from './utils.js';
 
+// **PRODUCTION-SAFE LOGGING**
+import logger from '../utils/logger.js';
+
 // **OPTIMIZED BATCH LOADING CONFIGURATION**
 const CONFIG = {
   BATCH_SIZE: 500, // Load 500 anime at a time
@@ -802,25 +805,11 @@ export const searchAnimeDB = async (searchQuery, filters = {}) => {
 
   try {
     const query = searchQuery.trim();
-    console.log(`🔍 Database search for anime: "${query}"`);
+    logger.log(`🔍 Database search for anime: "${query}"`);
 
     let queryBuilder = supabase
       .from('anime')
-      .select(`
-        record_id,
-        title,
-        url_slug,
-        featured_image,
-        poster,
-        categories,
-        links,
-        content,
-        excerpt,
-        status,
-        date,
-        modified_date,
-        seasons
-      `)
+      .select('*')
       .ilike('title', `%${query}%`)
       .eq('status', 'publish')
       .order('modified_date', { ascending: false })
@@ -851,23 +840,23 @@ export const searchAnimeDB = async (searchQuery, filters = {}) => {
       const { data, error } = result;
       
       if (error) {
-        console.error('❌ Anime DB search error:', error);
+        logger.error('❌ Anime DB search error:', error);
         return [];
       }
 
       const transformedResults = data ? data.map(transformAnimeData).filter(Boolean) : [];
-      console.log(`✅ Anime DB search completed: ${transformedResults.length} results`);
+      logger.log(`✅ Anime DB search completed: ${transformedResults.length} results`);
       return transformedResults;
     } else {
       const { data, error } = await queryBuilder;
       
       if (error) {
-        console.error('❌ Anime DB search error:', error);
+        logger.error('❌ Anime DB search error:', error);
         return [];
       }
 
       const transformedResults = data ? data.map(transformAnimeData).filter(Boolean) : [];
-      console.log(`✅ Anime DB search completed: ${transformedResults.length} results`);
+      logger.log(`✅ Anime DB search completed: ${transformedResults.length} results`);
       return transformedResults;
     }
   } catch (error) {

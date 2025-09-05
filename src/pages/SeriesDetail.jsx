@@ -89,8 +89,20 @@ const SeriesDetail = ({ series, onClose }) => {
     const handleEscKey = (e) => {
       if (e.key === 'Escape') onClose();
     };
+
+    const handleBackButton = (e) => {
+      e.preventDefault();
+      onClose();
+    };
+
     window.addEventListener('keydown', handleEscKey);
-    return () => window.removeEventListener('keydown', handleEscKey);
+    window.addEventListener('popstate', handleBackButton);
+    window.history.pushState({ modalOpen: true }, '');
+
+    return () => {
+      window.removeEventListener('keydown', handleEscKey);
+      window.removeEventListener('popstate', handleBackButton);
+    };
   }, [onClose]);
 
   // Data fetching

@@ -11,6 +11,9 @@ import {
   parseContentMetadata
 } from './utils.js';
 
+// **PRODUCTION-SAFE LOGGING**
+import logger from '../utils/logger.js';
+
 // **OPTIMIZED BATCH LOADING CONFIGURATION**
 const CONFIG = {
   BATCH_SIZE: 500, // Load 500 series at a time
@@ -780,25 +783,11 @@ export const searchSeriesDB = async (searchQuery, filters = {}) => {
 
   try {
     const query = searchQuery.trim();
-    console.log(`🔍 Database search for series: "${query}"`);
+    logger.log(`🔍 Database search for series: "${query}"`);
 
     let queryBuilder = supabase
       .from('series')
-      .select(`
-        record_id,
-        title,
-        url_slug,
-        featured_image,
-        poster,
-        categories,
-        links,
-        content,
-        excerpt,
-        status,
-        date,
-        modified_date,
-        seasons
-      `)
+      .select('*')
       .ilike('title', `%${query}%`)
       .eq('status', 'publish')
       .order('modified_date', { ascending: false })
@@ -829,23 +818,23 @@ export const searchSeriesDB = async (searchQuery, filters = {}) => {
       const { data, error } = result;
       
       if (error) {
-        console.error('❌ Series DB search error:', error);
+        logger.error('❌ Series DB search error:', error);
         return [];
       }
 
       const transformedResults = data ? data.map(transformSeriesData).filter(Boolean) : [];
-      console.log(`✅ Series DB search completed: ${transformedResults.length} results`);
+      logger.log(`✅ Series DB search completed: ${transformedResults.length} results`);
       return transformedResults;
     } else {
       const { data, error } = await queryBuilder;
       
       if (error) {
-        console.error('❌ Series DB search error:', error);
+        logger.error('❌ Series DB search error:', error);
         return [];
       }
 
       const transformedResults = data ? data.map(transformSeriesData).filter(Boolean) : [];
-      console.log(`✅ Series DB search completed: ${transformedResults.length} results`);
+      logger.log(`✅ Series DB search completed: ${transformedResults.length} results`);
       return transformedResults;
     }
   } catch (error) {

@@ -222,10 +222,12 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
             </div>
           )}
 
-          {/* Watch Now badge below the excerpt badge */}
-          <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm text-black text-[10px] px-2 py-0.5 rounded-[2px] font-medium w-[80px] text-center whitespace-nowrap">
-            Watch Now
-          </div>
+          {/* Watch Now badge below the excerpt badge - only shown when excerpt is available */}
+          {movie.excerpt && (
+            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm text-black text-[10px] px-2 py-0.5 rounded-[2px] font-medium w-[80px] text-center whitespace-nowrap">
+              Watch Now
+            </div>
+          )}
 
           {/* Gradient Overlay removed for cleaner image */}
         </div>
