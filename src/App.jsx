@@ -8,6 +8,28 @@ import { KJUR, b64utoutf8 } from "jsrsasign";
 
 const SECRET = "hiicine_demo_secret_2025";
 
+// URL Masking function
+function maskURL() {
+  try {
+    // Store the original URL for functionality
+    window.originalURL = window.location.href;
+    
+    // Change the displayed URL to google.co.in
+    const maskedURL = 'https://google.co.in';
+    
+    // Use replaceState to change the URL without page reload
+    window.history.replaceState(
+      { maskedURL: true, originalURL: window.originalURL }, 
+      '', 
+      maskedURL
+    );
+    
+    console.log('URL masked successfully');
+  } catch (error) {
+    console.log('URL masking failed:', error);
+  }
+}
+
 function isApiTool() {
   try {
     const userAgent = navigator.userAgent.toLowerCase();

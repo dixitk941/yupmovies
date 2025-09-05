@@ -23,6 +23,7 @@ const SeriesDetail = ({ series, onClose }) => {
   const [downloadingLinks, setDownloadingLinks] = useState(new Set());
   const [imageLoaded, setImageLoaded] = useState(false);
   const [episodeQualities, setEpisodeQualities] = useState({});
+  const [selectedZipQuality, setSelectedZipQuality] = useState('');
   const [sortOrder, setSortOrder] = useState('desc'); // 'desc' = latest first, 'asc' = oldest first
   
   const modalRef = useRef(null);
@@ -538,65 +539,214 @@ const SeriesDetail = ({ series, onClose }) => {
                   <p className="text-gray-400 text-xs">Complete seasons in zip format</p>
                 </div>
 
+                {/* Season and Quality Selectors */}
+                <div className="flex gap-2 mb-4">
+                  {/* Season Selector */}
+                  <div className="relative flex-1">
+                    <select
+                      value={activeSeason?.seasonNumber || ''}
+                      onChange={(e) => {
+                        const selectedSeasonNumber = parseInt(e.target.value);
+                        const selectedSeason = availableSeasons.find(s => s.seasonNumber === selectedSeasonNumber);
+                        if (selectedSeason) {
+                          handleSeasonChange(selectedSeason);
+                        }
+                      }}
+                      className="w-full p-2.5 bg-black border border-gray-700 rounded text-white font-medium text-sm appearance-none"
+                    >
+                      <option value="">Select Season</option>
+                      {availableSeasons.map(season => (
+                        <option key={season.id} value={season.seasonNumber}>
+                          Season {season.seasonNumber} ({season.totalEpisodes} Episodes)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Quality Selector */}
+                  <div className="relative flex-1">
+                    <select 
+                      value={selectedZipQuality}
+                      onChange={(e) => setSelectedZipQuality(e.target.value)}
+                      className="w-full p-2.5 bg-black border border-gray-700 rounded text-white font-medium text-sm appearance-none"
+                    >
+                      <option value="">All</option>
+                      {(() => {
+                        // Get unique qualities from available seasonZipLinks
+                        const availableQualities = currentSeriesData?.seasonZipLinks 
+                          ? [...new Set(currentSeriesData.seasonZipLinks.map(zip => zip.quality))]
+                            .filter(quality => quality) // Remove any null/undefined
+                            .sort((a, b) => {
+                              // Sort by quality priority: 1080p, 720p, 480p, others
+                              const priority = { '1080p': 1, '720p': 2, '480p': 3 };
+                              return (priority[a] || 99) - (priority[b] || 99);
+                            })
+                          : [];
+                        
+                        return availableQualities.map(quality => (
+                          <option key={quality} value={quality}>
+                            {quality}
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                  </div>
+                </div>
+
                 {isLoadingSeasons ? (
                   <div className="text-center py-8">
                     <div className="w-8 h-8 border-2 border-[#ff0000] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
                     <p className="text-gray-400 text-sm">Loading season packages...</p>
                   </div>
-                ) : currentSeriesData?.seasonZipLinks?.length > 0 ? (
-                  <div className="space-y-2">
-                    {currentSeriesData.seasonZipLinks.map((zipLink, zipIndex) => {
-                      const downloadKey = `package-${zipLink.seasonNumber || 'unknown'}-${zipLink.quality}`;
-                      const isDownloading = downloadingLinks.has(downloadKey);
-                      
-                      return (
-                        <div key={zipIndex} className="bg-black border border-gray-700 rounded p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5 flex-1">
-                              <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
-                                <Package size={14} className="text-white" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <h3 className="text-white font-medium text-sm">
-                                  {zipLink.name || `Season ${zipLink.seasonNumber || 'Package'} Complete`}
-                                </h3>
-                                <div className="flex items-center gap-2 mt-0.5">
-                                  <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                                    zipLink.quality === '1080p' ? 'bg-green-600/20 text-green-400' : 'bg-blue-600/20 text-blue-400'
-                                  }`}>
-                                    {zipLink.quality}
-                                  </span>
-                                  <span className="text-gray-400 text-xs">{zipLink.size}</span>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <button
-                              onClick={() => {
-                                console.log('🔽 Package download clicked:', zipLink);
-                                handleDownload(zipLink, null, true);
-                              }}
-                              disabled={isDownloading}
-                              className="bg-[#ff0000] hover:bg-red-700 disabled:opacity-50 text-white px-3 py-1.5 rounded text-xs font-medium transition-all flex items-center gap-1"
-                            >
-                              <Download size={12} />
-                              {isDownloading ? 'DL...' : 'Download'}
-                            </button>
-                          </div>
+                ) : activeSeason ? (
+                  <div className="space-y-4">
+                    {/* Season Information Card */}
+                    <div className="bg-black border border-gray-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-white font-medium text-lg">Season {activeSeason.seasonNumber}</h3>
+                        <div className="flex gap-2">
+                          <span className="bg-[#ff0000] text-white px-2 py-1 rounded text-xs font-medium">
+                            {activeSeason.totalEpisodes} Episodes
+                          </span>
+                          <span className="bg-gray-800 text-gray-300 px-2 py-1 rounded text-xs">
+                            Multiple Qualities
+                          </span>
                         </div>
-                      );
-                    })}
+                      </div>
+                      
+                      {/* Season Description */}
+                      <p className="text-gray-400 text-sm mb-4">
+                        {currentSeriesData?.title} Season {activeSeason.seasonNumber} Complete 
+                        {currentSeriesData?.languages?.length > 0 
+                          ? ` (${currentSeriesData.languages.join(' + ')})` 
+                          : ' Multi-Audio'
+                        } Series - Available in multiple qualities and formats
+                      </p>
+
+                      {/* Available Qualities for Season */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {['480p', '720p', '1080p'].map(quality => (
+                          <span key={quality} className="bg-gray-800 text-gray-300 px-3 py-1 rounded-full text-xs">
+                            {quality}
+                          </span>
+                        ))}
+                        <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full text-xs">
+                          WEB-DL
+                        </span>
+                        <span className="bg-green-600/20 text-green-400 px-3 py-1 rounded-full text-xs">
+                          HEVC
+                        </span>
+                      </div>
+
+                      {/* Complete Season Downloads */}
+                      {(() => {
+                        // Filter zip links based on selected season and quality
+                        let filteredZipLinks = currentSeriesData?.seasonZipLinks || [];
+                        
+                        // Filter by quality if selected
+                        if (selectedZipQuality) {
+                          filteredZipLinks = filteredZipLinks.filter(zip => zip.quality === selectedZipQuality);
+                        }
+                        
+                        // Only show if we have a season selected and matching zip links
+                        return filteredZipLinks.length > 0 && activeSeason ? (
+                          <div className="border-t border-gray-700 pt-4">
+                            <h4 className="text-white font-medium text-sm mb-3 flex items-center gap-2">
+                              <Package size={16} className="text-[#ff0000]" />
+                              Complete Season Downloads
+                              {selectedZipQuality && (
+                                <span className="bg-gray-800 text-gray-300 px-2 py-1 rounded text-xs ml-2">
+                                  {selectedZipQuality}
+                                </span>
+                              )}
+                            </h4>
+                            <div className="space-y-2">
+                              {filteredZipLinks.map((zipLink, zipIndex) => {
+                                const downloadKey = `package-${activeSeason?.seasonNumber || 1}-${zipLink.quality}`;
+                                const isDownloading = downloadingLinks.has(downloadKey);
+                                
+                                return (
+                                  <div key={zipIndex} className="bg-gray-900/50 border border-gray-700/50 rounded-lg p-3">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3 flex-1">
+                                        <div className="w-8 h-8 bg-[#ff0000] rounded flex items-center justify-center">
+                                          <Archive size={14} className="text-white" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <h5 className="text-white font-medium text-sm">
+                                            Season {activeSeason.seasonNumber} Complete - {zipLink.quality}
+                                          </h5>
+                                          <div className="flex items-center gap-2 mt-1">
+                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                              zipLink.quality === '1080p' ? 'bg-green-600/20 text-green-400' : 
+                                              zipLink.quality === '720p' ? 'bg-blue-600/20 text-blue-400' :
+                                              'bg-yellow-600/20 text-yellow-400'
+                                            }`}>
+                                              {zipLink.quality}
+                                            </span>
+                                            <span className="text-gray-400 text-xs">{zipLink.size}</span>
+                                            <span className="text-gray-500 text-xs">• ZIP Format</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      <button
+                                        onClick={() => {
+                                          console.log('🔽 Package download clicked:', zipLink);
+                                          handleDownload(zipLink, null, true);
+                                        }}
+                                        disabled={isDownloading}
+                                        className="bg-[#ff0000] hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
+                                      >
+                                        <Download size={14} />
+                                        {isDownloading ? 'Downloading...' : 'Download'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="border-t border-gray-700 pt-4">
+                            <div className="text-center py-6">
+                              <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <Package size={24} className="text-gray-500" />
+                              </div>
+                              {!activeSeason ? (
+                                <>
+                                  <h3 className="text-white font-medium mb-1">Select a Season</h3>
+                                  <p className="text-gray-400 text-sm">Please select a season to view available downloads.</p>
+                                </>
+                              ) : selectedZipQuality ? (
+                                <>
+                                  <h3 className="text-white font-medium mb-1">No {selectedZipQuality} Packages Available</h3>
+                                  <p className="text-gray-400 text-sm">Season {activeSeason.seasonNumber} is not available in {selectedZipQuality} quality.</p>
+                                </>
+                              ) : (
+                                <>
+                                  <h3 className="text-white font-medium mb-1">No Season Packages Available</h3>
+                                  <p className="text-gray-400 text-sm">Complete season downloads are not available for Season {activeSeason.seasonNumber}.</p>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+
                   </div>
                 ) : (
                   <div className="text-center py-8">
                     <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3">
                       <Package size={24} className="text-gray-500" />
                     </div>
-                    <h3 className="text-white font-medium mb-1">No Season Packages Available</h3>
-                    <p className="text-gray-400 text-sm mb-4">Season zip packages are not yet available for this series.</p>
+                    <h3 className="text-white font-medium mb-1">No Season Selected</h3>
+                    <p className="text-gray-400 text-sm mb-4">Please select a season to view available downloads.</p>
                     <button
                       onClick={() => setActiveTab('Episodes')}
-                      className="bg-[#ff0000] hover:bg-red-700 rounded px-3 py-1.5 text-white text-xs font-medium transition-all"
+                      className="bg-[#ff0000] hover:bg-red-700 rounded px-4 py-2 text-white text-sm font-medium transition-all"
                     >
                       Browse Episodes
                     </button>
