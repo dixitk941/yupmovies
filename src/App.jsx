@@ -595,6 +595,11 @@ function App() {
     if (sessionStorage.getItem("hiiCineSessionValidated") === "1") {
       setHasAccess(true);
       setComingFromVerification(true); // Assume they came through proper process
+      
+      // Apply URL masking after successful validation
+      setTimeout(() => {
+        maskURL();
+      }, 1000); // Delay to ensure page is fully loaded
     }
     setIsChecking(false);
   }, []);
