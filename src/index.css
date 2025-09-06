@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom spinner animation to ensure smooth rotation */
+@keyframes spin-smooth {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spinner-custom {
+  animation: spin-smooth 1s linear infinite;
+  transform-origin: center center;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  -moz-backface-visibility: hidden;
+  -ms-backface-visibility: hidden;
+}
+
+/* Ensure containers don't interfere with spinner animation */
+.spinner-container {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  perspective: 1000;
+  -webkit-perspective: 1000;
+}
+
 :root {
   --netflix-black: #141414;
   --netflix-dark: #181818;

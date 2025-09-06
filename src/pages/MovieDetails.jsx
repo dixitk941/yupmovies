@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { getMovieDetailsById, getSeriesDetailsById } from '../services/directMovieService';
 import { formatDateString, debugDate } from '../services/utils.js';
+import { ButtonSkeleton } from '../components/Skeleton';
 
 const MovieDetails = ({ movie, onClose }) => {
   const [directDetails, setDirectDetails] = useState(null);
@@ -748,7 +749,7 @@ const MovieDetails = ({ movie, onClose }) => {
                           >
                             {downloadingLinks.has(index) ? (
                               <>
-                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                <div className="w-4 h-4 bg-gray-400 rounded animate-pulse"></div>
                                 <span>Downloading...</span>
                               </>
                             ) : (

@@ -4,6 +4,7 @@ import { platforms } from '../data/mockData';
 import MovieCard from './MovieCard';
 import MovieDetails from './MovieDetails';
 import SeriesDetail from './SeriesDetail';
+import { SearchSkeleton, CardSkeleton } from '../components/Skeleton';
 
 // **OPTIMIZED IMPORTS WITH REAL-TIME DATABASE SEARCH**
 import { getAllMovies, searchMovies, searchMoviesDB, getCacheStats as getMovieStats } from '../services/movieService';
@@ -308,9 +309,10 @@ const RealTimeSearchBar = memo(({
           className="absolute top-full left-0 right-0 mt-2 bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-h-96 overflow-hidden z-50"
         >
           {isSearching ? (
-            <div className="p-4 text-center">
-              <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-              <p className="text-gray-400 text-sm">Searching across all content...</p>
+            <div className="p-4 space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <SearchSkeleton key={i} />
+              ))}
             </div>
           ) : searchResults.length > 0 ? (
             <div className="max-h-80 overflow-y-auto">
@@ -465,9 +467,12 @@ MovieSkeleton.displayName = 'MovieSkeleton';
 const TabLoadingState = memo(({ contentType, cacheStats }) => (
   <div className="space-y-8 px-4 md:px-8">
     <div className="flex items-center justify-center py-16">
-      <div className="text-center">
-        <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-gray-400">Loading {contentType}...</p>
+      <div className="w-full max-w-6xl mx-auto px-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <CardSkeleton key={i} className="w-full" />
+          ))}
+        </div>
         {cacheStats && (
           <div className="text-xs text-gray-500 mt-2">
             {cacheStats.totalMovies > 0 && `${cacheStats.totalMovies} items cached`}
@@ -1090,9 +1095,12 @@ function Home() {
     if (loading) {
       return (
         <div className="flex items-center justify-center py-16">
-          <div className="text-center">
-            <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-400">Loading {contentType}...</p>
+          <div className="w-full max-w-6xl mx-auto px-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <CardSkeleton key={i} className="w-full" />
+              ))}
+            </div>
           </div>
         </div>
       );

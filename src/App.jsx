@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes, useLocation } from "react-route
 import Home from "./pages/Home";
 import ProtectedPage from "./pages/ProtectedPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import { CardSkeleton } from "./components/Skeleton";
 import { addListener, launch } from "devtools-detector";
 import { KJUR, b64utoutf8 } from "jsrsasign";
 
@@ -611,8 +612,15 @@ function App() {
 
   if (isChecking) {
     return (
-      <div className="min-h-screen bg-[#121212] flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-[#121212] p-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-8 h-16 bg-gray-800 rounded animate-pulse"></div>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <CardSkeleton key={i} />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

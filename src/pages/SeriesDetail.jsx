@@ -5,6 +5,7 @@ import {
   Package, Archive, Tv, Eye, Users, Award, HardDrive, ArrowUpDown
 } from 'lucide-react';
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
+import { TextSkeleton, CardSkeleton } from '../components/Skeleton';
 
 const SeriesDetail = ({ series, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -452,9 +453,18 @@ const SeriesDetail = ({ series, onClose }) => {
                 {/* Episodes List - Handle empty episodes */}
                 <div className="space-y-2 pb-16">
                   {isLoadingSeasons ? (
-                    <div className="text-center py-8">
-                      <div className="w-8 h-8 border-2 border-[#ff0000] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                      <p className="text-gray-400 text-sm">Loading episodes...</p>
+                    <div className="py-8 space-y-4">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div key={i} className="bg-gray-800/50 rounded-lg p-4 space-y-3">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 bg-gray-700 rounded animate-pulse"></div>
+                            <div className="flex-1 space-y-2">
+                              <div className="w-3/4 h-4 bg-gray-700 rounded animate-pulse"></div>
+                              <div className="w-1/2 h-3 bg-gray-700 rounded animate-pulse"></div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : sortedEpisodes.length > 0 ? (
                     sortedEpisodes.map((episode, index) => {
@@ -606,9 +616,16 @@ const SeriesDetail = ({ series, onClose }) => {
                 </div>
 
                 {isLoadingSeasons ? (
-                  <div className="text-center py-8">
-                    <div className="w-8 h-8 border-2 border-[#ff0000] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                    <p className="text-gray-400 text-sm">Loading season packages...</p>
+                  <div className="py-8 space-y-4">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <div key={i} className="bg-gray-800/50 rounded-lg p-6 space-y-4">
+                        <div className="w-1/3 h-6 bg-gray-700 rounded animate-pulse"></div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="w-full h-10 bg-gray-700 rounded animate-pulse"></div>
+                          <div className="w-full h-10 bg-gray-700 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : activeSeason ? (
                   <div className="space-y-4">

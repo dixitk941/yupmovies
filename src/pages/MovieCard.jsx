@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
 import SimpleOptimizedImage from '../components/SimpleOptimizedImage';
+import { ImageSkeleton } from '../components/Skeleton';
 import { formatDateString, debugDate } from '../services/utils.js';
 
 // Cache for loaded images to prevent re-loading after modal close
@@ -162,10 +163,10 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
           className="relative w-full"
           style={{ aspectRatio: '2/3' }}
         >
-          {/* Loading State */}
-          {!isLoaded && !imgError && imageSrc && (
-            <div className="absolute inset-0 bg-gray-800 animate-pulse flex items-center justify-center z-10">
-              <div className="w-4 h-4 border-2 border-gray-600 border-t-white rounded-full animate-spin"></div>
+          {/* Loading State - Skeleton */}
+          {!isLoaded && imageSrc && !imgError && (
+            <div className="absolute inset-0 z-10">
+              <ImageSkeleton className="w-full h-full rounded-none" aspectRatio="2/3" />
             </div>
           )}
 
