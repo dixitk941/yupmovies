@@ -27,6 +27,22 @@ const CONFIG = {
   CACHE_PRELOAD_DELAY: 100
 };
 
+// **FILTER CONFIGURATION**
+const FILTERS = [
+  { id: 'all', label: 'All', icon: '🎬' },
+  { id: 'dual-audio', label: 'Dual Audio', icon: '🎭' },
+  { id: '1080p', label: '1080p', icon: '💻' },
+  { id: '720p', label: '720p', icon: '📱' },
+  { id: 'hollywood', label: 'Hollywood', icon: '�️' },
+  { id: 'bollywood', label: 'Bollywood', icon: '🎪' },
+  { id: 'netflix', label: 'Netflix', icon: '�' },
+  { id: 'amazon-prime', label: 'Amazon Prime', icon: '�' },
+  { id: 'anime', label: 'Anime', icon: '�' },
+  { id: 'kdrama', label: 'K-Drama', icon: '🇰🇷' },
+  { id: 'web-dl', label: 'WEB-DL', icon: '🌐' },
+  { id: 'bluray', label: 'Blu-Ray', icon: '💿' }
+];
+
 // **GLOBAL REAL-TIME DATABASE SEARCH HOOK** - Searches across all content types
 const useGlobalRealTimeSearch = (searchQuery, isSearchActive) => {
   const [searchResults, setSearchResults] = useState([]);
@@ -625,6 +641,10 @@ function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchActive, setIsSearchActive] = useState(false); // New state for search activation
   
+  // **OPTIMIZED PAGINATION - Load More Approach**
+  const MOVIES_PER_PAGE = 20; // Items to load per batch
+  const [displayedCount, setDisplayedCount] = useState(MOVIES_PER_PAGE); // How many items to show
+  
   // **OPTIMIZED BATCH LOADING STATE**
   const [allMovies, setAllMovies] = useState([]);
   const [allSeries, setAllSeries] = useState([]);
@@ -634,6 +654,11 @@ function Home() {
   const [moviesLoading, setMoviesLoading] = useState(false);
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [animeLoading, setAnimeLoading] = useState(false);
+  
+  // Filter states
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [filteredContent, setFilteredContent] = useState([]);
+  const [filterLoading, setFilterLoading] = useState(false);
   
   // Track which data has been fetched
   const [moviesLoaded, setMoviesLoaded] = useState(false);
@@ -648,7 +673,6 @@ function Home() {
   });
   
   const [selectedMovie, setSelectedMovie] = useState(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const headerRef = useRef(null);
   const lastScrollY = useRef(0);
   
@@ -658,6 +682,22 @@ function Home() {
     series: false,
     anime: false
   });
+  const prevContentTypeRef = useRef(contentType);
+  const pageRef = useRef(1);
+
+  // Reset displayed count when content type changes
+  useEffect(() => {
+    if (prevContentTypeRef.current !== contentType) {
+      console.log('� Content type changed, resetting displayed count');
+      setDisplayedCount(MOVIES_PER_PAGE);
+      prevContentTypeRef.current = contentType;
+    }
+  }, [contentType]);
+
+  // Debug displayedCount changes
+  useEffect(() => {
+    console.log('🔄 DisplayedCount changed to:', displayedCount);
+  }, [displayedCount]);
 
   // **GLOBAL REAL-TIME SEARCH WITH ACTIVATION CONTROL**
   const { 
@@ -667,9 +707,6 @@ function Home() {
     searchHistory,
     searchError
   } = useGlobalRealTimeSearch(searchQuery, isSearchActive);
-
-  // **OPTIMIZED PAGINATION**
-  const MOVIES_PER_PAGE = 20; // Changed from CONFIG.ITEMS_PER_PAGE (100) to 20 as requested
 
   // Remove these platforms from filters (case-insensitive) - memoized to prevent recreation
   const platformList = useMemo(() => {
@@ -829,8 +866,6 @@ function Home() {
 
   // **BATCH LOADING ON CONTENT TYPE CHANGE**
   useEffect(() => {
-    setCurrentPage(1); // Reset pagination when switching types
-    
     // Use refs to check current state to avoid stale closures
     const shouldFetchMovies = contentType === 'movies' && !moviesLoaded && !moviesLoading;
     const shouldFetchSeries = contentType === 'series' && !seriesLoaded && !seriesLoading;  
@@ -846,7 +881,507 @@ function Home() {
       logger.log('🌟 Content type changed to anime, fetching...');
       fetchAnime().catch(logger.error);
     }
-  }, [contentType, fetchMovies, fetchSeries, fetchAnime]); // Keep only necessary dependencies
+  }, [contentType]); // Only depend on contentType, not the fetch functions
+
+  // **FILTER FUNCTIONS - Direct database queries**
+  const applyFilter = useCallback(async (filterId) => {
+    if (filterId === 'all') {
+      setActiveFilter('all');
+      setFilteredContent([]);
+      setDisplayedCount(MOVIES_PER_PAGE);
+      return;
+    }
+
+    setFilterLoading(true);
+    setActiveFilter(filterId);
+    
+    try {
+      let results = [];
+      
+      // Add loading indicator to the specific filter
+      console.log(`🔍 Fetching ${filterId} content from database...`);
+      
+      switch (filterId) {
+        case 'netflix':
+          // Search for Netflix content in categories
+          const [netflixMovies, netflixSeries, netflixAnime] = await Promise.all([
+            searchMoviesDB('netflix', { genre: 'netflix', limit: 200 }),
+            searchSeriesDB('netflix', { genre: 'netflix', limit: 200 }),
+            searchAnimeDB('netflix', { genre: 'netflix', limit: 200 })
+          ]);
+          console.log('📊 Netflix search results:', {
+            movies: netflixMovies.length,
+            series: netflixSeries.length, 
+            anime: netflixAnime.length
+          });
+          results = [
+            ...netflixMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...netflixSeries.map(item => ({ ...item, contentType: 'series' })),
+            ...netflixAnime.map(item => ({ ...item, contentType: 'anime' }))
+          ];
+          break;
+        
+        case 'amazon-prime':
+          // Search for Amazon Prime content in categories
+          const [primeMovies, amazonMovies, primeSeries, amazonSeries, primeAnime, amazonAnime] = await Promise.all([
+            searchMoviesDB('prime', { genre: 'prime', limit: 100 }),
+            searchMoviesDB('amazon', { genre: 'amazon', limit: 100 }),
+            searchSeriesDB('prime', { genre: 'prime', limit: 100 }),
+            searchSeriesDB('amazon', { genre: 'amazon', limit: 100 }),
+            searchAnimeDB('prime', { genre: 'prime', limit: 100 }),
+            searchAnimeDB('amazon', { genre: 'amazon', limit: 100 })
+          ]);
+          results = [
+            ...primeMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...amazonMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...primeSeries.map(item => ({ ...item, contentType: 'series' })),
+            ...amazonSeries.map(item => ({ ...item, contentType: 'series' })),
+            ...primeAnime.map(item => ({ ...item, contentType: 'anime' })),
+            ...amazonAnime.map(item => ({ ...item, contentType: 'anime' }))
+          ];
+          break;
+        
+        case 'anime':
+          // Get all anime content
+          const animeContent = await getAllAnime(500);
+          results = animeContent.map(item => ({ ...item, contentType: 'anime' }));
+          break;
+        
+        case 'apple-tv':
+          // Search for Apple TV content in categories
+          const [appleMovies, appleSeries, appleAnime] = await Promise.all([
+            searchMoviesDB('apple', { genre: 'apple', limit: 200 }),
+            searchSeriesDB('apple', { genre: 'apple', limit: 200 }),
+            searchAnimeDB('apple', { genre: 'apple', limit: 200 })
+          ]);
+          results = [
+            ...appleMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...appleSeries.map(item => ({ ...item, contentType: 'series' })),
+            ...appleAnime.map(item => ({ ...item, contentType: 'anime' }))
+          ];
+          break;
+        
+        case '720p':
+          // Try direct database query first, fallback to cached data if network fails
+          try {
+            const { default: supabase720 } = await import('../services/supabaseClient.js');
+            const [movies720pQuery, series720pQuery, anime720pQuery] = await Promise.all([
+              supabase720
+                .from('movies')
+                .select('*')
+                .ilike('categories', '%720p%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabase720
+                .from('series')
+                .select('*')
+                .ilike('categories', '%720p%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabase720
+                .from('anime')
+                .select('*')
+                .ilike('categories', '%720p%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200)
+            ]);
+            
+            const movies720p = movies720pQuery.data || [];
+            const series720p = series720pQuery.data || [];
+            const anime720p = anime720pQuery.data || [];
+            
+            console.log('📊 Direct 720p search results:', {
+              movies: movies720p.length,
+              series: series720p.length, 
+              anime: anime720p.length
+            });
+            
+            results = [
+              ...movies720p.map(item => ({ ...item, contentType: 'movies' })),
+              ...series720p.map(item => ({ ...item, contentType: 'series' })),
+              ...anime720p.map(item => ({ ...item, contentType: 'anime' }))
+            ];
+            
+            if (results.length === 0) throw new Error('No results from network');
+            
+          } catch (error) {
+            console.log('🔄 Network failed, filtering cached data for 720p content...');
+            const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+            const filteredFromCache = allCachedContent.filter(item => {
+              const categories = item.categories || '';
+              return categories.toLowerCase().includes('720p');
+            });
+            
+            results = filteredFromCache.map(item => ({
+              ...item,
+              contentType: allMovies.includes(item) ? 'movies' : 
+                          allSeries.includes(item) ? 'series' : 'anime'
+            }));
+            
+            console.log('📊 Cached 720p results:', filteredFromCache.length);
+          }
+          break;
+        
+        case '1080p':
+          // Try direct database query first, fallback to cached data if network fails
+          try {
+            const { default: supabase1080 } = await import('../services/supabaseClient.js');
+            const [movies1080pQuery, series1080pQuery, anime1080pQuery] = await Promise.all([
+              supabase1080
+                .from('movies')
+                .select('*')
+                .ilike('categories', '%1080p%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabase1080
+                .from('series')
+                .select('*')
+                .ilike('categories', '%1080p%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabase1080
+                .from('anime')
+                .select('*')
+                .ilike('categories', '%1080p%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200)
+            ]);
+            
+            const movies1080p = movies1080pQuery.data || [];
+            const series1080p = series1080pQuery.data || [];
+            const anime1080p = anime1080pQuery.data || [];
+            
+            console.log('📊 Direct 1080p search results:', {
+              movies: movies1080p.length,
+              series: series1080p.length, 
+              anime: anime1080p.length
+            });
+            
+            results = [
+              ...movies1080p.map(item => ({ ...item, contentType: 'movies' })),
+              ...series1080p.map(item => ({ ...item, contentType: 'series' })),
+              ...anime1080p.map(item => ({ ...item, contentType: 'anime' }))
+            ];
+            
+            if (results.length === 0) throw new Error('No results from network');
+            
+          } catch (error) {
+            console.log('🔄 Network failed, filtering cached data for 1080p content...');
+            const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+            const filteredFromCache = allCachedContent.filter(item => {
+              const categories = item.categories || '';
+              return categories.toLowerCase().includes('1080p');
+            });
+            
+            results = filteredFromCache.map(item => ({
+              ...item,
+              contentType: allMovies.includes(item) ? 'movies' : 
+                          allSeries.includes(item) ? 'series' : 'anime'
+            }));
+            
+            console.log('📊 Cached 1080p results:', filteredFromCache.length);
+          }
+          break;
+        
+        case 'english':
+          // Search for English content in categories
+          const [englishMovies, englishSeries, englishAnime] = await Promise.all([
+            searchMoviesDB('english', { genre: 'english', limit: 200 }),
+            searchSeriesDB('english', { genre: 'english', limit: 200 }),
+            searchAnimeDB('english', { genre: 'english', limit: 200 })
+          ]);
+          results = [
+            ...englishMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...englishSeries.map(item => ({ ...item, contentType: 'series' })),
+            ...englishAnime.map(item => ({ ...item, contentType: 'anime' }))
+          ];
+          break;
+        
+        case 'dual-audio':
+          // Try direct database query first, fallback to cached data if network fails
+          console.log('🔍 Searching for Dual Audio content...');
+          
+          try {
+            const { default: supabase } = await import('../services/supabaseClient.js');
+            
+            const [dualMoviesQuery, dualSeriesQuery, dualAnimeQuery] = await Promise.all([
+              supabase
+                .from('movies')
+                .select('*')
+                .ilike('categories', '%dual audio%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabase
+                .from('series')
+                .select('*')
+                .ilike('categories', '%dual audio%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabase
+                .from('anime')
+                .select('*')
+                .ilike('categories', '%dual audio%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200)
+            ]);
+            
+            const dualMovies = dualMoviesQuery.data || [];
+            const dualSeries = dualSeriesQuery.data || [];
+            const dualAnime = dualAnimeQuery.data || [];
+            
+            console.log('📊 Direct Dual Audio search results:', {
+              movies: dualMovies.length,
+              series: dualSeries.length, 
+              anime: dualAnime.length,
+              sampleCategories: dualMovies.slice(0, 2).map(m => m.categories),
+              queries: {
+                moviesError: dualMoviesQuery.error,
+                seriesError: dualSeriesQuery.error,
+                animeError: dualAnimeQuery.error
+              }
+            });
+            
+            results = [
+              ...dualMovies.map(item => ({ ...item, contentType: 'movies' })),
+              ...dualSeries.map(item => ({ ...item, contentType: 'series' })),
+              ...dualAnime.map(item => ({ ...item, contentType: 'anime' }))
+            ];
+            
+            // If network query failed, fallback to filtering cached data
+            if (results.length === 0 && (dualMoviesQuery.error || dualSeriesQuery.error || dualAnimeQuery.error)) {
+              throw new Error('Network request failed, using cached data');
+            }
+            
+          } catch (error) {
+            console.log('🔄 Network failed, filtering cached data for Dual Audio content...');
+            
+            // Filter from currently loaded content (cache)
+            const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+            const filteredFromCache = allCachedContent.filter(item => {
+              const categories = item.categories || '';
+              return categories.toLowerCase().includes('dual audio');
+            });
+            
+            console.log('📊 Cached Dual Audio results:', {
+              totalCached: allCachedContent.length,
+              filtered: filteredFromCache.length,
+              sampleCategories: filteredFromCache.slice(0, 2).map(m => m.categories)
+            });
+            
+            results = filteredFromCache.map(item => ({
+              ...item,
+              contentType: allMovies.includes(item) ? 'movies' : 
+                          allSeries.includes(item) ? 'series' : 'anime'
+            }));
+          }
+          break;
+        
+        case 'kdrama':
+          // Search for Korean drama content in categories
+          const [koreanMovies, kdramaMovies, koreanSeries, kdramaSeries] = await Promise.all([
+            searchMoviesDB('korean', { genre: 'korean', limit: 100 }),
+            searchMoviesDB('kdrama', { genre: 'kdrama', limit: 100 }),
+            searchSeriesDB('korean', { genre: 'korean', limit: 100 }),
+            searchSeriesDB('kdrama', { genre: 'kdrama', limit: 100 })
+          ]);
+          results = [
+            ...koreanMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...kdramaMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...koreanSeries.map(item => ({ ...item, contentType: 'series' })),
+            ...kdramaSeries.map(item => ({ ...item, contentType: 'series' }))
+          ];
+          break;
+        
+        case 'hollywood':
+          // Direct database query for Hollywood content
+          const { default: supabaseHollywood } = await import('../services/supabaseClient.js');
+          const [hollywoodMoviesQuery, hollywoodSeriesQuery] = await Promise.all([
+            supabaseHollywood
+              .from('movies')
+              .select('*')
+              .ilike('categories', '%hollywood%')
+              .eq('status', 'publish')
+              .order('modified_date', { ascending: false })
+              .limit(200),
+            supabaseHollywood
+              .from('series')
+              .select('*')
+              .ilike('categories', '%hollywood%')
+              .eq('status', 'publish')
+              .order('modified_date', { ascending: false })
+              .limit(200)
+          ]);
+          
+          const hollywoodMovies = hollywoodMoviesQuery.data || [];
+          const hollywoodSeries = hollywoodSeriesQuery.data || [];
+          
+          console.log('📊 Direct Hollywood search results:', {
+            movies: hollywoodMovies.length,
+            series: hollywoodSeries.length
+          });
+          
+          results = [
+            ...hollywoodMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...hollywoodSeries.map(item => ({ ...item, contentType: 'series' }))
+          ];
+          break;
+        
+        case 'bollywood':
+          // Search for Bollywood content in categories
+          const [bollywoodMovies, bollywoodSeries] = await Promise.all([
+            searchMoviesDB('bollywood', { genre: 'bollywood', limit: 200 }),
+            searchSeriesDB('bollywood', { genre: 'bollywood', limit: 200 })
+          ]);
+          results = [
+            ...bollywoodMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...bollywoodSeries.map(item => ({ ...item, contentType: 'series' }))
+          ];
+          break;
+        
+        case 'web-dl':
+          // Search for WEB-DL content in categories
+          const [webdlMovies, webdlSeries, webdlAnime] = await Promise.all([
+            searchMoviesDB('web-dl', { genre: 'web-dl', limit: 200 }),
+            searchSeriesDB('web-dl', { genre: 'web-dl', limit: 200 }),
+            searchAnimeDB('web-dl', { genre: 'web-dl', limit: 200 })
+          ]);
+          results = [
+            ...webdlMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...webdlSeries.map(item => ({ ...item, contentType: 'series' })),
+            ...webdlAnime.map(item => ({ ...item, contentType: 'anime' }))
+          ];
+          break;
+        
+        case 'bluray':
+          // Search for Blu-Ray content in categories
+          const [blurayMovies, bluraySeries, blurayAnime] = await Promise.all([
+            searchMoviesDB('blu-ray', { genre: 'blu-ray', limit: 200 }),
+            searchSeriesDB('blu-ray', { genre: 'blu-ray', limit: 200 }),
+            searchAnimeDB('blu-ray', { genre: 'blu-ray', limit: 200 })
+          ]);
+          results = [
+            ...blurayMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...bluraySeries.map(item => ({ ...item, contentType: 'series' })),
+            ...blurayAnime.map(item => ({ ...item, contentType: 'anime' }))
+          ];
+          break;
+        
+        default:
+          results = [];
+      }
+      
+      // Remove duplicates based on record_id only (more lenient deduplication)
+      const uniqueResults = results
+        .filter((item, index, arr) => {
+          // Only remove if exact same record_id exists
+          return arr.findIndex(i => i.record_id === item.record_id) === index;
+        })
+        .sort((a, b) => new Date(b.modified_date || b.date) - new Date(a.modified_date || a.date));
+      
+      console.log(`✅ Filter ${filterId} completed: ${uniqueResults.length} unique items found from ${results.length} total results`);
+      console.log('📊 Sample results:', uniqueResults.slice(0, 3).map(r => ({ title: r.title, type: r.contentType })));
+      setFilteredContent(uniqueResults);
+      setDisplayedCount(MOVIES_PER_PAGE); // Reset to initial count
+      
+    } catch (error) {
+      console.error('❌ Database filter error:', error);
+      setFilteredContent([]);
+      // Show user-friendly error
+      console.log(`🔄 Filter ${filterId} failed, showing empty results`);
+    } finally {
+      setFilterLoading(false);
+    }
+  }, [MOVIES_PER_PAGE]);
+
+  // Handle filter change
+  const handleFilterChange = useCallback((filterId) => {
+    applyFilter(filterId);
+  }, [applyFilter]);
+
+  // **FILTER BAR COMPONENT**
+  const FilterBar = memo(() => {
+    return (
+      <div className="sticky top-20 z-40 bg-black/95 backdrop-blur-sm border-b border-gray-800 py-3">
+        <div className="flex items-center gap-3 px-4 overflow-x-auto scrollbar-hide">
+          <div className="flex items-center gap-2 mr-2 flex-shrink-0">
+            <Filter className="w-4 h-4 text-gray-400" />
+            <span className="text-sm text-gray-400 font-medium">Filters:</span>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            {FILTERS.map((filter) => {
+              const isActive = activeFilter === filter.id;
+              const isLoading = filterLoading && isActive;
+              const hasResults = isActive && filteredContent.length > 0;
+              
+              return (
+                <button
+                  key={filter.id}
+                  onClick={() => handleFilterChange(filter.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap flex-shrink-0 relative ${
+                    isActive
+                      ? 'bg-red-600 text-white shadow-lg shadow-red-600/25 scale-105'
+                      : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50 hover:text-white hover:scale-105'
+                  }`}
+                  disabled={filterLoading}
+                >
+                  <span className="text-base">{filter.icon}</span>
+                  <span>{filter.label}</span>
+                  
+                  {/* Results count */}
+                  {hasResults && !isLoading && (
+                    <span className="bg-white/20 text-xs px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                      {filteredContent.length}
+                    </span>
+                  )}
+                  
+                  {/* Loading indicator */}
+                  {isLoading && (
+                    <div className="w-3 h-3 border border-white/50 border-t-white rounded-full animate-spin"></div>
+                  )}
+                  
+                  {/* Active indicator */}
+                  {isActive && !isLoading && (
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full"></div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          
+          {/* Filter status info */}
+          {activeFilter !== 'all' && (
+            <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+              {filterLoading ? (
+                <span className="text-xs text-yellow-400 flex items-center gap-1">
+                  <div className="w-3 h-3 border border-yellow-400/50 border-t-yellow-400 rounded-full animate-spin"></div>
+                  Fetching from database...
+                </span>
+              ) : filteredContent.length > 0 ? (
+                <span className="text-xs text-green-400">
+                  ✅ {filteredContent.length} items found
+                </span>
+              ) : (
+                <span className="text-xs text-gray-500">
+                  No results found
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  });
+  FilterBar.displayName = 'FilterBar';
 
   // **OPTIMIZED INITIAL LOAD - Start with movies**
   useEffect(() => {
@@ -907,8 +1442,17 @@ function Home() {
   }, []);
 
   const handleSearchChange = useCallback((value) => {
+    const previousValue = searchQuery;
+    console.log('🔍 Search changed from:', previousValue, 'to:', value);
+    
     setSearchQuery(value);
-    setCurrentPage(1);
+    
+    // Reset displayed count when search changes
+    if (value !== previousValue) {
+      console.log('🔍 Search actually changed, resetting displayed count');
+      setDisplayedCount(MOVIES_PER_PAGE);
+    }
+    
     // Keep search active if user is typing
     if (value && value.length >= CONFIG.SEARCH_MIN_LENGTH) {
       setIsSearchActive(true);
@@ -931,14 +1475,25 @@ function Home() {
   const handleContentTypeChange = (newType) => {
     if (newType === contentType) return;
     
+    // Reset filter when changing content type
+    setActiveFilter('all');
+    setFilteredContent([]);
+    setDisplayedCount(MOVIES_PER_PAGE);
+    
     setContentType(newType);
     setSearchQuery(''); // Clear search when switching types
     setIsSearchActive(false); // Deactivate search when switching content types
-    console.log(`📱 Content type changed to ${newType}, search deactivated`);
+    console.log(`📱 Content type changed to ${newType}, search deactivated, filters reset`);
   };
 
   // Get current content and loading state - memoized to prevent recreation
   const getCurrentContentAndState = useCallback(() => {
+    // If a filter is active and we have filtered content, return filtered content
+    if (activeFilter !== 'all' && filteredContent.length > 0) {
+      return { content: filteredContent, loading: filterLoading, loaded: true };
+    }
+    
+    // Otherwise return content based on contentType
     switch (contentType) {
       case 'movies':
         return { content: allMovies, loading: moviesLoading, loaded: moviesLoaded };
@@ -949,7 +1504,7 @@ function Home() {
       default:
         return { content: allMovies, loading: moviesLoading, loaded: moviesLoaded };
     }
-  }, [contentType, allMovies, allSeries, allAnime, moviesLoading, seriesLoading, animeLoading, moviesLoaded, seriesLoaded, animeLoaded]);
+  }, [contentType, allMovies, allSeries, allAnime, moviesLoading, seriesLoading, animeLoading, moviesLoaded, seriesLoaded, animeLoaded, activeFilter, filteredContent, filterLoading]);
 
   // **OPTIMIZED: Use search results when searching, otherwise use grouped content**
   const getGroupedContent = useMemo(() => {
@@ -967,6 +1522,16 @@ function Home() {
     // If searching but no results
     if (searchQuery.trim() && searchResults.length === 0 && !isSearching) {
       return [];
+    }
+
+    // If a filter is active, return filtered content in a single section
+    if (activeFilter !== 'all' && filteredContent.length > 0) {
+      const filterLabel = FILTERS.find(f => f.id === activeFilter)?.label || activeFilter;
+      return [{ 
+        title: `${filterLabel} (${filteredContent.length} items)`, 
+        items: filteredContent,
+        icon: FILTERS.find(f => f.id === activeFilter)?.icon
+      }];
     }
 
     const sections = [];
@@ -1086,7 +1651,7 @@ function Home() {
     });
 
     return sections;
-  }, [searchQuery, searchResults, isSearching, contentType, getCurrentContentAndState, searchError]);
+  }, [searchQuery, searchResults, isSearching, contentType, getCurrentContentAndState, searchError, activeFilter, filteredContent]);
 
   // **MINIMAL ALL CONTENT SECTION**
   const AllContentSection = memo(() => {
@@ -1108,14 +1673,31 @@ function Home() {
     
     if (currentContent.length === 0) return null;
 
-    const totalPages = Math.ceil(currentContent.length / MOVIES_PER_PAGE);
-    const startIndex = (currentPage - 1) * MOVIES_PER_PAGE;
-    const endIndex = startIndex + MOVIES_PER_PAGE;
-    const paginatedContent = currentContent.slice(startIndex, endIndex);
+    // Load More approach instead of pagination
+    const displayedContent = currentContent.slice(0, displayedCount);
+    console.log('🧮 DisplayedContent calculation:', {
+      displayedCount,
+      currentContentLength: currentContent.length,
+      displayedContentLength: displayedContent.length,
+      firstItem: displayedContent[0]?.title || 'None',
+      lastItem: displayedContent[displayedContent.length - 1]?.title || 'None'
+    });
+    const hasMore = displayedCount < currentContent.length;
+    const remainingCount = currentContent.length - displayedCount;
 
-    const handlePageChange = (page) => {
-      setCurrentPage(page);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Debug load more
+    console.log('🔍 Load More Debug:', {
+      totalContent: currentContent.length,
+      displayedCount,
+      displayedContentLength: displayedContent.length,
+      hasMore,
+      remainingCount
+    });
+
+    const handleLoadMore = () => {
+      const newCount = Math.min(displayedCount + MOVIES_PER_PAGE, currentContent.length);
+      console.log('📥 Loading more content. Old count:', displayedCount, 'New count:', newCount, 'Total:', currentContent.length);
+      setDisplayedCount(newCount);
     };
 
     return (
@@ -1125,55 +1707,43 @@ function Home() {
             All {contentType === 'movies' ? 'Movies' : contentType === 'series' ? 'TV Shows' : 'Anime'}
           </h2>
           <div className="text-sm text-gray-400">
-            Showing {startIndex + 1}-{Math.min(endIndex, currentContent.length)} of {currentContent.length}
+            Showing {displayedContent.length} of {currentContent.length}
+            {hasMore && ` (${remainingCount} more available)`}
           </div>
         </div>
         
         {/* Clean movie grid */}
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 2xl:grid-cols-12 gap-3 mb-8">
-          {paginatedContent.map((content, idx) => (
+          {displayedContent.map((content, idx) => (
             <MovieCard
-              key={content.id || `${content.title}-${startIndex + idx}`}
+              key={content.id || `${content.title}-${idx}`}
               movie={content}
               onClick={handleContentSelect}
-              index={startIndex + idx}
+              index={idx}
               useOptimizedImage={true}
             />
           ))}
         </div>
 
-        {/* Simple pagination */}
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-3">
+        {/* Load More Button */}
+        {hasMore && (
+          <div className="flex justify-center mt-8">
             <button
-              disabled={currentPage === 1}
-              onClick={() => handlePageChange(currentPage - 1)}
-              className={`px-4 py-2 rounded text-sm ${
-                currentPage === 1 
-                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-                  : 'bg-red-600 text-white hover:bg-red-700'
-              }`}
+              onClick={handleLoadMore}
+              className="px-8 py-3 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors duration-200 flex items-center gap-2"
             >
-              Previous
+              <span>Load More</span>
+              <span className="text-xs opacity-75">({remainingCount} remaining)</span>
             </button>
-            
-            <div className="flex items-center justify-center bg-gray-800 rounded px-4 py-2">
-              <span className="text-sm text-white">
-                Page {currentPage} of {totalPages}
-              </span>
+          </div>
+        )}
+
+        {/* Show completion message when all content is loaded */}
+        {!hasMore && currentContent.length > MOVIES_PER_PAGE && (
+          <div className="flex justify-center mt-8">
+            <div className="px-6 py-3 bg-gray-800/50 text-gray-400 rounded-lg text-sm">
+              ✅ All {currentContent.length} items loaded
             </div>
-            
-            <button
-              disabled={currentPage === totalPages}
-              onClick={() => handlePageChange(currentPage + 1)}
-              className={`px-4 py-2 rounded text-sm ${
-                currentPage === totalPages 
-                  ? 'bg-gray-800 text-gray-500 cursor-not-allowed' 
-                  : 'bg-red-600 text-white hover:bg-red-700'
-              }`}
-            >
-              Next
-            </button>
           </div>
         )}
       </div>
@@ -1383,8 +1953,11 @@ function Home() {
         </div>
       </header>
 
+      {/* FILTER BAR */}
+      <FilterBar />
+
       {/* MAIN CONTENT */}
-      <main className={`pt-24 ${selectedMovie ? 'pb-8' : 'pb-20 md:pb-8'}`}>
+      <main className={`pt-32 ${selectedMovie ? 'pb-8' : 'pb-20 md:pb-8'}`}>
         {MainContent}
       </main>
 
