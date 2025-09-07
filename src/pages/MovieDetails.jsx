@@ -602,10 +602,12 @@ const MovieDetails = ({ movie, onClose }) => {
                         </div>
                       )}
 
-                      {/* Watch Now badge */}
-                      <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm text-black text-[6px] px-1.5 py-0.5 rounded font-medium text-center whitespace-nowrap">
-                        Watch Now
-                      </div>
+                      {/* Watch Now badge - only show when excerpt exists */}
+                      {movieData.excerpt && (
+                        <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm text-black text-[6px] px-1.5 py-0.5 rounded font-medium text-center whitespace-nowrap">
+                          Watch Now
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

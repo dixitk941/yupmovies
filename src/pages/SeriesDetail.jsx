@@ -320,9 +320,20 @@ const SeriesDetail = ({ series, onClose }) => {
                 S{latestSeason?.seasonNumber || 1} Episode {currentEpisodeInSeason}
               </span>
             </div>
-            <button className="bg-white text-black px-5 py-1.5 rounded font-medium text-sm hover:bg-gray-200 transition-colors">
-              Watch Now
-            </button>
+            
+            {/* Only show Watch Now button when excerpt exists */}
+            {currentSeriesData.excerpt && (
+              <button className="bg-white text-black px-5 py-1.5 rounded font-medium text-sm hover:bg-gray-200 transition-colors">
+                Watch Now
+              </button>
+            )}
+            
+            {/* Show excerpt badge if exists */}
+            {currentSeriesData.excerpt && (
+              <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-[#ff0000] backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium max-w-[80px] text-center whitespace-nowrap overflow-hidden">
+                {currentSeriesData.excerpt.length > 12 ? currentSeriesData.excerpt.substring(0, 12) + '...' : currentSeriesData.excerpt}
+              </div>
+            )}
           </div>
         </div>
 
@@ -553,13 +564,13 @@ const SeriesDetail = ({ series, onClose }) => {
             {/* Season Zips Tab */}
             {activeTab === 'Season Zips' && (
               <div className="space-y-3 pb-16">
-                <div className="text-center py-4">
-                  <div className="w-10 h-10 bg-[#ff0000] rounded-xl flex items-center justify-center mx-auto mb-2">
+               {/* <div className="text-center py-4">
+                   <div className="w-10 h-10 bg-[#ff0000] rounded-xl flex items-center justify-center mx-auto mb-2">
                     <Archive size={20} className="text-white" />
                   </div>
                   <h3 className="text-white font-medium mb-1">Season Packages</h3>
                   <p className="text-gray-400 text-xs">Complete seasons in zip format</p>
-                </div>
+                </div> */}
 
                 {/* Season and Quality Selectors */}
                 <div className="flex gap-2 mb-4">
@@ -708,7 +719,7 @@ const SeriesDetail = ({ series, onClose }) => {
                                           <div className="flex items-center gap-2 mt-1">
                                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                                               zipLink.quality === '1080p' ? 'bg-green-600/20 text-green-400' : 
-                                              zipLink.quality === '720p' ? 'bg-blue-600/20 text-blue-400' :
+                                              zipLink.quality === '720p' ? 'bg-transparent text-blue-400' :
                                               'bg-yellow-600/20 text-yellow-400'
                                             }`}>
                                               {zipLink.quality}
