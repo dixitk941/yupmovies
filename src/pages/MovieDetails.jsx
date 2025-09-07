@@ -16,7 +16,7 @@ const MovieDetails = ({ movie, onClose }) => {
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
   const [activeTab, setActiveTab] = useState('download');
-  const [scrollPosition, setScrollPosition] = useState(0);
+  const [scrollPosition, setScrollPosition] = useState(0); 
   const [hoveredQuality, setHoveredQuality] = useState(null);
   const [expandGenres, setExpandGenres] = useState(false);
   const [expandLanguages, setExpandLanguages] = useState(false);
@@ -650,7 +650,7 @@ const MovieDetails = ({ movie, onClose }) => {
               >
                 {tab.label}
                 {(activeTab === tab.id || (tab.id === 'download' && activeTab === 'download')) && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-500"></div>
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#ff0000]"></div>
                 )}
               </button>
             ))}

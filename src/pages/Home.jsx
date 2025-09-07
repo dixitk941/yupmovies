@@ -1310,7 +1310,7 @@ function Home() {
   // **FILTER BAR COMPONENT**
   const FilterBar = memo(() => {
     return (
-      <div className="sticky top-20 z-40 bg-black/95 backdrop-blur-sm border-b border-gray-800 py-3">
+      <div className="bg-black border-b border-gray-800 py-3">
         <div className="flex items-center gap-3 px-4 overflow-x-auto scrollbar-hide">
           <div className="flex items-center gap-2 mr-2 flex-shrink-0">
             <Filter className="w-4 h-4 text-gray-400" />
@@ -1903,7 +1903,7 @@ function Home() {
       {/* SIMPLE HEADER */}
       <header 
         ref={headerRef} 
-        className="fixed top-0 w-full bg-black bg-opacity-95 backdrop-blur-sm z-50 border-b border-gray-800"
+        className="bg-black bg-opacity-95 backdrop-blur-sm border-b border-gray-800"
       >
         <div className="flex items-center justify-center px-4 md:px-8 py-4">
           {/* Navigation */}
@@ -1957,7 +1957,7 @@ function Home() {
       <FilterBar />
 
       {/* MAIN CONTENT */}
-      <main className={`pt-32 ${selectedMovie ? 'pb-8' : 'pb-20 md:pb-8'}`}>
+      <main className={`${selectedMovie ? 'pb-8' : 'pb-20 md:pb-8'}`}>
         {MainContent}
       </main>
 
