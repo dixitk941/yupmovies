@@ -6,6 +6,11 @@ import MovieDetails from './MovieDetails';
 import SeriesDetail from './SeriesDetail';
 import { SearchSkeleton, CardSkeleton } from '../components/Skeleton';
 
+// Platform Icons
+import netflixIcon from '../assets/netfliix.png';
+import primeVideoIcon from '../assets/prime video.png';
+import animeIcon from '../assets/anime.png';
+
 // **OPTIMIZED IMPORTS WITH REAL-TIME DATABASE SEARCH**
 import { getAllMovies, searchMovies, searchMoviesDB, getCacheStats as getMovieStats } from '../services/movieService';
 import { getAllSeries, searchSeries, searchSeriesDB, getSeriesCacheStats } from '../services/seriesService';
@@ -292,41 +297,33 @@ const RealTimeSearchBar = memo(({
       <div className="relative group">
         <input
           type="text"
-          placeholder="Search movies, series, anime..."
-          className={`w-full h-[40px] bg-gray-900/80 backdrop-blur-sm border-2 rounded-xl px-12 text-white placeholder-gray-400 focus:outline-none transition-all duration-300 ${
-            isFocused 
-              ? 'border-red-500 bg-gray-900 shadow-lg shadow-red-500/20' 
-              : 'border-gray-700 hover:border-gray-600'
-          }`}
+          placeholder="Search here..."
+          className={`w-full h-[40px] bg-[#242424] backdrop-blur-sm border-0 rounded-xl px-12 text-[#FFFFFF/40] placeholder-gray-400 text-[12px] focus:outline-none transition-all duration-300`}
           value={searchQuery}
           onChange={handleInputChange}
           onFocus={handleFocus}
         />
         
-        {/* Enhanced Search Icon */}
-        <div className={`absolute left-3 top-1/2 transform -translate-y-1/2 transition-colors duration-300 ${
-          isFocused ? 'text-red-500' : 'text-gray-400 group-hover:text-gray-300'
-        }`}>
+        {/* Search Icon - Always White */}
+        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white">
           <Search size={18} />
         </div>
         
-        {/* Enhanced Clear Button */}
-        {searchQuery && (
-          <button
-            onClick={() => {
-              onSearchChange('');
-              setShowDropdown(false);
-            }}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full p-1 transition-all duration-200"
-          >
-            <X size={16} />
-          </button>
-        )}
+        {/* Clear Button - Always Visible */}
+        <button
+          onClick={() => {
+            onSearchChange('');
+            setShowDropdown(false);
+          }}
+          className={`absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full p-1 transition-all duration-200 ${!searchQuery ? 'opacity-0' : 'opacity-100'}`}
+        >
+          <X size={16} />
+        </button>
 
         {/* Search status indicator */}
         {isSearching && (
           <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
-            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
           </div>
         )}
       </div>
@@ -579,6 +576,63 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
 });
 ScrollableRow.displayName = 'ScrollableRow';
 
+// **GRID LAYOUT FOR SEARCH RESULTS**
+const GridRow = memo(({ title, items, showNumbers = false, onContentSelect }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const intersectionRef = useRef(null);
+
+  // Intersection observer for performance
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !isVisible) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    if (intersectionRef.current) {
+      observer.observe(intersectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [items, isVisible]);
+
+  if (!isVisible && items.length > 0) {
+    return (
+      <div ref={intersectionRef} className="mb-8 h-48 flex items-center justify-center">
+        <div className="text-gray-500">Loading section...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-8" ref={intersectionRef}>
+      <div className="mb-4 px-4 md:px-8">
+        <h2 className="text-xl font-bold text-white">
+          {title}
+        </h2>
+      </div>
+      
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 pb-4 px-4 md:px-8">
+        {items.map((content, idx) => (
+          <div key={content.id || `${content.title}-${idx}`}>
+            <MovieCard
+              movie={content}
+              onClick={onContentSelect}
+              index={idx}
+              showNumber={showNumbers}
+              useOptimizedImage={true}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
+GridRow.displayName = 'GridRow';
+
 const BottomBar = memo(({ 
   contentType, 
   onContentTypeChange, 
@@ -629,6 +683,13 @@ const BottomBar = memo(({
         }`}
         onClick={() => onContentTypeChange('movies')}
       >
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" 
+          className={contentType === 'movies' ? 'opacity-100' : 'opacity-50'}>
+          <g opacity={contentType === 'movies' ? '1' : '0.5'}>
+            <path d="M26.9999 13.0002H12.7612L26.2499 9.43891C26.3776 9.40527 26.4974 9.34667 26.6023 9.26651C26.7072 9.18634 26.7952 9.08619 26.8612 8.97184C26.9272 8.85749 26.9699 8.73119 26.9869 8.60025C27.0038 8.4693 26.9947 8.3363 26.9599 8.20891L25.9399 4.45891C25.7996 3.95439 25.4661 3.52549 25.0117 3.26509C24.5574 3.00469 24.0187 2.93376 23.5124 3.06766L4.47619 8.09266C4.22272 8.15845 3.98493 8.27416 3.77673 8.43299C3.56854 8.59182 3.39412 8.79059 3.26369 9.01766C3.13253 9.24195 3.04779 9.49031 3.01451 9.74799C2.98123 10.0057 3.00008 10.2674 3.06994 10.5177L3.99994 13.9452C3.99994 13.9627 3.99994 13.9814 3.99994 14.0002V25.0002C3.99994 25.5306 4.21065 26.0393 4.58573 26.4144C4.9608 26.7894 5.46951 27.0002 5.99994 27.0002H25.9999C26.5304 27.0002 27.0391 26.7894 27.4142 26.4144C27.7892 26.0393 27.9999 25.5306 27.9999 25.0002V14.0002C27.9999 13.7349 27.8946 13.4806 27.707 13.2931C27.5195 13.1055 27.2652 13.0002 26.9999 13.0002ZM24.0199 5.00016L24.7699 7.75891L21.9424 8.50891L18.4274 6.47891L24.0199 5.00016ZM15.6837 7.20016L19.1987 9.23016L14.5812 10.4489L11.0662 8.42141L15.6837 7.20016ZM5.75869 12.7777L5.00869 10.0177L8.32119 9.14266L11.8362 11.1752L5.75869 12.7777ZM25.9999 25.0002H5.99994V15.0002H25.9999V25.0002Z" 
+              fill={contentType === 'movies' ? '#FF0000' : 'white'} />
+          </g>
+        </svg>
         <span className="text-xs mt-1">Movies</span>
       </button>
       <button
@@ -637,6 +698,12 @@ const BottomBar = memo(({
         }`}
         onClick={() => onContentTypeChange('series')}
       >
+        <svg width="33" height="32" viewBox="0 0 33 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g opacity="0.5">
+<path d="M27.5 8.00007H18.9137L23.2075 3.70757C23.3951 3.51993 23.5006 3.26543 23.5006 3.00007C23.5006 2.7347 23.3951 2.48021 23.2075 2.29257C23.0199 2.10493 22.7654 1.99951 22.5 1.99951C22.2346 1.99951 21.9801 2.10493 21.7925 2.29257L16.5 7.58632L11.2075 2.29257C11.1146 2.19966 11.0043 2.12596 10.8829 2.07567C10.7615 2.02539 10.6314 1.99951 10.5 1.99951C10.3686 1.99951 10.2385 2.02539 10.1171 2.07567C9.99571 2.12596 9.88541 2.19966 9.7925 2.29257C9.60486 2.48021 9.49944 2.7347 9.49944 3.00007C9.49944 3.26543 9.60486 3.51993 9.7925 3.70757L14.0863 8.00007H5.5C4.96957 8.00007 4.46086 8.21078 4.08579 8.58585C3.71071 8.96093 3.5 9.46963 3.5 10.0001V25.0001C3.5 25.5305 3.71071 26.0392 4.08579 26.4143C4.46086 26.7894 4.96957 27.0001 5.5 27.0001H27.5C28.0304 27.0001 28.5391 26.7894 28.9142 26.4143C29.2893 26.0392 29.5 25.5305 29.5 25.0001V10.0001C29.5 9.46963 29.2893 8.96093 28.9142 8.58585C28.5391 8.21078 28.0304 8.00007 27.5 8.00007ZM27.5 25.0001H5.5V10.0001H27.5V25.0001Z" fill="white"/>
+</g>
+</svg>
+
         <span className="text-xs mt-1">Series</span>
       </button>
       <button
@@ -645,6 +712,11 @@ const BottomBar = memo(({
         }`}
         onClick={() => onContentTypeChange('anime')}
       >
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"
+          className={contentType === 'anime' ? 'opacity-100' : 'opacity-50'}>
+          <path d="M22.7113 26.7624C22.7447 26.8564 22.7591 26.956 22.7535 27.0556C22.748 27.1552 22.7226 27.2527 22.6789 27.3423C22.6352 27.432 22.5741 27.512 22.4991 27.5778C22.4242 27.6435 22.3368 27.6937 22.2422 27.7253C22.1476 27.7569 22.0477 27.7693 21.9482 27.7618C21.8488 27.7542 21.7518 27.727 21.663 27.6816C21.5743 27.6361 21.4954 27.5734 21.4312 27.4972C21.3669 27.4209 21.3185 27.3326 21.2887 27.2374L20.2887 24.2374C20.2553 24.1434 20.2409 24.0438 20.2465 23.9442C20.252 23.8446 20.2774 23.7471 20.3211 23.6575C20.3648 23.5678 20.4259 23.4878 20.5009 23.422C20.5758 23.3563 20.6632 23.3061 20.7578 23.2745C20.8524 23.2429 20.9523 23.2305 21.0518 23.238C21.1512 23.2456 21.2482 23.2728 21.337 23.3182C21.4257 23.3637 21.5046 23.4264 21.5688 23.5026C21.6331 23.5789 21.6815 23.6672 21.7113 23.7624L22.7113 26.7624ZM16 23.2499C15.8011 23.2499 15.6103 23.3289 15.4697 23.4696C15.329 23.6102 15.25 23.801 15.25 23.9999V27.9999C15.25 28.1988 15.329 28.3896 15.4697 28.5302C15.6103 28.6709 15.8011 28.7499 16 28.7499C16.1989 28.7499 16.3897 28.6709 16.5303 28.5302C16.671 28.3896 16.75 28.1988 16.75 27.9999V23.9999C16.75 23.801 16.671 23.6102 16.5303 23.4696C16.3897 23.3289 16.1989 23.2499 16 23.2499ZM11.2375 23.2887C11.0489 23.2257 10.8429 23.2402 10.665 23.3291C10.4871 23.4179 10.3518 23.5738 10.2887 23.7624L9.28875 26.7624C9.25531 26.8564 9.24094 26.956 9.24649 27.0556C9.25204 27.1552 9.2774 27.2527 9.32108 27.3423C9.36475 27.432 9.42587 27.512 9.50086 27.5778C9.57584 27.6435 9.66319 27.6937 9.75779 27.7253C9.85238 27.7569 9.95233 27.7693 10.0518 27.7618C10.1512 27.7542 10.2482 27.727 10.337 27.6816C10.4257 27.6361 10.5046 27.5734 10.5688 27.4972C10.6331 27.4209 10.6815 27.3326 10.7113 27.2374L11.7113 24.2374C11.7742 24.0488 11.7597 23.8428 11.6708 23.6649C11.582 23.487 11.4261 23.3517 11.2375 23.2887ZM30.75 13.9999C30.75 15.9212 29.1325 17.6737 26.195 18.9324C23.4587 20.1049 19.8387 20.7499 16 20.7499C12.1613 20.7499 8.54125 20.1049 5.805 18.9324C2.8675 17.6737 1.25 15.9212 1.25 13.9999C1.25 11.3549 4.3825 9.04365 9.44875 7.92865C10.1424 6.80782 11.1112 5.88295 12.263 5.24192C13.4147 4.6009 14.7113 4.26499 16.0294 4.26612C17.3475 4.26724 18.6435 4.60537 19.7941 5.24836C20.9448 5.89136 21.912 6.81788 22.6038 7.9399C27.6375 9.0599 30.75 11.3662 30.75 13.9999ZM9.75 12.1049V12.4799C9.74927 12.761 9.84396 13.034 10.0186 13.2543C10.1932 13.4745 10.4374 13.629 10.7113 13.6924C12.4478 14.0753 14.2218 14.2623 16 14.2499C17.7776 14.2638 19.5512 14.0785 21.2875 13.6974C21.5613 13.634 21.8056 13.4795 21.9802 13.2593C22.1548 13.039 22.2495 12.766 22.2488 12.4849V11.9999C22.2488 10.3423 21.5903 8.75259 20.4182 7.58048C19.2461 6.40838 17.6564 5.7499 15.9987 5.7499H15.915C12.5162 5.7949 9.75 8.6449 9.75 12.1049ZM29.25 13.9999C29.25 12.3337 26.9525 10.6737 23.4 9.6849C23.6328 10.4345 23.7508 11.215 23.75 11.9999V12.4899C23.7511 13.1098 23.5413 13.7117 23.1551 14.1966C22.769 14.6816 22.2294 15.0208 21.625 15.1587C19.7781 15.5658 17.8912 15.7641 16 15.7499C14.1088 15.7642 12.2219 15.5659 10.375 15.1587C9.7706 15.0208 9.23102 14.6816 8.84487 14.1966C8.45872 13.7117 8.24895 13.1098 8.25 12.4899V12.1062C8.2501 11.2806 8.38002 10.4601 8.635 9.6749C5.06125 10.6624 2.75 12.3274 2.75 13.9999C2.75 15.2649 4.07875 16.5599 6.39625 17.5536C8.94875 18.6474 12.36 19.2499 16 19.2499C19.64 19.2499 23.0513 18.6474 25.6038 17.5536C27.9212 16.5599 29.25 15.2649 29.25 13.9999Z" 
+            fill={contentType === 'anime' ? '#FF0000' : 'white'} />
+        </svg>
         <span className="text-xs mt-1">Anime</span>
       </button>
     </nav>
@@ -1328,9 +1400,9 @@ function Home() {
     return (
       <>
         {/* PLATFORM FILTER SECTION LIKE SCREENSHOT */}
-        <div className="  bg-opacity-90  rounded-[10px]">
-          <div className=" flex items-center justify-center px-6 py-4">
-            <div className=" flex items-center space-x-8">
+        <div className="mx-4 bg-[#242424] bg-opacity-90 rounded-[10px] my-2">
+          <div className="flex items-center justify-center px-6 py-4">
+            <div className="flex items-center space-x-8">
               {/* Netflix */}
               <button
                 className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
@@ -1338,12 +1410,8 @@ function Home() {
                 }`}
                 onClick={() => handleFilterChange('netflix')}
               >
-                <div className="w-[40px] h-[40px] bg-red-600 rounded-t-lg rounded-b-lg flex items-center justify-center p-2">
-                  <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M5.37801 21.5H8.6996C8.74039 21.5 8.77973 21.4799 8.80891 21.4449C8.83809 21.4099 8.85476 21.3631 8.85476 21.3143V2.68572C8.85476 2.63691 8.83809 2.59013 8.80891 2.55509C8.77973 2.52005 8.74039 2.5 8.6996 2.5H5.37801C5.33723 2.5 5.29789 2.52005 5.2687 2.55509C5.23952 2.59013 5.22285 2.63691 5.22285 2.68572V21.3143C5.22285 21.3631 5.23952 21.4099 5.2687 21.4449C5.29789 21.4799 5.33723 21.5 5.37801 21.5Z" fill="white"/>
-                    <path d="M19.5 21.5H16.1784C16.1376 21.5 16.0983 21.4799 16.0691 21.4449C16.0399 21.4099 16.0233 21.3631 16.0233 21.3143V2.68572C16.0233 2.63691 16.0399 2.59013 16.0691 2.55509C16.0983 2.52005 16.1376 2.5 16.1784 2.5H19.5C19.5408 2.5 19.58 2.52005 19.6092 2.55509C19.6384 2.59013 19.6551 2.63691 19.6551 2.68572V21.3143C19.6551 21.3631 19.6384 21.4099 19.6092 21.4449C19.58 21.4799 19.5408 21.5 19.5 21.5Z" fill="white"/>
-                    <path d="M8.85473 2.5L16.0232 21.5L8.85473 2.5Z" fill="white"/>
-                  </svg>
+                <div className="w-[40px] h-[40px] rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden">
+                  <img src={netflixIcon} alt="Netflix" className="w-full h-full object-cover" />
                 </div>
                 <span className="text-white text-xs">Netflix</span>
               </button>
@@ -1355,14 +1423,8 @@ function Home() {
                 }`}
                 onClick={() => handleFilterChange('prime')}
               >
-                <div className="w-[40px] h-[40px] bg-blue-600 rounded-t-lg rounded-b-lg flex items-center justify-center p-2">
-                  <svg width="100%" height="100%" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M14.5 3C15.8807 3 17 4.11929 17 5.5V18.5C17 19.8807 15.8807 21 14.5 21H5.5C4.11929 21 3 19.8807 3 18.5V5.5C3 4.11929 4.11929 3 5.5 3H14.5ZM14.5 5H5.5C5.22386 5 5 5.22386 5 5.5V18.5C5 18.7761 5.22386 19 5.5 19H14.5C14.7761 19 15 18.7761 15 18.5V5.5C15 5.22386 14.7761 5 14.5 5Z" />
-                    <path d="M21 5.5C21 4.11929 19.8807 3 18.5 3L16.5 3V5L18.5 5C18.7761 5 19 5.22386 19 5.5V18.5C19 18.7761 18.7761 19 18.5 19H16.5V21H18.5C19.8807 21 21 19.8807 21 18.5V5.5Z" />
-                    <path d="M11.0858 8.50011C11.0858 8.08579 10.7502 7.7502 10.3358 7.7502C9.92153 7.7502 9.58594 8.08579 9.58594 8.50011V12.4999C9.58594 12.9142 9.92153 13.2498 10.3358 13.2498C10.7502 13.2498 11.0858 12.9142 11.0858 12.4999V8.50011Z" />
-                    <path d="M7.83583 10.25C8.25015 10.25 8.58573 9.91441 8.58573 9.5001C8.58573 9.08578 8.25015 8.7502 7.83583 8.7502C7.42152 8.7502 7.08594 9.08578 7.08594 9.5001C7.08594 9.91441 7.42152 10.25 7.83583 10.25Z" />
-                    <path d="M7.83583 15.25C8.25015 15.25 8.58573 14.9144 8.58573 14.5001C8.58573 14.0858 8.25015 13.7502 7.83583 13.7502C7.42152 13.7502 7.08594 14.0858 7.08594 14.5001C7.08594 14.9144 7.42152 15.25 7.83583 15.25Z" />
-                  </svg>
+                <div className="w-[40px] h-[40px] bg-[#00A8E1] rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden">
+                  <img src={primeVideoIcon} alt="Prime Video" className="w-full h-full object-cover" />
                 </div>
                 <span className="text-white text-xs">Prime</span>
               </button>
@@ -1374,11 +1436,8 @@ function Home() {
                 }`}
                 onClick={() => handleFilterChange('anime')}
               >
-                <div className="w-[40px] h-[40px] bg-orange-500 rounded-t-lg rounded-b-lg flex items-center justify-center p-2">
-                  <svg width="100%" height="100%" viewBox="0 0 100 100" version="1.1" xmlns="http://www.w3.org/2000/svg">
-                    <path className="st120" d="M95.861,43.517c-7.059-44.746-67.18-53.838-87.55-13.491c-14.094,28.783,5.422,62.6,37.287,65.569     c-0.246,0.138,11.835,0.216,5.657-0.32c-2.384-0.191-5.999-0.995-8.814-1.959C6.051,80.491,6.181,30.216,42.617,17.612     c23.974-8.48,50.92,8.586,53.287,33.766c0.096,1.138,0.173,1.413,0.319,1.15C96.493,52.047,96.261,46.285,95.861,43.517z" fill="white"/>
-                    <path className="st120" d="M88.716,53.078c-8.249,8.928-23.788,3.74-25.163-8.21c-0.951-6.583,3.482-13.149,9.804-15.499     C26.439,7.838,3.291,82.524,55.402,89.897C76.571,91.661,93.966,72.754,90.013,52C89.961,51.915,89.377,52.4,88.716,53.078z" fill="white"/>
-                  </svg>
+                <div className="w-[40px] h-[40px] bg-orange-500 rounded-t-lg rounded-b-lg flex items-center justify-center p-0 overflow-hidden">
+                  <img src={animeIcon} alt="Anime" className="w-full h-full object-cover" />
                 </div>
                 <span className="text-white text-xs">Anime</span>
               </button>
@@ -1465,8 +1524,8 @@ function Home() {
                 <button
                   className={`text-xs font-medium transition-colors px-3 py-1.5 rounded border ${
                     activeFilter === 'all' 
-                      ? 'bg-[#FF0000] text-white border-[#FF0000]' 
-                      : 'text-gray-300 border-gray-600 hover:text-white hover:border-gray-500'
+                      ? 'bg-[#242424] text-white border-[#242424]' 
+                      : 'text-gray-300 border-white hover:text-white hover:border-gray-500'
                   }`}
                   onClick={() => handleFilterChange('all')}
                 >
@@ -1477,8 +1536,8 @@ function Home() {
               <button
                 className={`text-xs font-medium transition-colors px-3 py-1.5 rounded border ${
                   activeFilter === '1080p' 
-                    ? 'bg-red-600 text-white border-red-600' 
-                    : 'text-gray-300 border-gray-600 hover:text-white hover:border-gray-500'
+                    ? 'bg-[#242424] text-white border-[#242424]' 
+                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500'
                 }`}
                 onClick={() => handleFilterChange('1080p')}
               >
@@ -1489,8 +1548,8 @@ function Home() {
               <button
                 className={`text-xs font-medium transition-colors px-3 py-1.5 rounded border ${
                   activeFilter === '4k' 
-                    ? 'bg-black text-white border-white' 
-                    : 'text-gray-300 border-gray-600 hover:text-white hover:border-gray-500'
+                    ? 'bg-[#242424] text-white border-[#242424]' 
+                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500'
                 }`}
                 onClick={() => handleFilterChange('4k')}
               >
@@ -1501,8 +1560,8 @@ function Home() {
               <button
                 className={`text-xs font-medium transition-colors px-3 py-1.5 rounded border ${
                   activeFilter === 'english' 
-                    ? 'bg-black text-white border-white' 
-                    : 'text-gray-300 border-gray-600 hover:text-white hover:border-gray-500'
+                    ? 'bg-[#242424] text-white border-[#242424]' 
+                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500'
                 }`}
                 onClick={() => handleFilterChange('english')}
               >
@@ -1513,8 +1572,8 @@ function Home() {
               <button
                 className={`text-xs font-medium transition-colors px-3 py-1.5 rounded border ${
                   activeFilter === 'dual-audio' 
-                    ? 'bg-black text-white border-white' 
-                    : 'text-gray-300 border-gray-600 hover:text-white hover:border-gray-500'
+                    ? 'bg-[#242424] text-white border-[#242424]' 
+                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500'
                 }`}
                 onClick={() => handleFilterChange('dual-audio')}
               >
@@ -1964,15 +2023,28 @@ function Home() {
           />
         ) : (
           <>
-            {groupedContent.length > 0 && groupedContent.map((section, index) => (
-              <ScrollableRow
-                key={`${contentType}-${section.title}-${index}`}
-                title={section.title}
-                items={section.items}
-                showNumbers={section.showNumbers}
-                onContentSelect={handleContentSelect}
-              />
-            ))}
+            {groupedContent.length > 0 && groupedContent.map((section, index) => {
+              // If this is search results, use the grid layout
+              const isSearchResults = searchQuery && section.title.includes('Search Results');
+              
+              return isSearchResults ? (
+                <GridRow
+                  key={`${contentType}-${section.title}-${index}`}
+                  title={section.title}
+                  items={section.items}
+                  showNumbers={section.showNumbers}
+                  onContentSelect={handleContentSelect}
+                />
+              ) : (
+                <ScrollableRow
+                  key={`${contentType}-${section.title}-${index}`}
+                  title={section.title}
+                  items={section.items}
+                  showNumbers={section.showNumbers}
+                  onContentSelect={handleContentSelect}
+                />
+              );
+            })}
 
             {!searchQuery && <AllContentSection />}
 
@@ -2069,8 +2141,8 @@ function Home() {
         </div>
       </header>
 
-      {/* FILTER BAR */}
-      <FilterBar />
+      {/* FILTER BAR - Only show when not searching */}
+      {!searchQuery && <FilterBar />}
 
       {/* MAIN CONTENT */}
       <main className={`${selectedMovie ? 'pb-8' : 'pb-20 md:pb-8'}`}>

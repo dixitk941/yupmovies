@@ -327,13 +327,6 @@ const SeriesDetail = ({ series, onClose }) => {
                 Watch Now
               </button>
             )}
-            
-            {/* Show excerpt badge if exists */}
-            {currentSeriesData.excerpt && (
-              <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-[#ff0000] backdrop-blur-sm text-white text-[8px] px-1.5 py-0.5 rounded font-medium max-w-[80px] text-center whitespace-nowrap overflow-hidden">
-                {currentSeriesData.excerpt.length > 12 ? currentSeriesData.excerpt.substring(0, 12) + '...' : currentSeriesData.excerpt}
-              </div>
-            )}
           </div>
         </div>
 
@@ -466,12 +459,12 @@ const SeriesDetail = ({ series, onClose }) => {
                   {isLoadingSeasons ? (
                     <div className="py-8 space-y-4">
                       {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="bg-gray-800/50 rounded-lg p-4 space-y-3">
+                        <div key={i} className="bg-gray-800 rounded-lg overflow-hidden p-4 space-y-3 animate-pulse">
                           <div className="flex items-center space-x-3">
-                            <div className="w-12 h-12 bg-gray-700 rounded animate-pulse"></div>
+                            <div className="w-12 h-12 bg-gray-700 rounded"></div>
                             <div className="flex-1 space-y-2">
-                              <div className="w-3/4 h-4 bg-gray-700 rounded animate-pulse"></div>
-                              <div className="w-1/2 h-3 bg-gray-700 rounded animate-pulse"></div>
+                              <div className="w-3/4 h-4 bg-gray-700 rounded"></div>
+                              <div className="w-1/2 h-3 bg-gray-700 rounded"></div>
                             </div>
                           </div>
                         </div>
@@ -629,11 +622,11 @@ const SeriesDetail = ({ series, onClose }) => {
                 {isLoadingSeasons ? (
                   <div className="py-8 space-y-4">
                     {Array.from({ length: 2 }).map((_, i) => (
-                      <div key={i} className="bg-gray-800/50 rounded-lg p-6 space-y-4">
-                        <div className="w-1/3 h-6 bg-gray-700 rounded animate-pulse"></div>
+                      <div key={i} className="bg-gray-800 rounded-lg overflow-hidden p-6 space-y-4 animate-pulse">
+                        <div className="w-1/3 h-6 bg-gray-700 rounded"></div>
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="w-full h-10 bg-gray-700 rounded animate-pulse"></div>
-                          <div className="w-full h-10 bg-gray-700 rounded animate-pulse"></div>
+                          <div className="w-full h-10 bg-gray-700 rounded"></div>
+                          <div className="w-full h-10 bg-gray-700 rounded"></div>
                         </div>
                       </div>
                     ))}
