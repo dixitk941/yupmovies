@@ -1,0 +1,229 @@
+/* Mobile-Only Strict Enforcement CSS */
+/* This CSS provides additional protection against desktop access */
+
+/* Desktop Detection using CSS Media Queries */
+@media screen and (min-width: 768px) {
+  body::before {
+    content: "DESKTOP ACCESS DENIED";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #1a1a1a 0%, #8B0000 100%);
+    color: white;
+    font-size: 2em;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999999;
+    text-align: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  
+  /* Hide all content on desktop */
+  #root {
+    display: none !important;
+  }
+  
+  /* Disable all interactions */
+  * {
+    pointer-events: none !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+  }
+}
+
+/* Additional desktop detection via pointer capability */
+@media (any-pointer: fine) and (min-width: 768px) {
+  body::after {
+    content: "Fine pointer detected - Desktop blocked";
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    z-index: 1000000;
+    font-size: 12px;
+  }
+}
+
+/* Hover capability detection */
+@media (any-hover: hover) and (min-width: 768px) {
+  /* Hide content if hover is supported (desktop feature) */
+  .app-content {
+    visibility: hidden !important;
+  }
+}
+
+/* Touch device enforcement */
+@media (any-pointer: coarse) and (max-width: 767px) {
+  /* Mobile-specific optimizations */
+  * {
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+  }
+  
+  /* Ensure proper mobile scaling */
+  html {
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+}
+
+/* Landscape orientation enforcement on mobile */
+@media screen and (max-width: 767px) and (orientation: landscape) {
+  /* Allow landscape on actual mobile devices */
+  body {
+    overflow-x: auto;
+  }
+}
+
+/* Block large landscape screens (likely desktop) */
+@media screen and (min-width: 1024px) and (orientation: landscape) {
+  body::before {
+    content: "Large landscape screen detected - Desktop access denied";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #8B0000;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999999;
+    font-size: 1.5em;
+    text-align: center;
+    font-family: monospace;
+  }
+  
+  #root {
+    display: none !important;
+  }
+}
+
+/* High resolution desktop monitors */
+@media screen and (min-resolution: 120dpi) and (min-width: 1200px) {
+  body {
+    display: none !important;
+  }
+  
+  html::before {
+    content: "High resolution desktop monitor detected";
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(45deg, #000 0%, #8B0000 100%);
+    color: white;
+    font-size: 2em;
+    text-align: center;
+    padding-top: 40vh;
+    z-index: 999999;
+  }
+}
+
+/* Prevent zoom and interactions on potential desktop */
+@media screen and (min-width: 768px) {
+  html, body {
+    overflow: hidden !important;
+    height: 100vh !important;
+    width: 100vw !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+  }
+  
+  * {
+    transform: none !important;
+    zoom: 1 !important;
+    scale: 1 !important;
+  }
+  
+  /* Block all form interactions on desktop */
+  input, button, select, textarea, a {
+    display: none !important;
+  }
+}
+
+/* Print media blocking */
+@media print {
+  * {
+    display: none !important;
+  }
+  
+  body::before {
+    content: "Printing not allowed - Mobile app only";
+    display: block !important;
+    font-size: 24pt;
+    color: red;
+    text-align: center;
+    margin-top: 200pt;
+  }
+}
+
+/* Screen reader blocking for desktop */
+@media speech {
+  * {
+    speak: none !important;
+  }
+}
+
+/* Emergency mobile-only class */
+.mobile-only-content {
+  display: block;
+}
+
+@media screen and (min-width: 768px) {
+  .mobile-only-content {
+    display: none !important;
+  }
+}
+
+/* Desktop warning overlay */
+.desktop-warning {
+  display: none;
+}
+
+@media screen and (min-width: 768px) {
+  .desktop-warning {
+    display: flex !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: linear-gradient(135deg, #1a1a1a 0%, #8B0000 100%) !important;
+    color: white !important;
+    font-size: clamp(1rem, 4vw, 2rem) !important;
+    font-weight: bold !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 999999 !important;
+    text-align: center !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    flex-direction: column !important;
+    gap: 20px !important;
+  }
+  
+  .desktop-warning::before {
+    content: "🚫";
+    font-size: 4em;
+  }
+  
+  .desktop-warning::after {
+    content: "Switch to mobile device to access this application";
+    font-size: 0.8em;
+    opacity: 0.8;
+  }
+}

@@ -5,6 +5,7 @@ import {
   Package, Archive, Tv, Eye, Users, Award, HardDrive, ArrowUpDown
 } from 'lucide-react';
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
+import { getAnimeById } from '../services/animeService';
 import { TextSkeleton, CardSkeleton } from '../components/Skeleton';
 import { handleSecureDownload } from '../utils/secureDownload';
 
@@ -135,12 +136,22 @@ const SeriesDetail = ({ series, onClose }) => {
         
         if (series.id || series.recordId || series.record_id) {
           const seriesId = series.id || series.recordId || series.record_id;
-          console.log('🔍 Fetching full series data for ID:', seriesId);
+          console.log('🔍 Fetching full series data for ID:', seriesId, 'contentType:', series.contentType);
           
-          const fetchedData = await getSeriesById(seriesId);
+          let fetchedData;
+          if (series.contentType === 'anime') {
+            console.log('🎌 Fetching from anime table');
+            fetchedData = await getAnimeById(seriesId);
+          } else {
+            console.log('📺 Fetching from series table');
+            fetchedData = await getSeriesById(seriesId);
+          }
+          
           if (fetchedData) {
             fullSeriesData = fetchedData;
-            console.log('✅ Fetched full series data:', fullSeriesData);
+            console.log('✅ Fetched full series data from', series.contentType === 'anime' ? 'anime' : 'series', 'table:', fullSeriesData);
+          } else {
+            console.warn('⚠️ No data found for ID:', seriesId, 'in', series.contentType === 'anime' ? 'anime' : 'series', 'table');
           }
         }
         

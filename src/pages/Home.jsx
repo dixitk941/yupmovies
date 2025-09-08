@@ -470,14 +470,6 @@ const RealTimeSearchBar = memo(({
                 );
               })()}
             </div>
-          ) : searchQuery.length >= CONFIG.SEARCH_MIN_LENGTH ? (
-            <div className="p-8 text-center">
-              <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search size={24} className="text-gray-500" />
-              </div>
-              <p className="text-gray-400 text-base font-medium mb-2">No results found for "{searchQuery}"</p>
-              <p className="text-gray-500 text-sm">Try searching with different keywords</p>
-            </div>
           ) : null}
         </div>
       )}
@@ -2487,44 +2479,9 @@ function Home() {
 
             {!searchQuery && <AllContentSection />}
 
-            {/* Enhanced No Results State */}
-            {searchQuery && groupedContent.length === 0 && !isSearching && (
-              <div className="flex flex-col items-center justify-center py-16">
-                <div className="text-6xl mb-4">🔍</div>
-                <p className="text-gray-400 text-center mb-2">No results found</p>
-                <p className="text-gray-500 text-sm text-center max-w-md">
-                  We couldn't find any {contentType} matching "{searchQuery}".
-                  {searchError && " Database search failed, using cached results."}
-                </p>
-                <div className="flex gap-3 mt-4">
-                  <button
-                    className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                    onClick={() => setSearchQuery('')}
-                  >
-                    Clear Search
-                  </button>
-                  {searchError && (
-                    <div className="px-4 py-2 bg-orange-900/50 text-orange-300 rounded text-sm">
-                      ⚠️ Using cached data
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+            {/* No results state removed per user request */}
 
-            {/* Enhanced Empty State */}
-            {groupedContent.length === 0 && currentContent.length === 0 && !searchQuery && (
-              <div className="flex flex-col items-center justify-center py-16">
-                <div className="text-6xl mb-4">😕</div>
-                <p className="text-gray-400 text-center mb-2">No content available</p>
-                <p className="text-gray-500 text-sm text-center max-w-md">
-                  We couldn't find any {contentType} to display.
-                </p>
-                <div className="mt-4 text-xs text-gray-600">
-                  Cache Status: {cacheStats[contentType] || 0} items cached
-                </div>
-              </div>
-            )}
+            {/* Empty state removed per user request */}
           </>
         )}
       </div>

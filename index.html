@@ -5,6 +5,106 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Vite + React + TS</title>
+    
+    <!-- Desktop Blocking Script - FIRST LINE OF DEFENSE -->
+    <script>
+      (function() {
+        'use strict';
+        
+        // Check if in production environment
+        const isProduction = (
+          window.location.hostname !== "localhost" &&
+          window.location.hostname !== "127.0.0.1" &&
+          !window.location.hostname.includes("localhost") &&
+          !window.location.hostname.includes("127.0.0.1")
+        );
+        
+        if (isProduction) {
+          // Immediate desktop detection
+          const isDesktop = function() {
+            const ua = navigator.userAgent.toLowerCase();
+            const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet|phone/i.test(ua);
+            const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const screenSize = window.screen.width >= 1024 || window.screen.height >= 768;
+            const windowSize = window.innerWidth >= 768;
+            const noOrientation = typeof window.orientation === 'undefined';
+            
+            // Desktop indicators
+            const desktopScore = [
+              !isMobile,           // Not mobile user agent
+              !hasTouch,          // No touch capability
+              screenSize,         // Large screen
+              windowSize,         // Large window
+              noOrientation       // No orientation API
+            ].filter(Boolean).length;
+            
+            return desktopScore >= 3; // Strict threshold
+          };
+          
+          if (isDesktop()) {
+            // Immediate blocking - prevent any content from loading
+            document.documentElement.innerHTML = `
+              <style>
+                body { 
+                  margin: 0; 
+                  padding: 20px; 
+                  background: linear-gradient(135deg, #1a1a1a 0%, #8B0000 100%); 
+                  color: white; 
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', roboto, sans-serif;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  min-height: 100vh;
+                  text-align: center;
+                }
+                .container { max-width: 400px; }
+                .icon { font-size: 64px; margin-bottom: 20px; }
+                h1 { color: #ff4444; margin-bottom: 20px; }
+                .box { background: rgba(0,0,0,0.3); padding: 20px; border-radius: 10px; margin: 20px 0; border: 1px solid #ff4444; }
+                .warning { background: rgba(255,69,0,0.2); border-color: #ff4500; }
+                .small { font-size: 12px; color: #999; margin-top: 20px; }
+              </style>
+              <div class="container">
+                <div class="icon">📱</div>
+                <h1>MOBILE ONLY ACCESS</h1>
+                <div class="box">
+                  <h3>Desktop Access Denied</h3>
+                  <p>This application is restricted to mobile devices only.</p>
+                </div>
+                <div class="box warning">
+                  <p><strong>⚠️ SECURITY NOTICE</strong><br>
+                  Desktop access is permanently disabled in production.</p>
+                </div>
+                <p><strong>Solution:</strong></p>
+                <ul style="text-align: left; max-width: 300px; margin: 0 auto;">
+                  <li>Use your smartphone</li>
+                  <li>Use your tablet</li>
+                  <li>iOS/Android devices supported</li>
+                </ul>
+                <div class="small">
+                  Access denied: ${new Date().toISOString()}<br>
+                  Session ID: ${Math.random().toString(36).substring(7)}
+                </div>
+              </div>
+            `;
+            
+            // Disable all interactions
+            document.body.style.pointerEvents = 'none';
+            document.body.style.userSelect = 'none';
+            
+            // Clear any cached data
+            try {
+              localStorage.clear();
+              sessionStorage.clear();
+            } catch(e) {}
+            
+            // Prevent further script execution
+            throw new Error('Desktop access blocked');
+          }
+        }
+      })();
+    </script>
+    
     <style>
       html, body {
         touch-action: manipulation;
