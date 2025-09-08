@@ -16,6 +16,7 @@
 - **Backend:** Node.js (for encrypted link generation)  
 - **Security:** Cloudflare, Dynamic Redirects, User-Agent Filtering  
 - **Hosting:** Offshore servers & Cloud Storage Integration  
+- **API:** Vercel Serverless Functions for secure downloads
 
 ## 🚀 Installation & Setup:
 1️⃣ Clone the repo:  

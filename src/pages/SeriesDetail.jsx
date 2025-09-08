@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
 import { TextSkeleton, CardSkeleton } from '../components/Skeleton';
+import { handleSecureDownload } from '../utils/secureDownload';
 
 const SeriesDetail = ({ series, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -200,23 +201,30 @@ const SeriesDetail = ({ series, onClose }) => {
     
     try {
       let downloadUrl = null;
+      let downloadTitle = '';
+      let downloadQuality = '';
       
       if (isPackage) {
         // Handle season package downloads
         downloadUrl = episode.url;
+        downloadTitle = episode.name || `Season ${episode.seasonNumber} Package`;
+        downloadQuality = episode.quality || 'Package';
         console.log('📦 Package download URL:', downloadUrl);
         
         if (downloadUrl) {
-          // Open download URL in new tab
-          const link = document.createElement('a');
-          link.href = downloadUrl;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          // Use secure download method instead of direct URL
+          const success = handleSecureDownload(
+            downloadUrl, 
+            downloadTitle, 
+            downloadQuality,
+            episode.size
+          );
           
-          showToast(`Starting: ${episode.name || `Season ${episode.seasonNumber} ${episode.quality}`}`, 'success');
+          if (success) {
+            showToast(`Starting: ${downloadTitle}`, 'success');
+          } else {
+            showToast('Download failed to start', 'error');
+          }
         } else {
           showToast('Download URL not available', 'error');
         }
@@ -233,17 +241,22 @@ const SeriesDetail = ({ series, onClose }) => {
         
         if (selectedLink && selectedLink.url) {
           downloadUrl = selectedLink.url;
+          downloadTitle = `${seriesData?.title || 'Episode'} - Episode ${episode.episodeNumber}`;
+          downloadQuality = quality;
           
-          // Open download URL in new tab
-          const link = document.createElement('a');
-          link.href = downloadUrl;
-          link.target = '_blank';
-          link.rel = 'noopener noreferrer';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          // Use secure download method instead of direct URL
+          const success = handleSecureDownload(
+            downloadUrl, 
+            downloadTitle, 
+            downloadQuality,
+            selectedLink.size
+          );
           
-          showToast(`Starting: Episode ${episode.episodeNumber} - ${quality}`, 'success');
+          if (success) {
+            showToast(`Starting: Episode ${episode.episodeNumber} - ${quality}`, 'success');
+          } else {
+            showToast('Download failed to start', 'error');
+          }
         } else {
           showToast('Download link not available for selected quality', 'error');
         }
@@ -432,13 +445,13 @@ const SeriesDetail = ({ series, onClose }) => {
                       <h3 className="text-white font-medium text-sm">Season {activeSeason.seasonNumber} Information</h3>
                       <div className="flex gap-1.5">
                         {currentSeriesData?.qualities?.map((quality, index) => (
-                          <span key={index} className="bg-gray-800 text-gray-300 px-2 py-0.5 rounded text-xs">
+                          <span key={index} className="bg-transparent text-white border border-white/40 px-2 py-0.5 rounded text-xs">
                             {quality}
                           </span>
                         )) || (
                           <>
-                            <span className="bg-gray-800 text-gray-300 px-2 py-0.5 rounded text-xs">HD</span>
-                            <span className="bg-gray-800 text-gray-300 px-2 py-0.5 rounded text-xs">Multi-Audio</span>
+                            <span className="bg-transparent text-white border border-white/40 px-2 py-0.5 rounded text-xs">HD</span>
+                            <span className="bg-transparent text-white border border-white/40 px-2 py-0.5 rounded text-xs">Multi-Audio</span>
                           </>
                         )}
                       </div>
@@ -659,14 +672,14 @@ const SeriesDetail = ({ series, onClose }) => {
                       {/* Available Qualities for Season */}
                       <div className="flex flex-wrap gap-2 mb-4">
                         {['480p', '720p', '1080p'].map(quality => (
-                          <span key={quality} className="bg-gray-800 text-gray-300 px-3 py-1 rounded-full text-xs">
+                          <span key={quality} className="bg-transparent text-white border border-white/40 px-3 py-1  text-xs">
                             {quality}
                           </span>
                         ))}
-                        <span className="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-full text-xs">
+                        <span className="bg-transparent text-white border border-white/40 px-3 py-1  text-xs">
                           WEB-DL
                         </span>
-                        <span className="bg-green-600/20 text-green-400 px-3 py-1 rounded-full text-xs">
+                        <span className="bg-transparent text-white border border-white/40 px-3 py-1  text-xs">
                           HEVC
                         </span>
                       </div>
@@ -688,7 +701,7 @@ const SeriesDetail = ({ series, onClose }) => {
                               <Package size={16} className="text-[#ff0000]" />
                               Complete Season Downloads
                               {selectedZipQuality && (
-                                <span className="bg-gray-800 text-gray-300 px-2 py-1 rounded text-xs ml-2">
+                                <span className="bg-transparent text-white border border-white/40 px-2 py-1 rounded text-xs ml-2">
                                   {selectedZipQuality}
                                 </span>
                               )}
@@ -702,23 +715,18 @@ const SeriesDetail = ({ series, onClose }) => {
                                   <div key={zipIndex} className="bg-gray-900/50 border border-gray-700/50 rounded-lg p-3">
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-3 flex-1">
-                                        <div className="w-8 h-8 bg-[#ff0000] rounded flex items-center justify-center">
+                                        {/* <div className="w-8 h-8 bg-[#ff0000] rounded flex items-center justify-center">
                                           <Archive size={14} className="text-white" />
-                                        </div>
+                                        </div> */}
                                         <div className="min-w-0 flex-1">
                                           <h5 className="text-white font-medium text-sm">
                                             Season {activeSeason.seasonNumber} Complete - {zipLink.quality}
                                           </h5>
                                           <div className="flex items-center gap-2 mt-1">
-                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                              zipLink.quality === '1080p' ? 'bg-green-600/20 text-green-400' : 
-                                              zipLink.quality === '720p' ? 'bg-transparent text-blue-400' :
-                                              'bg-yellow-600/20 text-yellow-400'
-                                            }`}>
+                                            <span className={`px-2 py-0.5 rounded text-xs font-medium bg-transparent text-white border border-white/40`}>
                                               {zipLink.quality}
                                             </span>
                                             <span className="text-gray-400 text-xs">{zipLink.size}</span>
-                                            <span className="text-gray-500 text-xs">• ZIP Format</span>
                                           </div>
                                         </div>
                                       </div>
@@ -731,7 +739,7 @@ const SeriesDetail = ({ series, onClose }) => {
                                         disabled={isDownloading}
                                         className="bg-[#ff0000] hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
                                       >
-                                        <Download size={14} />
+                                        <Archive size={14} />
                                         {isDownloading ? 'Downloading...' : 'Download'}
                                       </button>
                                     </div>

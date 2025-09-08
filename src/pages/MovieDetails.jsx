@@ -7,6 +7,7 @@ import {
 import { getMovieDetailsById, getSeriesDetailsById } from '../services/directMovieService';
 import { formatDateString, debugDate } from '../services/utils.js';
 import { ButtonSkeleton } from '../components/Skeleton';
+import { handleSecureDownload } from '../utils/secureDownload';
 
 const MovieDetails = ({ movie, onClose }) => {
   const [directDetails, setDirectDetails] = useState(null);
@@ -345,27 +346,31 @@ const MovieDetails = ({ movie, onClose }) => {
     try {
       showToast(`Starting download: ${linkData.quality} (${linkData.size})`, 'info');
       
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.href = linkData.url;
-      downloadAnchor.download = `${movieData.title}_${linkData.quality}.${getFileExtension(linkData.url)}`;
-      downloadAnchor.target = '_blank';
-      downloadAnchor.rel = 'noopener noreferrer';
+      // Use secure download method instead of direct URL
+      const downloadTitle = `${movieData.title}_${linkData.quality}`;
+      const success = handleSecureDownload(
+        linkData.url,
+        downloadTitle,
+        linkData.quality,
+        linkData.size
+      );
       
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      document.body.removeChild(downloadAnchor);
-      
-      logActivity('direct_download_initiated', { 
-        quality: linkData.quality,
-        size: linkData.size,
-        movieTitle: movieData.title,
-        isSeries: movieData.isSeries,
-        timestamp: new Date().toISOString()
-      });
-      
-      setTimeout(() => {
-        showToast(`Download started successfully: ${linkData.quality}`, 'success');
-      }, 1000);
+      if (success) {
+        logActivity('secure_download_initiated', { 
+          quality: linkData.quality,
+          size: linkData.size,
+          title: movieData.title,
+          movieTitle: movieData.title,
+          isSeries: movieData.isSeries,
+          timestamp: new Date().toISOString()
+        });
+        
+        setTimeout(() => {
+          showToast(`Download started successfully: ${linkData.quality}`, 'success');
+        }, 1000);
+      } else {
+        showToast("Failed to start secure download", 'error');
+      }
       
     } catch (error) {
       showToast("Download failed. Please try again.", 'error');

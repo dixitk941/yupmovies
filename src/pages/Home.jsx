@@ -295,19 +295,23 @@ const RealTimeSearchBar = memo(({
   return (
     <div className="relative w-full" ref={searchRef}>
       <div className="relative group">
-        <input
-          type="text"
-          placeholder="Search here..."
-          className={`w-full h-[40px] bg-[#242424] backdrop-blur-sm border-0 rounded-xl px-12 text-[#FFFFFF/40] placeholder-gray-400 text-[12px] focus:outline-none transition-all duration-300`}
-          value={searchQuery}
-          onChange={handleInputChange}
-          onFocus={handleFocus}
-        />
-        
-        {/* Search Icon - Always White */}
-        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white">
-          <Search size={18} />
-        </div>
+      <div className="relative w-[290px] h-[40px] transform translate-x-[20px]">
+  {/* Input */}
+  <input
+    type="text"
+    placeholder="Search here..."
+    className="w-full h-full bg-[#242424] backdrop-blur-sm border-0 rounded-[5px] pl-10 pr-4 text-[#FFFFFF]/40 placeholder-gray-400 text-[12px] focus:outline-none transition-all duration-300"
+    value={searchQuery}
+    onChange={handleInputChange}
+    onFocus={handleFocus}
+  />
+
+  {/* Search Icon */}
+  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-white">
+    <Search size={18} />
+  </div>
+</div>
+
         
         {/* Clear Button - Always Visible */}
         <button
@@ -515,7 +519,7 @@ const TabLoadingState = memo(({ contentType, cacheStats }) => (
 TabLoadingState.displayName = 'TabLoadingState';
 
 // **CLEAN MINIMAL SCROLLABLE ROW**
-const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect }) => {
+const ScrollableRow = memo(({ title, subtitle, items, showNumbers = false, onContentSelect, showContentTypes = false }) => {
   const scrollRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
   const intersectionRef = useRef(null);
@@ -552,6 +556,9 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
         <h2 className="text-xl font-bold text-white">
           {title}
         </h2>
+        {subtitle && (
+          <p className="text-sm text-gray-400 mt-1">{subtitle}</p>
+        )}
       </div>
       
       <div
@@ -560,7 +567,7 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {items.map((content, idx) => (
-          <div key={content.id || `${content.title}-${idx}`} className="flex-shrink-0">
+          <div key={content.id || `${content.title}-${idx}`} className="flex-shrink-0 relative">
             <MovieCard
               movie={content}
               onClick={onContentSelect}
@@ -568,6 +575,17 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
               showNumber={showNumbers}
               useOptimizedImage={true}
             />
+            {showContentTypes && (
+              <div className={`absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded-sm font-medium ${
+                content.contentType === 'movies' ? 'bg-blue-500/70' : 
+                content.contentType === 'series' ? 'bg-purple-500/70' : 
+                'bg-orange-500/70'
+              }`}>
+                {content.contentType === 'movies' ? 'Movie' : 
+                 content.contentType === 'series' ? 'Series' : 
+                 'Anime'}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -577,7 +595,7 @@ const ScrollableRow = memo(({ title, items, showNumbers = false, onContentSelect
 ScrollableRow.displayName = 'ScrollableRow';
 
 // **GRID LAYOUT FOR SEARCH RESULTS**
-const GridRow = memo(({ title, items, showNumbers = false, onContentSelect }) => {
+const GridRow = memo(({ title, subtitle, items, showNumbers = false, onContentSelect, showContentTypes = false }) => {
   const [isVisible, setIsVisible] = useState(false);
   const intersectionRef = useRef(null);
 
@@ -613,11 +631,14 @@ const GridRow = memo(({ title, items, showNumbers = false, onContentSelect }) =>
         <h2 className="text-xl font-bold text-white">
           {title}
         </h2>
+        {subtitle && (
+          <p className="text-sm text-gray-400 mt-1">{subtitle}</p>
+        )}
       </div>
       
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3 pb-4 px-4 md:px-8">
         {items.map((content, idx) => (
-          <div key={content.id || `${content.title}-${idx}`}>
+          <div key={content.id || `${content.title}-${idx}`} className="relative">
             <MovieCard
               movie={content}
               onClick={onContentSelect}
@@ -625,6 +646,17 @@ const GridRow = memo(({ title, items, showNumbers = false, onContentSelect }) =>
               showNumber={showNumbers}
               useOptimizedImage={true}
             />
+            {showContentTypes && (
+              <div className={`absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded-sm font-medium ${
+                content.contentType === 'movies' ? 'bg-blue-500/70' : 
+                content.contentType === 'series' ? 'bg-purple-500/70' : 
+                'bg-orange-500/70'
+              }`}>
+                {content.contentType === 'movies' ? 'Movie' : 
+                 content.contentType === 'series' ? 'Series' : 
+                 'Anime'}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -646,8 +678,8 @@ const BottomBar = memo(({
     <div className="hidden md:hidden justify-center px-6 py-4">
       <div className="flex bg-gray-900 rounded-lg p-1">
         <button
-          className={`flex items-center space-x-2 px-6 py-3 rounded-md transition-colors ${
-            contentType === 'movies' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'
+          className={`flex items-center space-x-2 px-6 py-3 rounded-md transition-colors text-white ${
+            contentType === 'movies' ? 'font-bold' : ''
           }`}
           onClick={() => onContentTypeChange('movies')}
         >
@@ -655,8 +687,8 @@ const BottomBar = memo(({
           <span className="font-medium">Movies</span>
         </button>
         <button
-          className={`flex items-center space-x-2 px-6 py-3 rounded-md transition-colors ${
-            contentType === 'series' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'
+          className={`flex items-center space-x-2 px-6 py-3 rounded-md transition-colors text-white ${
+            contentType === 'series' ? 'font-bold' : ''
           }`}
           onClick={() => onContentTypeChange('series')}
         >
@@ -664,8 +696,8 @@ const BottomBar = memo(({
           <span className="font-medium">TV Shows</span>
         </button>
         <button
-          className={`flex items-center space-x-2 px-6 py-3 rounded-md transition-colors ${
-            contentType === 'anime' ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-white'
+          className={`flex items-center space-x-2 px-6 py-3 rounded-md transition-colors text-white ${
+            contentType === 'anime' ? 'font-bold' : ''
           }`}
           onClick={() => onContentTypeChange('anime')}
         >
@@ -678,44 +710,46 @@ const BottomBar = memo(({
     {/* Mobile version */}
     <nav className="flex md:hidden items-center justify-around px-4 py-3">
       <button
-        className={`flex flex-col items-center p-2 ${
-          contentType === 'movies' ? 'text-red-500' : 'text-gray-400'
+        className={`flex flex-col items-center p-2 text-white ${
+          contentType === 'movies' ? 'font-bold' : ''
         }`}
         onClick={() => onContentTypeChange('movies')}
       >
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" 
-          className={contentType === 'movies' ? 'opacity-100' : 'opacity-50'}>
-          <g opacity={contentType === 'movies' ? '1' : '0.5'}>
+          className={contentType === 'movies' ? 'opacity-100' : 'opacity-70'}>
+          <g opacity={contentType === 'movies' ? '1' : '0.7'}>
             <path d="M26.9999 13.0002H12.7612L26.2499 9.43891C26.3776 9.40527 26.4974 9.34667 26.6023 9.26651C26.7072 9.18634 26.7952 9.08619 26.8612 8.97184C26.9272 8.85749 26.9699 8.73119 26.9869 8.60025C27.0038 8.4693 26.9947 8.3363 26.9599 8.20891L25.9399 4.45891C25.7996 3.95439 25.4661 3.52549 25.0117 3.26509C24.5574 3.00469 24.0187 2.93376 23.5124 3.06766L4.47619 8.09266C4.22272 8.15845 3.98493 8.27416 3.77673 8.43299C3.56854 8.59182 3.39412 8.79059 3.26369 9.01766C3.13253 9.24195 3.04779 9.49031 3.01451 9.74799C2.98123 10.0057 3.00008 10.2674 3.06994 10.5177L3.99994 13.9452C3.99994 13.9627 3.99994 13.9814 3.99994 14.0002V25.0002C3.99994 25.5306 4.21065 26.0393 4.58573 26.4144C4.9608 26.7894 5.46951 27.0002 5.99994 27.0002H25.9999C26.5304 27.0002 27.0391 26.7894 27.4142 26.4144C27.7892 26.0393 27.9999 25.5306 27.9999 25.0002V14.0002C27.9999 13.7349 27.8946 13.4806 27.707 13.2931C27.5195 13.1055 27.2652 13.0002 26.9999 13.0002ZM24.0199 5.00016L24.7699 7.75891L21.9424 8.50891L18.4274 6.47891L24.0199 5.00016ZM15.6837 7.20016L19.1987 9.23016L14.5812 10.4489L11.0662 8.42141L15.6837 7.20016ZM5.75869 12.7777L5.00869 10.0177L8.32119 9.14266L11.8362 11.1752L5.75869 12.7777ZM25.9999 25.0002H5.99994V15.0002H25.9999V25.0002Z" 
-              fill={contentType === 'movies' ? '#FF0000' : 'white'} />
+              fill="white" />
           </g>
         </svg>
         <span className="text-xs mt-1">Movies</span>
       </button>
       <button
-        className={`flex flex-col items-center p-2 ${
-          contentType === 'series' ? 'text-red-500' : 'text-gray-400'
+        className={`flex flex-col items-center p-2 text-white ${
+          contentType === 'series' ? 'font-bold' : ''
         }`}
         onClick={() => onContentTypeChange('series')}
       >
-        <svg width="33" height="32" viewBox="0 0 33 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g opacity="0.5">
-<path d="M27.5 8.00007H18.9137L23.2075 3.70757C23.3951 3.51993 23.5006 3.26543 23.5006 3.00007C23.5006 2.7347 23.3951 2.48021 23.2075 2.29257C23.0199 2.10493 22.7654 1.99951 22.5 1.99951C22.2346 1.99951 21.9801 2.10493 21.7925 2.29257L16.5 7.58632L11.2075 2.29257C11.1146 2.19966 11.0043 2.12596 10.8829 2.07567C10.7615 2.02539 10.6314 1.99951 10.5 1.99951C10.3686 1.99951 10.2385 2.02539 10.1171 2.07567C9.99571 2.12596 9.88541 2.19966 9.7925 2.29257C9.60486 2.48021 9.49944 2.7347 9.49944 3.00007C9.49944 3.26543 9.60486 3.51993 9.7925 3.70757L14.0863 8.00007H5.5C4.96957 8.00007 4.46086 8.21078 4.08579 8.58585C3.71071 8.96093 3.5 9.46963 3.5 10.0001V25.0001C3.5 25.5305 3.71071 26.0392 4.08579 26.4143C4.46086 26.7894 4.96957 27.0001 5.5 27.0001H27.5C28.0304 27.0001 28.5391 26.7894 28.9142 26.4143C29.2893 26.0392 29.5 25.5305 29.5 25.0001V10.0001C29.5 9.46963 29.2893 8.96093 28.9142 8.58585C28.5391 8.21078 28.0304 8.00007 27.5 8.00007ZM27.5 25.0001H5.5V10.0001H27.5V25.0001Z" fill="white"/>
-</g>
-</svg>
-
+        <svg width="33" height="32" viewBox="0 0 33 32" fill="none" xmlns="http://www.w3.org/2000/svg"
+          className={contentType === 'series' ? 'opacity-100' : 'opacity-70'}>
+          <g opacity={contentType === 'series' ? '1' : '0.7'}>
+            <path d="M27.5 8.00007H18.9137L23.2075 3.70757C23.3951 3.51993 23.5006 3.26543 23.5006 3.00007C23.5006 2.7347 23.3951 2.48021 23.2075 2.29257C23.0199 2.10493 22.7654 1.99951 22.5 1.99951C22.2346 1.99951 21.9801 2.10493 21.7925 2.29257L16.5 7.58632L11.2075 2.29257C11.1146 2.19966 11.0043 2.12596 10.8829 2.07567C10.7615 2.02539 10.6314 1.99951 10.5 1.99951C10.3686 1.99951 10.2385 2.02539 10.1171 2.07567C9.99571 2.12596 9.88541 2.19966 9.7925 2.29257C9.60486 2.48021 9.49944 2.7347 9.49944 3.00007C9.49944 3.26543 9.60486 3.51993 9.7925 3.70757L14.0863 8.00007H5.5C4.96957 8.00007 4.46086 8.21078 4.08579 8.58585C3.71071 8.96093 3.5 9.46963 3.5 10.0001V25.0001C3.5 25.5305 3.71071 26.0392 4.08579 26.4143C4.46086 26.7894 4.96957 27.0001 5.5 27.0001H27.5C28.0304 27.0001 28.5391 26.7894 28.9142 26.4143C29.2893 26.0392 29.5 25.5305 29.5 25.0001V10.0001C29.5 9.46963 29.2893 8.96093 28.9142 8.58585C28.5391 8.21078 28.0304 8.00007 27.5 8.00007ZM27.5 25.0001H5.5V10.0001H27.5V25.0001Z" fill="white"/>
+          </g>
+        </svg>
         <span className="text-xs mt-1">Series</span>
       </button>
       <button
-        className={`flex flex-col items-center p-2 ${
-          contentType === 'anime' ? 'text-red-500' : 'text-gray-400'
+        className={`flex flex-col items-center p-2 text-white ${
+          contentType === 'anime' ? 'font-bold' : ''
         }`}
         onClick={() => onContentTypeChange('anime')}
       >
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"
-          className={contentType === 'anime' ? 'opacity-100' : 'opacity-50'}>
-          <path d="M22.7113 26.7624C22.7447 26.8564 22.7591 26.956 22.7535 27.0556C22.748 27.1552 22.7226 27.2527 22.6789 27.3423C22.6352 27.432 22.5741 27.512 22.4991 27.5778C22.4242 27.6435 22.3368 27.6937 22.2422 27.7253C22.1476 27.7569 22.0477 27.7693 21.9482 27.7618C21.8488 27.7542 21.7518 27.727 21.663 27.6816C21.5743 27.6361 21.4954 27.5734 21.4312 27.4972C21.3669 27.4209 21.3185 27.3326 21.2887 27.2374L20.2887 24.2374C20.2553 24.1434 20.2409 24.0438 20.2465 23.9442C20.252 23.8446 20.2774 23.7471 20.3211 23.6575C20.3648 23.5678 20.4259 23.4878 20.5009 23.422C20.5758 23.3563 20.6632 23.3061 20.7578 23.2745C20.8524 23.2429 20.9523 23.2305 21.0518 23.238C21.1512 23.2456 21.2482 23.2728 21.337 23.3182C21.4257 23.3637 21.5046 23.4264 21.5688 23.5026C21.6331 23.5789 21.6815 23.6672 21.7113 23.7624L22.7113 26.7624ZM16 23.2499C15.8011 23.2499 15.6103 23.3289 15.4697 23.4696C15.329 23.6102 15.25 23.801 15.25 23.9999V27.9999C15.25 28.1988 15.329 28.3896 15.4697 28.5302C15.6103 28.6709 15.8011 28.7499 16 28.7499C16.1989 28.7499 16.3897 28.6709 16.5303 28.5302C16.671 28.3896 16.75 28.1988 16.75 27.9999V23.9999C16.75 23.801 16.671 23.6102 16.5303 23.4696C16.3897 23.3289 16.1989 23.2499 16 23.2499ZM11.2375 23.2887C11.0489 23.2257 10.8429 23.2402 10.665 23.3291C10.4871 23.4179 10.3518 23.5738 10.2887 23.7624L9.28875 26.7624C9.25531 26.8564 9.24094 26.956 9.24649 27.0556C9.25204 27.1552 9.2774 27.2527 9.32108 27.3423C9.36475 27.432 9.42587 27.512 9.50086 27.5778C9.57584 27.6435 9.66319 27.6937 9.75779 27.7253C9.85238 27.7569 9.95233 27.7693 10.0518 27.7618C10.1512 27.7542 10.2482 27.727 10.337 27.6816C10.4257 27.6361 10.5046 27.5734 10.5688 27.4972C10.6331 27.4209 10.6815 27.3326 10.7113 27.2374L11.7113 24.2374C11.7742 24.0488 11.7597 23.8428 11.6708 23.6649C11.582 23.487 11.4261 23.3517 11.2375 23.2887ZM30.75 13.9999C30.75 15.9212 29.1325 17.6737 26.195 18.9324C23.4587 20.1049 19.8387 20.7499 16 20.7499C12.1613 20.7499 8.54125 20.1049 5.805 18.9324C2.8675 17.6737 1.25 15.9212 1.25 13.9999C1.25 11.3549 4.3825 9.04365 9.44875 7.92865C10.1424 6.80782 11.1112 5.88295 12.263 5.24192C13.4147 4.6009 14.7113 4.26499 16.0294 4.26612C17.3475 4.26724 18.6435 4.60537 19.7941 5.24836C20.9448 5.89136 21.912 6.81788 22.6038 7.9399C27.6375 9.0599 30.75 11.3662 30.75 13.9999ZM9.75 12.1049V12.4799C9.74927 12.761 9.84396 13.034 10.0186 13.2543C10.1932 13.4745 10.4374 13.629 10.7113 13.6924C12.4478 14.0753 14.2218 14.2623 16 14.2499C17.7776 14.2638 19.5512 14.0785 21.2875 13.6974C21.5613 13.634 21.8056 13.4795 21.9802 13.2593C22.1548 13.039 22.2495 12.766 22.2488 12.4849V11.9999C22.2488 10.3423 21.5903 8.75259 20.4182 7.58048C19.2461 6.40838 17.6564 5.7499 15.9987 5.7499H15.915C12.5162 5.7949 9.75 8.6449 9.75 12.1049ZM29.25 13.9999C29.25 12.3337 26.9525 10.6737 23.4 9.6849C23.6328 10.4345 23.7508 11.215 23.75 11.9999V12.4899C23.7511 13.1098 23.5413 13.7117 23.1551 14.1966C22.769 14.6816 22.2294 15.0208 21.625 15.1587C19.7781 15.5658 17.8912 15.7641 16 15.7499C14.1088 15.7642 12.2219 15.5659 10.375 15.1587C9.7706 15.0208 9.23102 14.6816 8.84487 14.1966C8.45872 13.7117 8.24895 13.1098 8.25 12.4899V12.1062C8.2501 11.2806 8.38002 10.4601 8.635 9.6749C5.06125 10.6624 2.75 12.3274 2.75 13.9999C2.75 15.2649 4.07875 16.5599 6.39625 17.5536C8.94875 18.6474 12.36 19.2499 16 19.2499C19.64 19.2499 23.0513 18.6474 25.6038 17.5536C27.9212 16.5599 29.25 15.2649 29.25 13.9999Z" 
-            fill={contentType === 'anime' ? '#FF0000' : 'white'} />
+          className={contentType === 'anime' ? 'opacity-100' : 'opacity-70'}>
+          <g opacity={contentType === 'anime' ? '1' : '0.7'}>
+            <path d="M22.7113 26.7624C22.7447 26.8564 22.7591 26.956 22.7535 27.0556C22.748 27.1552 22.7226 27.2527 22.6789 27.3423C22.6352 27.432 22.5741 27.512 22.4991 27.5778C22.4242 27.6435 22.3368 27.6937 22.2422 27.7253C22.1476 27.7569 22.0477 27.7693 21.9482 27.7618C21.8488 27.7542 21.7518 27.727 21.663 27.6816C21.5743 27.6361 21.4954 27.5734 21.4312 27.4972C21.3669 27.4209 21.3185 27.3326 21.2887 27.2374L20.2887 24.2374C20.2553 24.1434 20.2409 24.0438 20.2465 23.9442C20.252 23.8446 20.2774 23.7471 20.3211 23.6575C20.3648 23.5678 20.4259 23.4878 20.5009 23.422C20.5758 23.3563 20.6632 23.3061 20.7578 23.2745C20.8524 23.2429 20.9523 23.2305 21.0518 23.238C21.1512 23.2456 21.2482 23.2728 21.337 23.3182C21.4257 23.3637 21.5046 23.4264 21.5688 23.5026C21.6331 23.5789 21.6815 23.6672 21.7113 23.7624L22.7113 26.7624ZM16 23.2499C15.8011 23.2499 15.6103 23.3289 15.4697 23.4696C15.329 23.6102 15.25 23.801 15.25 23.9999V27.9999C15.25 28.1988 15.329 28.3896 15.4697 28.5302C15.6103 28.6709 15.8011 28.7499 16 28.7499C16.1989 28.7499 16.3897 28.6709 16.5303 28.5302C16.671 28.3896 16.75 28.1988 16.75 27.9999V23.9999C16.75 23.801 16.671 23.6102 16.5303 23.4696C16.3897 23.3289 16.1989 23.2499 16 23.2499ZM11.2375 23.2887C11.0489 23.2257 10.8429 23.2402 10.665 23.3291C10.4871 23.4179 10.3518 23.5738 10.2887 23.7624L9.28875 26.7624C9.25531 26.8564 9.24094 26.956 9.24649 27.0556C9.25204 27.1552 9.2774 27.2527 9.32108 27.3423C9.36475 27.432 9.42587 27.512 9.50086 27.5778C9.57584 27.6435 9.66319 27.6937 9.75779 27.7253C9.85238 27.7569 9.95233 27.7693 10.0518 27.7618C10.1512 27.7542 10.2482 27.727 10.337 27.6816C10.4257 27.6361 10.5046 27.5734 10.5688 27.4972C10.6331 27.4209 10.6815 27.3326 10.7113 27.2374L11.7113 24.2374C11.7742 24.0488 11.7597 23.8428 11.6708 23.6649C11.582 23.487 11.4261 23.3517 11.2375 23.2887ZM30.75 13.9999C30.75 15.9212 29.1325 17.6737 26.195 18.9324C23.4587 20.1049 19.8387 20.7499 16 20.7499C12.1613 20.7499 8.54125 20.1049 5.805 18.9324C2.8675 17.6737 1.25 15.9212 1.25 13.9999C1.25 11.3549 4.3825 9.04365 9.44875 7.92865C10.1424 6.80782 11.1112 5.88295 12.263 5.24192C13.4147 4.6009 14.7113 4.26499 16.0294 4.26612C17.3475 4.26724 18.6435 4.60537 19.7941 5.24836C20.9448 5.89136 21.912 6.81788 22.6038 7.9399C27.6375 9.0599 30.75 11.3662 30.75 13.9999ZM9.75 12.1049V12.4799C9.74927 12.761 9.84396 13.034 10.0186 13.2543C10.1932 13.4745 10.4374 13.629 10.7113 13.6924C12.4478 14.0753 14.2218 14.2623 16 14.2499C17.7776 14.2638 19.5512 14.0785 21.2875 13.6974C21.5613 13.634 21.8056 13.4795 21.9802 13.2593C22.1548 13.039 22.2495 12.766 22.2488 12.4849V11.9999C22.2488 10.3423 21.5903 8.75259 20.4182 7.58048C19.2461 6.40838 17.6564 5.7499 15.9987 5.7499H15.915C12.5162 5.7949 9.75 8.6449 9.75 12.1049ZM29.25 13.9999C29.25 12.3337 26.9525 10.6737 23.4 9.6849C23.6328 10.4345 23.7508 11.215 23.75 11.9999V12.4899C23.7511 13.1098 23.5413 13.7117 23.1551 14.1966C22.769 14.6816 22.2294 15.0208 21.625 15.1587C19.7781 15.5658 17.8912 15.7641 16 15.7499C14.1088 15.7642 12.2219 15.5659 10.375 15.1587C9.7706 15.0208 9.23102 14.6816 8.84487 14.1966C8.45872 13.7117 8.24895 13.1098 8.25 12.4899V12.1062C8.2501 11.2806 8.38002 10.4601 8.635 9.6749C5.06125 10.6624 2.75 12.3274 2.75 13.9999C2.75 15.2649 4.07875 16.5599 6.39625 17.5536C8.94875 18.6474 12.36 19.2499 16 19.2499C19.64 19.2499 23.0513 18.6474 25.6038 17.5536C27.9212 16.5599 29.25 15.2649 29.25 13.9999Z" 
+              fill="white" />
+          </g>
         </svg>
         <span className="text-xs mt-1">Anime</span>
       </button>
@@ -971,7 +1005,27 @@ function Home() {
     }
   }, [contentType]); // Only depend on contentType, not the fetch functions
 
-  // **FILTER FUNCTIONS - Direct database queries**
+  // **FILTER HELPER FUNCTIONS**
+  const logCategoryInfo = (label, results) => {
+    if (results.length === 0) {
+      console.log(`🔍 No ${label} content found`);
+      return;
+    }
+    
+    // Log the first few items' categories to help with debugging
+    const sampleItems = results.slice(0, 3);
+    console.log(`🔍 ${label} content samples (${results.length} total):`, 
+      sampleItems.map(item => ({
+        title: item.title,
+        contentType: item.contentType,
+        categories: typeof item.categories === 'string' ? item.categories : 
+                   Array.isArray(item.categories) ? item.categories.join(', ') : 
+                   'No categories'
+      }))
+    );
+  };
+
+  // **FILTER FUNCTIONS - Direct database queries - ALWAYS ACROSS ALL CONTENT TYPES**
   const applyFilter = useCallback(async (filterId) => {
     if (filterId === 'all') {
       setActiveFilter('all');
@@ -987,52 +1041,157 @@ function Home() {
       let results = [];
       
       // Add loading indicator to the specific filter
-      console.log(`🔍 Fetching ${filterId} content from database...`);
+      console.log(`🔍 Fetching ${filterId} content from ALL content types (movies, series, anime)...`);
+      
+      // Ensure we always load data from all content types regardless of current tab
+      // Start loading all content types if they haven't been loaded yet
+      const loadMoviesPromise = !moviesLoaded ? fetchMovies() : Promise.resolve();
+      const loadSeriesPromise = !seriesLoaded ? fetchSeries() : Promise.resolve();
+      const loadAnimePromise = !animeLoaded ? fetchAnime() : Promise.resolve();
+      
+      // Wait for any pending content loads to finish
+      await Promise.all([loadMoviesPromise, loadSeriesPromise, loadAnimePromise]);
       
       switch (filterId) {
         case 'netflix':
-          // Search for Netflix content in categories
-          const [netflixMovies, netflixSeries, netflixAnime] = await Promise.all([
-            searchMoviesDB('netflix', { genre: 'netflix', limit: 200 }),
-            searchSeriesDB('netflix', { genre: 'netflix', limit: 200 }),
-            searchAnimeDB('netflix', { genre: 'netflix', limit: 200 })
-          ]);
-          console.log('📊 Netflix search results:', {
-            movies: netflixMovies.length,
-            series: netflixSeries.length, 
-            anime: netflixAnime.length
-          });
-          results = [
-            ...netflixMovies.map(item => ({ ...item, contentType: 'movies' })),
-            ...netflixSeries.map(item => ({ ...item, contentType: 'series' })),
-            ...netflixAnime.map(item => ({ ...item, contentType: 'anime' }))
-          ];
+          // Try direct database query for Netflix content across all content types
+          try {
+            const { default: supabaseNetflix } = await import('../services/supabaseClient.js');
+            const [netflixMoviesQuery, netflixSeriesQuery, netflixAnimeQuery] = await Promise.all([
+              supabaseNetflix
+                .from('movies')
+                .select('*')
+                .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabaseNetflix
+                .from('series')
+                .select('*')
+                .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabaseNetflix
+                .from('anime')
+                .select('*')
+                .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200)
+            ]);
+            
+            const netflixMovies = netflixMoviesQuery.data || [];
+            const netflixSeries = netflixSeriesQuery.data || [];
+            const netflixAnime = netflixAnimeQuery.data || [];
+            
+            console.log('📊 Direct Netflix search results:', {
+              movies: netflixMovies.length,
+              series: netflixSeries.length, 
+              anime: netflixAnime.length
+            });
+            
+            results = [
+              ...netflixMovies.map(item => ({ ...item, contentType: 'movies' })),
+              ...netflixSeries.map(item => ({ ...item, contentType: 'series' })),
+              ...netflixAnime.map(item => ({ ...item, contentType: 'anime' }))
+            ];
+            
+            // Log sample categories for debugging
+            logCategoryInfo('Netflix', results);
+            
+            if (results.length === 0) throw new Error('No results from network');
+            
+          } catch (error) {
+            console.log('🔄 Network failed, filtering ALL cached data for Netflix content...');
+            // Always use all cached content regardless of current content type
+            const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+            const filteredFromCache = allCachedContent.filter(item => {
+              const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
+                              (item.categories || '').toLowerCase();
+              return categories.includes('netflix');
+            });
+            
+            results = filteredFromCache.map(item => ({
+              ...item,
+              contentType: allMovies.includes(item) ? 'movies' : 
+                          allSeries.includes(item) ? 'series' : 'anime'
+            }));
+            
+            console.log('📊 Cached Netflix results across ALL content:', filteredFromCache.length);
+            logCategoryInfo('Cached Netflix', results);
+          }
           break;
         
         case 'amazon-prime':
-          // Search for Amazon Prime content in categories
-          const [primeMovies, amazonMovies, primeSeries, amazonSeries, primeAnime, amazonAnime] = await Promise.all([
-            searchMoviesDB('prime', { genre: 'prime', limit: 100 }),
-            searchMoviesDB('amazon', { genre: 'amazon', limit: 100 }),
-            searchSeriesDB('prime', { genre: 'prime', limit: 100 }),
-            searchSeriesDB('amazon', { genre: 'amazon', limit: 100 }),
-            searchAnimeDB('prime', { genre: 'prime', limit: 100 }),
-            searchAnimeDB('amazon', { genre: 'amazon', limit: 100 })
-          ]);
-          results = [
-            ...primeMovies.map(item => ({ ...item, contentType: 'movies' })),
-            ...amazonMovies.map(item => ({ ...item, contentType: 'movies' })),
-            ...primeSeries.map(item => ({ ...item, contentType: 'series' })),
-            ...amazonSeries.map(item => ({ ...item, contentType: 'series' })),
-            ...primeAnime.map(item => ({ ...item, contentType: 'anime' })),
-            ...amazonAnime.map(item => ({ ...item, contentType: 'anime' }))
-          ];
-          break;
-        
-        case 'anime':
-          // Get all anime content
-          const animeContent = await getAllAnime(500);
-          results = animeContent.map(item => ({ ...item, contentType: 'anime' }));
+        case 'prime':
+          // Try direct database query for Amazon Prime Video content across all content types
+          try {
+            const { default: supabasePrime } = await import('../services/supabaseClient.js');
+            const [amazonPrimeMoviesQuery, amazonPrimeSeriesQuery, amazonPrimeAnimeQuery] = await Promise.all([
+              supabasePrime
+                .from('movies')
+                .select('*')
+                .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabasePrime
+                .from('series')
+                .select('*')
+                .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabasePrime
+                .from('anime')
+                .select('*')
+                .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200)
+            ]);
+            
+            const amazonPrimeMovies = amazonPrimeMoviesQuery.data || [];
+            const amazonPrimeSeries = amazonPrimeSeriesQuery.data || [];
+            const amazonPrimeAnime = amazonPrimeAnimeQuery.data || [];
+            
+            console.log('📊 Direct Amazon Prime Video search results:', {
+              movies: amazonPrimeMovies.length,
+              series: amazonPrimeSeries.length, 
+              anime: amazonPrimeAnime.length
+            });
+            
+            results = [
+              ...amazonPrimeMovies.map(item => ({ ...item, contentType: 'movies' })),
+              ...amazonPrimeSeries.map(item => ({ ...item, contentType: 'series' })),
+              ...amazonPrimeAnime.map(item => ({ ...item, contentType: 'anime' }))
+            ];
+            
+            // Log sample categories for debugging
+            logCategoryInfo('Amazon Prime Video', results);
+            
+            if (results.length === 0) throw new Error('No results from network');
+            
+          } catch (error) {
+            console.log('🔄 Network failed, filtering ALL cached data for Amazon Prime Video content...');
+            // Always use all cached content regardless of current content type
+            const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+            const filteredFromCache = allCachedContent.filter(item => {
+              const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
+                              (item.categories || '').toLowerCase();
+              return categories.includes('amazon prime video') || categories.includes('prime video');
+            });
+            
+            results = filteredFromCache.map(item => ({
+              ...item,
+              contentType: allMovies.includes(item) ? 'movies' : 
+                          allSeries.includes(item) ? 'series' : 'anime'
+            }));
+            
+            console.log('📊 Cached Amazon Prime Video results:', filteredFromCache.length);
+            logCategoryInfo('Cached Amazon Prime', results);
+          }
           break;
         
         case 'apple-tv':
@@ -1096,11 +1255,13 @@ function Home() {
             if (results.length === 0) throw new Error('No results from network');
             
           } catch (error) {
-            console.log('🔄 Network failed, filtering cached data for 720p content...');
+            console.log('🔄 Network failed, filtering ALL cached data for 720p content...');
+            // Always use all cached content regardless of current content type
             const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
             const filteredFromCache = allCachedContent.filter(item => {
-              const categories = item.categories || '';
-              return categories.toLowerCase().includes('720p');
+              const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
+                              (item.categories || '').toLowerCase();
+              return categories.includes('720p');
             });
             
             results = filteredFromCache.map(item => ({
@@ -1109,7 +1270,7 @@ function Home() {
                           allSeries.includes(item) ? 'series' : 'anime'
             }));
             
-            console.log('📊 Cached 720p results:', filteredFromCache.length);
+            console.log('📊 Cached 720p results across ALL content:', filteredFromCache.length);
           }
           break;
         
@@ -1160,11 +1321,13 @@ function Home() {
             if (results.length === 0) throw new Error('No results from network');
             
           } catch (error) {
-            console.log('🔄 Network failed, filtering cached data for 1080p content...');
+            console.log('🔄 Network failed, filtering ALL cached data for 1080p content...');
+            // Always use all cached content regardless of current content type
             const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
             const filteredFromCache = allCachedContent.filter(item => {
-              const categories = item.categories || '';
-              return categories.toLowerCase().includes('1080p');
+              const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
+                              (item.categories || '').toLowerCase();
+              return categories.includes('1080p');
             });
             
             results = filteredFromCache.map(item => ({
@@ -1173,12 +1336,78 @@ function Home() {
                           allSeries.includes(item) ? 'series' : 'anime'
             }));
             
-            console.log('📊 Cached 1080p results:', filteredFromCache.length);
+            console.log('📊 Cached 1080p results across ALL content:', filteredFromCache.length);
+          }
+          break;
+        
+        case '4k':
+          // Try direct database query for 4K content across all types
+          try {
+            const { default: supabase4k } = await import('../services/supabaseClient.js');
+            const [movies4kQuery, series4kQuery, anime4kQuery] = await Promise.all([
+              supabase4k
+                .from('movies')
+                .select('*')
+                .or('categories.ilike.%4k%,categories.ilike.%2160p%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabase4k
+                .from('series')
+                .select('*')
+                .or('categories.ilike.%4k%,categories.ilike.%2160p%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabase4k
+                .from('anime')
+                .select('*')
+                .or('categories.ilike.%4k%,categories.ilike.%2160p%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200)
+            ]);
+            
+            const movies4k = movies4kQuery.data || [];
+            const series4k = series4kQuery.data || [];
+            const anime4k = anime4kQuery.data || [];
+            
+            console.log('📊 Direct 4K search results:', {
+              movies: movies4k.length,
+              series: series4k.length, 
+              anime: anime4k.length
+            });
+            
+            results = [
+              ...movies4k.map(item => ({ ...item, contentType: 'movies' })),
+              ...series4k.map(item => ({ ...item, contentType: 'series' })),
+              ...anime4k.map(item => ({ ...item, contentType: 'anime' }))
+            ];
+            
+            if (results.length === 0) throw new Error('No results from network');
+            
+          } catch (error) {
+            console.log('🔄 Network failed, filtering ALL cached data for 4K content...');
+            // Always use all cached content regardless of current content type
+            const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+            const filteredFromCache = allCachedContent.filter(item => {
+              const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
+                              (item.categories || '').toLowerCase();
+              return categories.includes('4k') || categories.includes('2160p');
+            });
+            
+            results = filteredFromCache.map(item => ({
+              ...item,
+              contentType: allMovies.includes(item) ? 'movies' : 
+                          allSeries.includes(item) ? 'series' : 'anime'
+            }));
+            
+            console.log('📊 Cached 4K results across ALL content:', filteredFromCache.length);
           }
           break;
         
         case 'english':
-          // Search for English content in categories
+          // Search for English content in categories across all content types
           const [englishMovies, englishSeries, englishAnime] = await Promise.all([
             searchMoviesDB('english', { genre: 'english', limit: 200 }),
             searchSeriesDB('english', { genre: 'english', limit: 200 }),
@@ -1193,7 +1422,7 @@ function Home() {
         
         case 'dual-audio':
           // Try direct database query first, fallback to cached data if network fails
-          console.log('🔍 Searching for Dual Audio content...');
+          console.log('🔍 Searching for Dual Audio content across ALL content types...');
           
           try {
             const { default: supabase } = await import('../services/supabaseClient.js');
@@ -1202,14 +1431,14 @@ function Home() {
               supabase
                 .from('movies')
                 .select('*')
-                .ilike('categories', '%dual audio%')
+                .or('categories.ilike.%Dual Audio Movies%,categories.ilike.%Dual Audio%')
                 .eq('status', 'publish')
                 .order('modified_date', { ascending: false })
                 .limit(200),
               supabase
                 .from('series')
                 .select('*')
-                .ilike('categories', '%dual audio%')
+                .or('categories.ilike.%Dual Audio Series%,categories.ilike.%Dual Audio%')
                 .eq('status', 'publish')
                 .order('modified_date', { ascending: false })
                 .limit(200),
@@ -1250,13 +1479,14 @@ function Home() {
             }
             
           } catch (error) {
-            console.log('🔄 Network failed, filtering cached data for Dual Audio content...');
+            console.log('🔄 Network failed, filtering ALL cached data for Dual Audio content...');
             
-            // Filter from currently loaded content (cache)
+            // Filter from all cached content across all types
             const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
             const filteredFromCache = allCachedContent.filter(item => {
-              const categories = item.categories || '';
-              return categories.toLowerCase().includes('dual audio');
+              const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
+                              (item.categories || '').toLowerCase();
+              return categories.includes('dual audio');
             });
             
             console.log('📊 Cached Dual Audio results:', {
@@ -1274,36 +1504,135 @@ function Home() {
           break;
         
         case 'kdrama':
-          // Search for Korean drama content in categories
-          const [koreanMovies, kdramaMovies, koreanSeries, kdramaSeries] = await Promise.all([
-            searchMoviesDB('korean', { genre: 'korean', limit: 100 }),
-            searchMoviesDB('kdrama', { genre: 'kdrama', limit: 100 }),
-            searchSeriesDB('korean', { genre: 'korean', limit: 100 }),
-            searchSeriesDB('kdrama', { genre: 'kdrama', limit: 100 })
+          // Try direct database query for Korean Series content across all content types
+          try {
+            const { default: supabaseKdrama } = await import('../services/supabaseClient.js');
+            const [koreanSeriesMoviesQuery, koreanSeriesSeriesQuery, koreanSeriesAnimeQuery] = await Promise.all([
+              supabaseKdrama
+                .from('movies')
+                .select('*')
+                .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabaseKdrama
+                .from('series')
+                .select('*')
+                .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200),
+              supabaseKdrama
+                .from('anime')
+                .select('*')
+                .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
+                .eq('status', 'publish')
+                .order('modified_date', { ascending: false })
+                .limit(200)
+            ]);
+            
+            const koreanSeriesMovies = koreanSeriesMoviesQuery.data || [];
+            const koreanSeriesSeries = koreanSeriesSeriesQuery.data || [];
+            const koreanSeriesAnime = koreanSeriesAnimeQuery.data || [];
+            
+            console.log('📊 Direct Korean Series search results:', {
+              movies: koreanSeriesMovies.length,
+              series: koreanSeriesSeries.length, 
+              anime: koreanSeriesAnime.length
+            });
+            
+            results = [
+              ...koreanSeriesMovies.map(item => ({ ...item, contentType: 'movies' })),
+              ...koreanSeriesSeries.map(item => ({ ...item, contentType: 'series' })),
+              ...koreanSeriesAnime.map(item => ({ ...item, contentType: 'anime' }))
+            ];
+            
+            // Log sample categories for debugging
+            logCategoryInfo('Korean Series', results);
+            
+            if (results.length === 0) throw new Error('No results from network');
+            
+          } catch (error) {
+            console.log('🔄 Network failed, filtering ALL cached data for Korean Series content...');
+            // Always use all cached content regardless of current content type
+            const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+            const filteredFromCache = allCachedContent.filter(item => {
+              const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
+                              (item.categories || '').toLowerCase();
+              return categories.includes('korean series') || categories.includes('k-drama') || categories.includes('kdrama');
+            });
+            
+            results = filteredFromCache.map(item => ({
+              ...item,
+              contentType: allMovies.includes(item) ? 'movies' : 
+                          allSeries.includes(item) ? 'series' : 'anime'
+            }));
+            
+            console.log('📊 Cached Korean Series results:', filteredFromCache.length);
+            logCategoryInfo('Cached Korean Series', results);
+          }
+          break;
+          
+        case 'anime':
+          // Get all anime content (from the anime table) and search for anime tagged content in other tables
+          const [allAnimeContent, animeTaggedMovies, animeTaggedSeries] = await Promise.all([
+            // Get all anime content from the anime table
+            (async () => {
+              try {
+                const { default: supabaseAnime } = await import('../services/supabaseClient.js');
+                const animeQuery = await supabaseAnime
+                  .from('anime')
+                  .select('*')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(500);
+                return animeQuery.data || [];
+              } catch (error) {
+                console.error('Error fetching anime content:', error);
+                return allAnime || []; // Fallback to cached anime
+              }
+            })(),
+            // Search for anime tagged content in movies
+            searchMoviesDB('Anime', { genre: 'Anime', limit: 200 }),
+            // Search for anime tagged content in series
+            searchSeriesDB('Anime', { genre: 'Anime', limit: 200 })
           ]);
+          
+          console.log('📊 Anime filter search results:', {
+            animeContent: allAnimeContent.length,
+            animeTaggedMovies: animeTaggedMovies.length,
+            animeTaggedSeries: animeTaggedSeries.length
+          });
+          
           results = [
-            ...koreanMovies.map(item => ({ ...item, contentType: 'movies' })),
-            ...kdramaMovies.map(item => ({ ...item, contentType: 'movies' })),
-            ...koreanSeries.map(item => ({ ...item, contentType: 'series' })),
-            ...kdramaSeries.map(item => ({ ...item, contentType: 'series' }))
+            ...allAnimeContent.map(item => ({ ...item, contentType: 'anime' })),
+            ...animeTaggedMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...animeTaggedSeries.map(item => ({ ...item, contentType: 'series' }))
           ];
           break;
         
         case 'hollywood':
-          // Direct database query for Hollywood content
+          // Direct database query for Hollywood content across all content types
           const { default: supabaseHollywood } = await import('../services/supabaseClient.js');
-          const [hollywoodMoviesQuery, hollywoodSeriesQuery] = await Promise.all([
+          const [hollywoodMoviesQuery, hollywoodSeriesQuery, hollywoodAnimeQuery] = await Promise.all([
             supabaseHollywood
               .from('movies')
               .select('*')
-              .ilike('categories', '%hollywood%')
+              .ilike('categories', '%Hollywood%')
               .eq('status', 'publish')
               .order('modified_date', { ascending: false })
               .limit(200),
             supabaseHollywood
               .from('series')
               .select('*')
-              .ilike('categories', '%hollywood%')
+              .ilike('categories', '%Hollywood%')
+              .eq('status', 'publish')
+              .order('modified_date', { ascending: false })
+              .limit(200),
+            supabaseHollywood
+              .from('anime')
+              .select('*')
+              .ilike('categories', '%Hollywood%')
               .eq('status', 'publish')
               .order('modified_date', { ascending: false })
               .limit(200)
@@ -1311,32 +1640,37 @@ function Home() {
           
           const hollywoodMovies = hollywoodMoviesQuery.data || [];
           const hollywoodSeries = hollywoodSeriesQuery.data || [];
+          const hollywoodAnime = hollywoodAnimeQuery.data || [];
           
           console.log('📊 Direct Hollywood search results:', {
             movies: hollywoodMovies.length,
-            series: hollywoodSeries.length
+            series: hollywoodSeries.length,
+            anime: hollywoodAnime.length
           });
           
           results = [
             ...hollywoodMovies.map(item => ({ ...item, contentType: 'movies' })),
-            ...hollywoodSeries.map(item => ({ ...item, contentType: 'series' }))
+            ...hollywoodSeries.map(item => ({ ...item, contentType: 'series' })),
+            ...hollywoodAnime.map(item => ({ ...item, contentType: 'anime' }))
           ];
           break;
         
         case 'bollywood':
-          // Search for Bollywood content in categories
-          const [bollywoodMovies, bollywoodSeries] = await Promise.all([
+          // Search for Bollywood content in categories across all content types
+          const [bollywoodMovies, bollywoodSeries, bollywoodAnime] = await Promise.all([
             searchMoviesDB('bollywood', { genre: 'bollywood', limit: 200 }),
-            searchSeriesDB('bollywood', { genre: 'bollywood', limit: 200 })
+            searchSeriesDB('bollywood', { genre: 'bollywood', limit: 200 }),
+            searchAnimeDB('bollywood', { genre: 'bollywood', limit: 200 })
           ]);
           results = [
             ...bollywoodMovies.map(item => ({ ...item, contentType: 'movies' })),
-            ...bollywoodSeries.map(item => ({ ...item, contentType: 'series' }))
+            ...bollywoodSeries.map(item => ({ ...item, contentType: 'series' })),
+            ...bollywoodAnime.map(item => ({ ...item, contentType: 'anime' }))
           ];
           break;
         
         case 'web-dl':
-          // Search for WEB-DL content in categories
+          // Search for WEB-DL content in categories across all content types
           const [webdlMovies, webdlSeries, webdlAnime] = await Promise.all([
             searchMoviesDB('web-dl', { genre: 'web-dl', limit: 200 }),
             searchSeriesDB('web-dl', { genre: 'web-dl', limit: 200 }),
@@ -1350,7 +1684,7 @@ function Home() {
           break;
         
         case 'bluray':
-          // Search for Blu-Ray content in categories
+          // Search for Blu-Ray content in categories across all content types
           const [blurayMovies, bluraySeries, blurayAnime] = await Promise.all([
             searchMoviesDB('blu-ray', { genre: 'blu-ray', limit: 200 }),
             searchSeriesDB('blu-ray', { genre: 'blu-ray', limit: 200 }),
@@ -1364,7 +1698,37 @@ function Home() {
           break;
         
         default:
-          results = [];
+          // For any other filter, try to search across all content types
+          const [defaultMovies, defaultSeries, defaultAnime] = await Promise.all([
+            searchMoviesDB(filterId, { genre: filterId, limit: 200 }),
+            searchSeriesDB(filterId, { genre: filterId, limit: 200 }),
+            searchAnimeDB(filterId, { genre: filterId, limit: 200 })
+          ]);
+          
+          results = [
+            ...defaultMovies.map(item => ({ ...item, contentType: 'movies' })),
+            ...defaultSeries.map(item => ({ ...item, contentType: 'series' })),
+            ...defaultAnime.map(item => ({ ...item, contentType: 'anime' }))
+          ];
+          
+          // If no results from DB, try searching in cached data
+          if (results.length === 0) {
+            console.log(`🔍 No direct DB results for "${filterId}", searching in ALL cached content...`);
+            const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+            const filteredFromCache = allCachedContent.filter(item => {
+              const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
+                              (item.categories || '').toLowerCase();
+              return categories.includes(filterId.toLowerCase());
+            });
+            
+            results = filteredFromCache.map(item => ({
+              ...item,
+              contentType: allMovies.includes(item) ? 'movies' : 
+                          allSeries.includes(item) ? 'series' : 'anime'
+            }));
+            
+            console.log(`📊 Cached ${filterId} results:`, filteredFromCache.length);
+          }
       }
       
       // Remove duplicates based on record_id only (more lenient deduplication)
@@ -1375,8 +1739,20 @@ function Home() {
         })
         .sort((a, b) => new Date(b.modified_date || b.date) - new Date(a.modified_date || a.date));
       
-      console.log(`✅ Filter ${filterId} completed: ${uniqueResults.length} unique items found from ${results.length} total results`);
-      console.log('📊 Sample results:', uniqueResults.slice(0, 3).map(r => ({ title: r.title, type: r.contentType })));
+      console.log(`✅ Filter ${filterId} completed: ${uniqueResults.length} unique items found from ${results.length} total results across ALL content types`);
+      console.log('📊 Sample results by content type:', {
+        'movies': uniqueResults.filter(item => item.contentType === 'movies').slice(0, 2).map(r => r.title),
+        'series': uniqueResults.filter(item => item.contentType === 'series').slice(0, 2).map(r => r.title),
+        'anime': uniqueResults.filter(item => item.contentType === 'anime').slice(0, 2).map(r => r.title)
+      });
+      
+      // Count items by content type for more informative display
+      const movieCount = uniqueResults.filter(item => item.contentType === 'movies').length;
+      const seriesCount = uniqueResults.filter(item => item.contentType === 'series').length;
+      const animeCount = uniqueResults.filter(item => item.contentType === 'anime').length;
+      
+      console.log(`📊 Filter breakdown: ${movieCount} movies, ${seriesCount} series, ${animeCount} anime`);
+      
       setFilteredContent(uniqueResults);
       setDisplayedCount(MOVIES_PER_PAGE); // Reset to initial count
       
@@ -1388,12 +1764,24 @@ function Home() {
     } finally {
       setFilterLoading(false);
     }
-  }, [MOVIES_PER_PAGE]);
+  }, [MOVIES_PER_PAGE, allMovies, allSeries, allAnime, fetchMovies, fetchSeries, fetchAnime, moviesLoaded, seriesLoaded, animeLoaded]);
 
   // Handle filter change
   const handleFilterChange = useCallback((filterId) => {
+    // Load all content types if they haven't been loaded yet
+    if (!moviesLoaded) {
+      fetchMovies().catch(console.error);
+    }
+    if (!seriesLoaded) {
+      fetchSeries().catch(console.error);
+    }
+    if (!animeLoaded) {
+      fetchAnime().catch(console.error);
+    }
+    
+    // Apply the filter
     applyFilter(filterId);
-  }, [applyFilter]);
+  }, [applyFilter, fetchMovies, fetchSeries, fetchAnime, moviesLoaded, seriesLoaded, animeLoaded]);
 
   // **FILTER BAR COMPONENT**
   const FilterBar = memo(() => {
@@ -1406,7 +1794,7 @@ function Home() {
               {/* Netflix */}
               <button
                 className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
-                  activeFilter === 'netflix' ? 'opacity-100 scale-105' : 'opacity-60 hover:opacity-80'
+                  activeFilter === 'netflix' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('netflix')}
               >
@@ -1419,9 +1807,9 @@ function Home() {
               {/* Prime Video */}
               <button
                 className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
-                  activeFilter === 'prime' ? 'opacity-100 scale-105' : 'opacity-60 hover:opacity-80'
+                  activeFilter === 'amazon-prime' ? 'opacity-100 scale-105' : ''
                 }`}
-                onClick={() => handleFilterChange('prime')}
+                onClick={() => handleFilterChange('amazon-prime')}
               >
                 <div className="w-[40px] h-[40px] bg-[#00A8E1] rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden">
                   <img src={primeVideoIcon} alt="Prime Video" className="w-full h-full object-cover" />
@@ -1432,7 +1820,7 @@ function Home() {
               {/* Anime */}
               <button
                 className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
-                  activeFilter === 'anime' ? 'opacity-100 scale-105' : 'opacity-60 hover:opacity-80'
+                  activeFilter === 'anime' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('anime')}
               >
@@ -1445,7 +1833,7 @@ function Home() {
               {/* K Drama */}
               <button
                 className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
-                  activeFilter === 'kdrama' ? 'opacity-100 scale-105' : 'opacity-60 hover:opacity-80'
+                  activeFilter === 'kdrama' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('kdrama')}
               >
@@ -1465,7 +1853,7 @@ function Home() {
               {/* Hollywood */}
               <button
                 className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
-                  activeFilter === 'hollywood' ? 'opacity-100 scale-105' : 'opacity-60 hover:opacity-80'
+                  activeFilter === 'hollywood' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('hollywood')}
               >
@@ -1478,7 +1866,7 @@ function Home() {
           </div>
         </div>
 
-        {/* NAVIGATION BAR - HIDDEN ON MOBILE */}
+        {/* NAVIGATION BAR - HIDDEN ON MOBILE 
         <div className="hidden md:block bg-black bg-opacity-80 border-b border-gray-800">
           <div className="flex items-center justify-center px-4 py-3">
             <div className="flex items-center space-x-8">
@@ -1514,7 +1902,7 @@ function Home() {
               </button>
             </div>
           </div>
-        </div>
+        </div>   */}
 
         {/* QUALITY & DUAL AUDIO FILTER BAR */}
         <div className="bg-black bg-opacity-70 border-b border-gray-800">
@@ -1583,27 +1971,43 @@ function Home() {
           </div>
         </div>
 
-        {/* FILTER STATUS INFO */}
+        {/* FILTER STATUS INFO 
         {activeFilter !== 'all' && (
           <div className="bg-black bg-opacity-70 border-b border-gray-800 px-4 py-2">
             <div className="flex items-center justify-center">
               {filterLoading ? (
                 <span className="text-xs text-yellow-400 flex items-center gap-2">
                   <div className="w-3 h-3 border border-yellow-400/50 border-t-yellow-400 rounded-full animate-spin"></div>
-                  Fetching from database...
+                  Fetching from all content types...
                 </span>
               ) : filteredContent.length > 0 ? (
-                <span className="text-xs text-green-400">
-                  ✅ {filteredContent.length} items found
-                </span>
+                <div className="text-xs text-green-400 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <span>✅ {filteredContent.length} items found</span>
+                    <span className="bg-indigo-900/30 text-indigo-300 px-2 py-0.5 rounded-full text-[10px] font-medium">
+                      Cross-content filter
+                    </span>
+                  </div>
+                  <div className="mt-1 flex gap-3 justify-center">
+                    <span className="bg-blue-900/30 text-blue-300 px-2 py-0.5 rounded-full">
+                      {filteredContent.filter(item => item.contentType === 'movies').length} movies
+                    </span>
+                    <span className="bg-purple-900/30 text-purple-300 px-2 py-0.5 rounded-full">
+                      {filteredContent.filter(item => item.contentType === 'series').length} series
+                    </span>
+                    <span className="bg-orange-900/30 text-orange-300 px-2 py-0.5 rounded-full">
+                      {filteredContent.filter(item => item.contentType === 'anime').length} anime
+                    </span>
+                  </div>
+                </div>
               ) : (
                 <span className="text-xs text-gray-500">
                   No results found
-                </span>
-              )}
+                </span> 
+              )}  
             </div>
           </div>
-        )}
+        )}  */}
       </>
     );
   });
@@ -1753,10 +2157,25 @@ function Home() {
     // If a filter is active, return filtered content in a single section
     if (activeFilter !== 'all' && filteredContent.length > 0) {
       const filterLabel = FILTERS.find(f => f.id === activeFilter)?.label || activeFilter;
+      const movieCount = filteredContent.filter(item => item.contentType === 'movies').length;
+      const seriesCount = filteredContent.filter(item => item.contentType === 'series').length;
+      const animeCount = filteredContent.filter(item => item.contentType === 'anime').length;
+      
+      // New improved section title with clearer content type breakdown
+      const contentBreakdown = [];
+      if (movieCount > 0) contentBreakdown.push(`${movieCount} movies`);
+      if (seriesCount > 0) contentBreakdown.push(`${seriesCount} series`);
+      if (animeCount > 0) contentBreakdown.push(`${animeCount} anime`);
+      
+      const title = filterLabel; // Just show the filter name without count
+      const subtitle = contentBreakdown.join(' • ');
+      
       return [{ 
-        title: `${filterLabel} (${filteredContent.length} items)`, 
+        title: title,
+        subtitle: subtitle,
         items: filteredContent,
-        icon: FILTERS.find(f => f.id === activeFilter)?.icon
+        icon: FILTERS.find(f => f.id === activeFilter)?.icon,
+        showContentTypes: true // New flag to indicate we should show content type labels on cards
       }];
     }
 
@@ -1914,9 +2333,9 @@ function Home() {
           <h2 className="text-xl font-bold text-white">
             All {contentType === 'movies' ? 'Movies' : contentType === 'series' ? 'TV Shows' : 'Anime'}
           </h2>
-          <div className="text-sm text-gray-400">
+          {/* <div className="text-sm text-gray-400">
             Showing all {displayedContent.length} items from cache
-          </div>
+          </div> */}
         </div>
         
         {/* Clean movie grid - displays ALL content */}
@@ -1934,9 +2353,9 @@ function Home() {
 
         {/* Completion message */}
         <div className="flex justify-center mt-8">
-          <div className="px-6 py-3 bg-gray-800/50 text-gray-400 rounded-lg text-sm">
+          {/* <div className="px-6 py-3 bg-gray-800/50 text-gray-400 rounded-lg text-sm">
             ✅ All {currentContent.length} items from cache displayed
-          </div>
+          </div> */}
         </div>
       </div>
     );
@@ -2024,23 +2443,28 @@ function Home() {
         ) : (
           <>
             {groupedContent.length > 0 && groupedContent.map((section, index) => {
-              // If this is search results, use the grid layout
+              // If this is search results or filter results, use the grid layout
               const isSearchResults = searchQuery && section.title.includes('Search Results');
+              const isFilterResults = activeFilter !== 'all' && filteredContent.length > 0;
               
-              return isSearchResults ? (
+              return (isSearchResults || isFilterResults) ? (
                 <GridRow
                   key={`${contentType}-${section.title}-${index}`}
                   title={section.title}
+                  subtitle={section.subtitle}
                   items={section.items}
                   showNumbers={section.showNumbers}
+                  showContentTypes={section.showContentTypes}
                   onContentSelect={handleContentSelect}
                 />
               ) : (
                 <ScrollableRow
                   key={`${contentType}-${section.title}-${index}`}
                   title={section.title}
+                  subtitle={section.subtitle}
                   items={section.items}
                   showNumbers={section.showNumbers}
+                  showContentTypes={section.showContentTypes}
                   onContentSelect={handleContentSelect}
                 />
               );
