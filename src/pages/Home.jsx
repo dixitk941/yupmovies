@@ -647,10 +647,10 @@ const GridRow = memo(({ title, subtitle, items, showNumbers = false, onContentSe
               useOptimizedImage={true}
             />
             {showContentTypes && (
-              <div className={`absolute top-1 right-1 text-[10px] px-1.5 py-0.5 rounded-sm font-medium ${
-                content.contentType === 'movies' ? 'bg-blue-500/70' : 
-                content.contentType === 'series' ? 'bg-purple-500/70' : 
-                'bg-orange-500/70'
+              <div className={`absolute top-1 text-black right-1 text-[10px] px-1.5 py-0.5 rounded-sm font-medium ${
+                content.contentType === 'movies' ? 'bg-white' : 
+                content.contentType === 'series' ? 'bg-white' : 
+                'bg-white'
               }`}>
                 {content.contentType === 'movies' ? 'Movie' : 
                  content.contentType === 'series' ? 'Series' : 
@@ -1847,7 +1847,7 @@ function Home() {
                     <path d="M401.64 305.78L496.67 452.08L623.52 631.05H403.52L403.53 305.78H401.64Z" fill="white"/>
                   </svg>
                 </div>
-                <span className="text-white text-xs">K Drama</span>
+<span className="text-white text-xs whitespace-nowrap">K Drama</span>
               </button>
 
               {/* Hollywood */}
@@ -1905,7 +1905,7 @@ function Home() {
         </div>   */}
 
         {/* QUALITY & DUAL AUDIO FILTER BAR */}
-        <div className="bg-black bg-opacity-70 border-b border-gray-800">
+        <div className="bg-black bg-opacity-70 ">
           <div className="flex items-center justify-center px-4 py-2">
             <div className="flex items-center space-x-2">
               {/* All */}
@@ -2041,6 +2041,11 @@ function Home() {
   // Enhanced content detection function to include anime
   const isSeriesContent = (content) => {
     if (!content) return false;
+    
+    // First check the contentType property (set by filters)
+    if (content.contentType) {
+      return content.contentType === 'series' || content.contentType === 'anime';
+    }
     
     // Check explicit series or anime flag
     if (content.isSeries === true || content.isAnime === true) return true;
@@ -2369,15 +2374,25 @@ function Home() {
     }
     
     const isSeries = isSeriesContent(selectedMovie);
+    
+    // Debug logging for content type detection
+    console.log('🔍 Content type detection:', {
+      title: selectedMovie.title,
+      contentType: selectedMovie.contentType,
+      isSeries: isSeries,
+      id: selectedMovie.id
+    });
 
     try {
       if (isSeries) {
+        console.log('📺 Rendering SeriesDetail for:', selectedMovie.title);
         return (
           <div className="animate-fadeIn">
             <SeriesDetail series={selectedMovie} onClose={() => setSelectedMovie(null)} />
           </div>
         );
       } else {
+        console.log('🎬 Rendering MovieDetails for:', selectedMovie.title);
         if (!MovieDetails) {
           console.error('❌ MovieDetails component not found');
           return (
@@ -2532,7 +2547,7 @@ function Home() {
       {/* MODERN HEADER LIKE SCREENSHOT */}
       <header 
         ref={headerRef} 
-        className="bg-black bg-opacity-95 backdrop-blur-sm border-b border-gray-800"
+        className="bg-black bg-opacity-95 backdrop-blur-sm "
       >
         <div className="flex items-center justify-between px-6 py-4">
           {/* Logo */}
