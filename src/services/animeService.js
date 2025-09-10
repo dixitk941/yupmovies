@@ -440,76 +440,96 @@ const parseAnimeSeasonZipLinks = (seasonZipData) => {
   try {
     console.log('📦 Parsing anime season zip data:', seasonZipData.substring(0, 200) + '...');
     
-    // Split by " : " to separate different package options
-    const zipParts = seasonZipData.split(' : ');
-    console.log(`📦 Found ${zipParts.length} anime zip parts`);
+    // Split by newlines first to handle multiple seasons
+    const lines = seasonZipData.split(/\r?\n/).filter(line => line.trim());
+    console.log(`📦 Found ${lines.length} anime zip lines`);
     
-    zipParts.forEach((part, index) => {
-      const trimmed = part.trim();
-      if (!trimmed) return;
+    lines.forEach(line => {
+      // Check if the line starts with "Season X :" pattern
+      const seasonMatch = line.match(/^Season\s+(\d+)\s*:\s*(.+)/i);
       
-      // Look for URLs - handle both direct URLs and those in brackets
-      let url = '';
-      let remainingText = trimmed;
+      let seasonNumber = null;
+      let processableData = line;
       
-      const bracketMatch = trimmed.match(/\[([^\]]+)\]/);
-      if (bracketMatch) {
-        url = bracketMatch[1];
-        remainingText = trimmed.replace(/\[[^\]]+\]/, '').trim();
-      } else {
-        const urlMatch = trimmed.match(/^(https?:\/\/[^\s,]+)/);
-        if (urlMatch) {
-          url = urlMatch[1];
-          remainingText = trimmed.replace(/^https?:\/\/[^\s,]+/, '').trim();
-        }
+      if (seasonMatch) {
+        seasonNumber = parseInt(seasonMatch[1]);
+        processableData = seasonMatch[2];
       }
       
-      if (!url) return;
+      // Split by " : " to separate different package options
+      const zipParts = processableData.split(' : ');
       
-      // Parse quality and size
-      let quality = 'Season Package';
-      let size = 'Unknown';
-      
-      const qualityMatch = remainingText.match(/,([^,]*(?:p|bit|K|Season)[^,]*),([^,\n\r]+)/i);
-      if (qualityMatch) {
-        quality = qualityMatch[1].trim() || 'Season Package';
-        size = qualityMatch[2].trim() || 'Unknown';
-      } else {
-        const qualityFallback = remainingText.match(/(480p|720p|1080p|4K|2160p|Season)/i);
-        if (qualityFallback) {
-          quality = qualityFallback[1];
+      zipParts.forEach((part, index) => {
+        const trimmed = part.trim();
+        if (!trimmed) return;
+        
+        // Look for URLs - handle both direct URLs and those in brackets
+        let url = '';
+        let remainingText = trimmed;
+        
+        const bracketMatch = trimmed.match(/\[([^\]]+)\]/);
+        if (bracketMatch) {
+          url = bracketMatch[1];
+          remainingText = trimmed.replace(/\[[^\]]+\]/, '').trim();
+        } else {
+          const urlMatch = trimmed.match(/(https?:\/\/[^\s,]+)/);
+          if (urlMatch) {
+            url = urlMatch[1];
+            remainingText = trimmed.replace(/https?:\/\/[^\s,]+/, '').trim();
+          }
         }
         
-        const sizeFallback = remainingText.match(/(\d+(?:\.\d+)?\s*(?:MB|GB|KB))/i);
-        if (sizeFallback) {
-          size = sizeFallback[1];
+        if (!url) return;
+        
+        // Parse quality and size
+        let quality = 'Season Package';
+        let size = 'Unknown';
+        
+        const qualityMatch = remainingText.match(/,([^,]*(?:p|bit|K|Season)[^,]*),([^,\n\r]+)/i);
+        if (qualityMatch) {
+          quality = qualityMatch[1].trim() || 'Season Package';
+          size = qualityMatch[2].trim() || 'Unknown';
+        } else {
+          const qualityFallback = remainingText.match(/(480p|720p|1080p|4K|2160p|Season)/i);
+          if (qualityFallback) {
+            quality = qualityFallback[1];
+          }
+          
+          const sizeFallback = remainingText.match(/(\d+(?:\.\d+)?\s*(?:MB|GB|KB))/i);
+          if (sizeFallback) {
+            size = sizeFallback[1];
+          }
         }
-      }
-      
-      const cleanUrl = url.includes('?') 
-        ? url.split('?')[0] + '?' + url.split('?')[1].split(',')[0] 
-        : url;
-      
-      // EXACT SAME FORMAT AS SERIES
-      const linkEntry = {
-        url: cleanUrl,
-        name: `Season Package - ${quality}`,
-        title: `Season Package`,
-        quality: quality,
-        size: size,
-        sizeInMB: parseSizeToMB(size),
-        language: extractLanguageFromName(trimmed),
-        episodeNumber: 'package',
-        isPackage: true,
-        downloadType: 'package'
-      };
-      
-      links.push(linkEntry);
-      
-      console.log(`✅ Parsed anime package link ${index + 1}:`, {
-        quality,
-        size,
-        url: cleanUrl.substring(0, 50) + '...'
+        
+        const cleanUrl = url.includes('?') 
+          ? url.split('?')[0] + '?' + url.split('?')[1].split(',')[0] 
+          : url;
+        
+        // EXACT SAME FORMAT AS SERIES with season number
+        const linkEntry = {
+          url: cleanUrl,
+          name: seasonNumber ? `Season ${seasonNumber} Package - ${quality}` : `Season Package - ${quality}`,
+          title: seasonNumber ? `Season ${seasonNumber} Package` : `Season Package`,
+          quality: quality,
+          size: size,
+          sizeInMB: parseSizeToMB(size),
+          language: extractLanguageFromName(trimmed),
+          episodeNumber: 'package',
+          isPackage: true,
+          downloadType: 'package',
+          seasonNumber: seasonNumber, // Add the extracted season number
+          season: seasonNumber, // Add alternative property for compatibility
+          season_number: seasonNumber // Add another alternative property for compatibility
+        };
+        
+        links.push(linkEntry);
+        
+        console.log(`✅ Parsed anime package link ${index + 1}:`, {
+          quality,
+          size,
+          seasonNumber,
+          url: cleanUrl.substring(0, 50) + '...'
+        });
       });
     });
     

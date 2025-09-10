@@ -7,9 +7,12 @@ import SeriesDetail from './SeriesDetail';
 import { SearchSkeleton, CardSkeleton } from '../components/Skeleton';
 
 // Platform Icons
-import netflixIcon from '../assets/netfliix.png';
-import primeVideoIcon from '../assets/prime video.png';
-import animeIcon from '../assets/anime.png';
+import netflixIcon from '../assets/netflixsvg.svg';
+import primeVideoIcon from '../assets/primevideo.svg';
+import animeIcon from '../assets/anime.svg';
+import kDramaIcon from '../assets/k-drama.svg';
+import Bollywood from '../assets/bollywood.svg';
+import HollyIcon from '../assets/hollywood.svg';
 
 // **OPTIMIZED IMPORTS WITH REAL-TIME DATABASE SEARCH**
 import { getAllMovies, searchMovies, searchMoviesDB, getCacheStats as getMovieStats } from '../services/movieService';
@@ -295,12 +298,13 @@ const RealTimeSearchBar = memo(({
   return (
     <div className="relative w-full" ref={searchRef}>
       <div className="relative group">
-      <div className="relative w-[290px] h-[40px] transform translate-x-[20px]">
+      <div className="relative w-[285px] h-[40px] transform translate-x-[20px]">
   {/* Input */}
   <input
     type="text"
-    placeholder="Search here..."
-    className="w-full h-full bg-[#242424] backdrop-blur-sm border-0 rounded-[5px] pl-10 pr-4 text-[#FFFFFF]/40 placeholder-gray-400 text-[12px] focus:outline-none transition-all duration-300"
+    placeholder="search here..."
+      className="w-full h-full bg-[#242424] backdrop-blur-sm border-0 rounded-[8px] pl-10 pr-4 text-white placeholder-gray-400 text-[12px] focus:outline-none transition-all duration-300"
+
     value={searchQuery}
     onChange={handleInputChange}
     onFocus={handleFocus}
@@ -319,7 +323,7 @@ const RealTimeSearchBar = memo(({
             onSearchChange('');
             setShowDropdown(false);
           }}
-          className={`absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full p-1 transition-all duration-200 ${!searchQuery ? 'opacity-0' : 'opacity-100'}`}
+          className={`absolute right-[1px] top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-full transition-all duration-200 ${!searchQuery ? 'opacity-0' : 'opacity-100'}`}
         >
           <X size={16} />
         </button>
@@ -1780,12 +1784,12 @@ function Home() {
     return (
       <>
         {/* PLATFORM FILTER SECTION LIKE SCREENSHOT */}
-        <div className="mx-4 bg-[#242424] bg-opacity-90 rounded-[10px] my-2">
+        <div className="mx-4 mt-[-1px] bg-[#242424] bg-opacity-90 rounded-[10px] my-2">
           <div className="flex items-center justify-center px-6 py-4">
-            <div className="flex items-center space-x-8">
+            <div className="flex items-center space-x-5">
               {/* Netflix */}
               <button
-                className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
+                className={`flex flex-col items-center space-y-1 transition-all duration-200 ${
                   activeFilter === 'netflix' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('netflix')}
@@ -1793,12 +1797,12 @@ function Home() {
                 <div className="w-[40px] h-[40px] rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden">
                   <img src={netflixIcon} alt="Netflix" className="w-full h-full object-cover" />
                 </div>
-                <span className="text-white text-xs">Netflix</span>
+                <span className="text-white text-[8px]">Netflix</span>
               </button>
 
               {/* Prime Video */}
               <button
-                className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
+                className={`flex flex-col items-center space-y-1 transition-all duration-200 ${
                   activeFilter === 'amazon-prime' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('amazon-prime')}
@@ -1806,12 +1810,12 @@ function Home() {
                 <div className="w-[40px] h-[40px] bg-[#00A8E1] rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden">
                   <img src={primeVideoIcon} alt="Prime Video" className="w-full h-full object-cover" />
                 </div>
-                <span className="text-white text-xs">Prime</span>
+                <span className="text-white text-[8px]">Prime</span>
               </button>
 
               {/* Anime */}
               <button
-                className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
+                className={`flex flex-col items-center space-y-1 transition-all duration-200 ${
                   activeFilter === 'anime' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('anime')}
@@ -1819,40 +1823,46 @@ function Home() {
                 <div className="w-[40px] h-[40px] bg-orange-500 rounded-t-lg rounded-b-lg flex items-center justify-center p-0 overflow-hidden">
                   <img src={animeIcon} alt="Anime" className="w-full h-full object-cover" />
                 </div>
-                <span className="text-white text-xs">Anime</span>
+                <span className="text-white text-[8px]">Anime</span>
               </button>
 
               {/* K Drama */}
               <button
-                className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
+                className={`flex flex-col items-center space-y-1 transition-all duration-200 ${
                   activeFilter === 'kdrama' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('kdrama')}
               >
-                <div className="w-[40px] h-[40px] bg-gray-700 rounded-t-lg rounded-b-lg flex items-center justify-center p-2">
-                  <svg width="100%" height="100%" viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M626.56 287.02L520.78 124.71L405.31 300L495.05 438.92L626.56 287.02Z" fill="white"/>
-                    <path d="M401.64 300L286.27 124.71L180.5 287.02L311.95 438.92L401.64 300Z" fill="white"/>
-                    <path d="M631.19 293.28L500.83 444.08L617.31 620.39L716.95 499.27L631.19 293.28Z" fill="white"/>
-                    <path d="M310.38 443.52L173.91 293.28L88.1 499.27L187.73 620.39L310.38 443.52Z" fill="white"/>
-                    <path d="M405.31 305.78L310.38 452.08L183.52 631.05H403.48L403.47 305.78H405.31Z" fill="white"/>
-                    <path d="M401.64 305.78L496.67 452.08L623.52 631.05H403.52L403.53 305.78H401.64Z" fill="white"/>
-                  </svg>
+                <div className="w-[40px] h-[40px] bg-gray-700 rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden">
+                  <img src={kDramaIcon} alt="K-Drama" className="w-full h-full object-cover" />
                 </div>
-<span className="text-white text-xs whitespace-nowrap">K Drama</span>
+<span className="text-white text-[8px] whitespace-nowrap">K Drama</span>
               </button>
 
               {/* Hollywood */}
               <button
-                className={`flex flex-col items-center space-y-2 transition-all duration-200 ${
+                className={`flex flex-col items-center space-y-1 transition-all duration-200 ${
                   activeFilter === 'hollywood' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('hollywood')}
               >
                 <div className="w-[40px] h-[40px] bg-gradient-to-r from-purple-500 to-pink-500 rounded-t-lg rounded-b-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">H</span>
+                  <img src={HollyIcon} alt="Anime" className="w-full h-full object-cover" />
                 </div>
-                <span className="text-white text-xs">Hollywood</span>
+                <span className="text-white text-[8px]">Hollywood</span>
+              </button>
+
+              {/* Bollywood */}
+              <button
+                className={`flex flex-col items-center space-y-1 transition-all duration-200 ${
+                  activeFilter === 'bollywood' ? 'opacity-100 scale-105' : ''
+                }`}
+                onClick={() => handleFilterChange('bollywood')}
+              >
+                <div className="w-[40px] h-[40px] bg-gradient-to-r from-orange-500 to-red-500 rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden">
+                  <img src={Bollywood} alt="Bollywood" className="w-full h-full object-cover" />
+                </div>
+                <span className="text-white text-[8px]">Bollywood</span>
               </button>
             </div>
           </div>
@@ -1897,15 +1907,15 @@ function Home() {
         </div>   */}
 
         {/* QUALITY & DUAL AUDIO FILTER BAR */}
-        <div className="bg-black bg-opacity-70 ">
-          <div className="flex items-center justify-center px-4 py-2">
-            <div className="flex items-center space-x-2">
+        <div className="bg-black mt-[-5px] bg-opacity-70 ">
+          <div className="overflow-x-auto scrollbar-hide px-4 py-2">
+            <div className="flex items-center space-x-2 min-w-max">
               {/* All */}
                 <button
-                  className={`text-xs font-medium transition-colors px-3 py-1.5 rounded border ${
+                  className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
                     activeFilter === 'all' 
-                      ? 'bg-[#242424] text-white border-[#242424]' 
-                      : 'text-gray-300 border-white hover:text-white hover:border-gray-500'
+                      ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                      : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                   }`}
                   onClick={() => handleFilterChange('all')}
                 >
@@ -1914,10 +1924,10 @@ function Home() {
 
               {/* 1080p */}
               <button
-                className={`text-xs font-medium transition-colors px-3 py-1.5 rounded border ${
+                className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
                   activeFilter === '1080p' 
-                    ? 'bg-[#242424] text-white border-[#242424]' 
-                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500'
+                    ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                 }`}
                 onClick={() => handleFilterChange('1080p')}
               >
@@ -1926,10 +1936,10 @@ function Home() {
 
               {/* 4K */}
               <button
-                className={`text-xs font-medium transition-colors px-3 py-1.5 rounded border ${
+                className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
                   activeFilter === '4k' 
-                    ? 'bg-[#242424] text-white border-[#242424]' 
-                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500'
+                    ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                 }`}
                 onClick={() => handleFilterChange('4k')}
               >
@@ -1938,10 +1948,10 @@ function Home() {
 
               {/* English */}
               <button
-                className={`text-xs font-medium transition-colors px-3 py-1.5 rounded border ${
+                className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
                   activeFilter === 'english' 
-                    ? 'bg-[#242424] text-white border-[#242424]' 
-                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500'
+                    ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                 }`}
                 onClick={() => handleFilterChange('english')}
               >
@@ -1950,10 +1960,10 @@ function Home() {
 
               {/* Dual Audio */}
               <button
-                className={`text-xs font-medium transition-colors px-3 py-1.5 rounded border ${
+                className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
                   activeFilter === 'dual-audio' 
-                    ? 'bg-[#242424] text-white border-[#242424]' 
-                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500'
+                    ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                 }`}
                 onClick={() => handleFilterChange('dual-audio')}
               >
@@ -2191,7 +2201,7 @@ function Home() {
         const rating = item.content?.rating || item.rating;
         return rating && parseFloat(rating) > 7;
       })
-      .slice(0, 20); // Changed to 20 as requested
+      .slice(0, 10); // Changed to 20 as requested
     if (trending.length > 0) {
       sections.push({ title: 'Trending Now', items: trending, showNumbers: true });
     }

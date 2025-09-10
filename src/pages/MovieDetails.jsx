@@ -7,7 +7,7 @@ import {
 import { getMovieDetailsById, getSeriesDetailsById } from '../services/directMovieService';
 import { formatDateString, debugDate } from '../services/utils.js';
 import { ButtonSkeleton } from '../components/Skeleton';
-import { handleSecureDownload } from '../utils/secureDownload';
+import { downloadService } from '../services/downloadService';
 
 const MovieDetails = ({ movie, onClose }) => {
   const [directDetails, setDirectDetails] = useState(null);
@@ -334,7 +334,7 @@ const MovieDetails = ({ movie, onClose }) => {
     };
   }, [onClose]);
 
-  // Direct download handler
+  // Protected download handler using secure tokens
   const handleDirectDownload = async (linkData, index) => {
     if (!linkData || !linkData.url) {
       showToast("Download link not available", 'error');
@@ -344,36 +344,42 @@ const MovieDetails = ({ movie, onClose }) => {
     setDownloadingLinks(prev => new Set([...prev, index]));
 
     try {
-      showToast(`Starting download: ${linkData.quality} (${linkData.size})`, 'info');
+      showToast(`Preparing secure download: ${linkData.quality} (${linkData.size})`, 'info');
       
-      // Use secure download method instead of direct URL
-      const downloadTitle = `${movieData.title}_${linkData.quality}`;
-      const success = handleSecureDownload(
-        linkData.url,
-        downloadTitle,
-        linkData.quality,
-        linkData.size
+      // Use the new protected download service
+      const result = await downloadService.startFastDownload(
+        linkData, 
+        movieData.title,
+        (progress) => {
+          // Optional: Update progress in UI
+          console.log(`Download progress: ${progress}%`);
+        }
       );
       
-      if (success) {
-        logActivity('secure_download_initiated', { 
-          quality: linkData.quality,
-          size: linkData.size,
-          title: movieData.title,
-          movieTitle: movieData.title,
-          isSeries: movieData.isSeries,
-          timestamp: new Date().toISOString()
-        });
-        
-        setTimeout(() => {
-          showToast(`Download started successfully: ${linkData.quality}`, 'success');
-        }, 1000);
-      } else {
-        showToast("Failed to start secure download", 'error');
-      }
+      // Simple local logging instead of external API
+      console.log('Download started:', { 
+        quality: linkData.quality,
+        size: linkData.size,
+        title: movieData.title,
+        downloadId: result.downloadId,
+        timestamp: new Date().toISOString()
+      });
+      
+      showToast(`Secure download started: ${linkData.quality}`, 'success');
       
     } catch (error) {
-      showToast("Download failed. Please try again.", 'error');
+      console.error('Protected download error:', error);
+      
+      showToast(`Download failed: ${error.message}`, 'error');
+      
+      console.log('Download error:', { 
+        quality: linkData.quality,
+        size: linkData.size,
+        title: movieData.title,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+      
     } finally {
       setTimeout(() => {
         setDownloadingLinks(prev => {
@@ -761,7 +767,11 @@ const MovieDetails = ({ movie, onClose }) => {
                               </>
                             ) : (
                               <>
-                                <Download size={16} />
+<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M1.875 12.3611H13.125V13.75H1.875V12.3611Z" fill="white"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M3.98437 5.82347L7.5 9.29569L11.0156 5.82347L12.01 6.80556L7.99718 10.7688C7.7226 11.04 7.2774 11.04 7.00282 10.7688L2.99001 6.80556L3.98437 5.82347Z" fill="white"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7.5 10.9722C7.88833 10.9722 8.20313 10.6613 8.20313 10.2778V1.25H6.79688V10.2778C6.79688 10.6613 7.11167 10.9722 7.5 10.9722Z" fill="white"/>
+</svg>
                                 <span>Download</span>
                               </>
                             )}
@@ -774,7 +784,11 @@ const MovieDetails = ({ movie, onClose }) => {
                   // Fallback when no download links are available
                   <div className="text-center py-12">
                     <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Download size={24} className="text-gray-500" />
+<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M1.875 12.3611H13.125V13.75H1.875V12.3611Z" fill="white"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M3.98437 5.82347L7.5 9.29569L11.0156 5.82347L12.01 6.80556L7.99718 10.7688C7.7226 11.04 7.2774 11.04 7.00282 10.7688L2.99001 6.80556L3.98437 5.82347Z" fill="white"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7.5 10.9722C7.88833 10.9722 8.20313 10.6613 8.20313 10.2778V1.25H6.79688V10.2778C6.79688 10.6613 7.11167 10.9722 7.5 10.9722Z" fill="white"/>
+</svg>
                     </div>
                     <p className="text-gray-400 mb-2">No download links available</p>
                     <p className="text-gray-500 text-sm">Check back later for updates</p>

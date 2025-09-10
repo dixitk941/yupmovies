@@ -135,11 +135,29 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
   );
 
   return (
-    <div className={`group relative ${showNumber ? 'pl-6' : ''}`}>
-      {/* Trending Number */}
+    <div className={`group relative ${showNumber ? 'pl-8' : ''}`}>
+      {/* Netflix-style Trending Number - Aligned with image area */}
       {showNumber && (
-        <div className="absolute -left-1 top-0 bottom-0 flex items-center z-10">
-          <span className="text-2xl font-black text-gray-800/30 leading-none">
+        <div 
+          className="absolute z-0 flex items-end"
+          style={{
+            left: '-24px',
+            top: '0px',
+            bottom: '40px', // Account for title/date section height
+            width: '120px',
+            height: 'calc(100% - 40px)', // Match image container height
+          }}
+        >
+          <span
+            className="text-[140px] font-black leading-none select-none"
+            style={{
+              color: 'transparent',
+              WebkitTextStroke: '4px #444444',
+              textShadow: '0 0 8px rgba(0,0,0,0.5)',
+              fontFamily: 'Arial Black, sans-serif',
+              transform: 'translateY(10px)', // Slight bottom alignment
+            }}
+          >
             {index + 1}
           </span>
         </div>
@@ -148,9 +166,9 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
       {/* Main Card */}
       <div
         className={`
-          relative cursor-pointer  overflow-hidden bg-black/80 backdrop-blur-sm
+          relative cursor-pointer overflow-hidden bg-black/80 backdrop-blur-sm
           transition-all duration-300 ease-out
-          w-[112px] flex-shrink-0
+          w-[112px] flex-shrink-0 z-10
           ${isMobile ? 'active:scale-95' : ''}
         `}
         onClick={handleClick}
@@ -214,8 +232,6 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
             />
           )}
 
-          {/* Download Indicator removed */}
-
           {/* Excerpt badge at the bottom center of the image */}
           {movie.excerpt && (
             <div className="absolute bottom-5 left-1/2 transform -translate-x-1/2 bg-[#ff0000] backdrop-blur-sm text-white text-[10px] px-1.5 py-0.5 rounded-[2px]  font-bold w-[80px] text-center whitespace-nowrap overflow-hidden">
@@ -240,9 +256,9 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
             {displayDate ? displayDate : 'Unknown Date'}
           </div>
 
-        <h3 className="text-white font-bold text-[12px] leading-tight text-left truncate">
-  {cleanTitle}
-</h3>
+          <h3 className="text-white font-bold text-[12px] leading-tight text-left truncate">
+            {cleanTitle}
+          </h3>
         </div>
       </div>
     </div>

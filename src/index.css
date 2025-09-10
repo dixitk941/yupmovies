@@ -2,9 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Mobile-Only Enforcement CSS */
-@import './styles/mobileOnly.css';
-
 /* Custom spinner animation to ensure smooth rotation */
 @keyframes spin-smooth {
   0% { transform: rotate(0deg); }

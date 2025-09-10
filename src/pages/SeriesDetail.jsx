@@ -7,7 +7,7 @@ import {
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
 import { getAnimeById } from '../services/animeService';
 import { TextSkeleton, CardSkeleton } from '../components/Skeleton';
-import { handleSecureDownload } from '../utils/secureDownload';
+import { downloadService } from '../services/downloadService';
 
 const SeriesDetail = ({ series, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -200,7 +200,7 @@ const SeriesDetail = ({ series, onClose }) => {
     fetchSeriesData();
   }, [series]);
 
-  // Download handler
+  // Optimized download handler using fast download service
   const handleDownload = useCallback(async (episode, quality = null, isPackage = false) => {
     console.log('🔽 Download triggered:', { episode, quality, isPackage });
     
@@ -211,31 +211,35 @@ const SeriesDetail = ({ series, onClose }) => {
     setDownloadingLinks(prev => new Set([...prev, downloadKey]));
     
     try {
-      let downloadUrl = null;
-      let downloadTitle = '';
-      let downloadQuality = '';
+      let linkData = null;
+      let title = '';
       
       if (isPackage) {
         // Handle season package downloads
-        downloadUrl = episode.url;
-        downloadTitle = episode.name || `Season ${episode.seasonNumber} Package`;
-        downloadQuality = episode.quality || 'Package';
-        console.log('📦 Package download URL:', downloadUrl);
+        linkData = {
+          url: episode.url,
+          quality: episode.quality || 'Package',
+          size: episode.size || 'Unknown'
+        };
+        title = episode.name || `${seriesData?.title || 'Series'} - Season ${episode.seasonNumber} Package`;
         
-        if (downloadUrl) {
-          // Use secure download method instead of direct URL
-          const success = handleSecureDownload(
-            downloadUrl, 
-            downloadTitle, 
-            downloadQuality,
-            episode.size
-          );
+        console.log('📦 Package download data:', linkData);
+        
+        if (linkData.url) {
+          showToast(`Preparing package download: ${title}`, 'info');
           
-          if (success) {
-            showToast(`Starting: ${downloadTitle}`, 'success');
-          } else {
-            showToast('Download failed to start', 'error');
-          }
+          // Use optimized download service
+          const result = await downloadService.startFastDownload(linkData, title);
+          
+          console.log('Package download started:', {
+            title: title,
+            quality: linkData.quality,
+            size: linkData.size,
+            downloadId: result.downloadId,
+            timestamp: new Date().toISOString()
+          });
+          
+          showToast(`Package download started: ${title}`, 'success');
         } else {
           showToast('Download URL not available', 'error');
         }
@@ -251,33 +255,45 @@ const SeriesDetail = ({ series, onClose }) => {
         console.log('🎬 Selected episode link:', selectedLink);
         
         if (selectedLink && selectedLink.url) {
-          downloadUrl = selectedLink.url;
-          downloadTitle = `${seriesData?.title || 'Episode'} - Episode ${episode.episodeNumber}`;
-          downloadQuality = quality;
+          linkData = {
+            url: selectedLink.url,
+            quality: quality,
+            size: selectedLink.size || 'Unknown'
+          };
+          title = `${seriesData?.title || 'Episode'} - Episode ${episode.episodeNumber}`;
           
-          // Use secure download method instead of direct URL
-          const success = handleSecureDownload(
-            downloadUrl, 
-            downloadTitle, 
-            downloadQuality,
-            selectedLink.size
-          );
+          showToast(`Preparing episode download: Episode ${episode.episodeNumber} - ${quality}`, 'info');
           
-          if (success) {
-            showToast(`Starting: Episode ${episode.episodeNumber} - ${quality}`, 'success');
-          } else {
-            showToast('Download failed to start', 'error');
-          }
+          // Use optimized download service
+          const result = await downloadService.startFastDownload(linkData, title);
+          
+          console.log('Episode download started:', {
+            title: title,
+            episode: episode.episodeNumber,
+            quality: quality,
+            size: linkData.size,
+            downloadId: result.downloadId,
+            timestamp: new Date().toISOString()
+          });
+          
+          showToast(`Episode download started: Episode ${episode.episodeNumber} - ${quality}`, 'success');
         } else {
-          showToast('Download link not available for selected quality', 'error');
+          showToast(`No ${quality} download link available for this episode`, 'error');
         }
       }
       
     } catch (error) {
-      console.error('💥 Download failed:', error);
-      showToast('Download failed', 'error');
+      console.error('Download error:', error);
+      showToast(`Download failed: ${error.message}`, 'error');
+      
+      console.log('Download error:', {
+        episode: episode.episodeNumber || 'package',
+        quality: quality || 'unknown',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+      
     } finally {
-      // Reset download state after 3 seconds
       setTimeout(() => {
         setDownloadingLinks(prev => {
           const newSet = new Set(prev);
@@ -287,11 +303,13 @@ const SeriesDetail = ({ series, onClose }) => {
       }, 3000);
     }
   }, [seriesData]);
-
   const handleSeasonChange = useCallback((season) => {
     setActiveSeason(season);
     setShowSeasonDropdown(false);
     setSeasonEpisodes(season.episodes || []);
+    // Reset quality selection when changing seasons
+    setSelectedZipQuality('');
+    console.log('🔄 Season changed to:', season.seasonNumber, 'Reset quality selector');
   }, []);
 
   const toggleSortOrder = useCallback(() => {
@@ -555,7 +573,11 @@ const SeriesDetail = ({ series, onClose }) => {
                               disabled={isDownloading || !hasQualitySelected}
                               className={`${hasQualitySelected ? 'bg-[#ff0000] hover:bg-red-700' : 'bg-black border border-gray-700 hover:bg-gray-800'} disabled:opacity-50 text-white px-4 py-2 rounded text-sm font-medium transition-all flex items-center gap-2`}
                             >
-                              <Download size={14} />
+<svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path fill-rule="evenodd" clip-rule="evenodd" d="M1.875 12.3611H13.125V13.75H1.875V12.3611Z" fill="white"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M3.98437 5.82347L7.5 9.29569L11.0156 5.82347L12.01 6.80556L7.99718 10.7688C7.7226 11.04 7.2774 11.04 7.00282 10.7688L2.99001 6.80556L3.98437 5.82347Z" fill="white"/>
+<path fill-rule="evenodd" clip-rule="evenodd" d="M7.5 10.9722C7.88833 10.9722 8.20313 10.6613 8.20313 10.2778V1.25H6.79688V10.2778C6.79688 10.6613 7.11167 10.9722 7.5 10.9722Z" fill="white"/>
+</svg>
                               {isDownloading ? 'Downloading...' : 'Download'}
                             </button>
                           </div>
@@ -620,18 +642,42 @@ const SeriesDetail = ({ series, onClose }) => {
                       onChange={(e) => setSelectedZipQuality(e.target.value)}
                       className="w-full p-2.5 bg-black border border-gray-700 rounded text-white font-medium text-sm appearance-none"
                     >
-                      <option value="">All</option>
+                      <option value="">All Qualities</option>
                       {(() => {
-                        // Get unique qualities from available seasonZipLinks
-                        const availableQualities = currentSeriesData?.seasonZipLinks 
-                          ? [...new Set(currentSeriesData.seasonZipLinks.map(zip => zip.quality))]
+                        // Get unique qualities from available seasonZipLinks for the selected season
+                        let availableQualities = [];
+                        
+                        if (currentSeriesData?.seasonZipLinks && activeSeason) {
+                          // First filter by season, then get unique qualities
+                          const seasonZips = currentSeriesData.seasonZipLinks.filter(zip => {
+                            return zip.seasonNumber === activeSeason.seasonNumber || 
+                                   zip.season === activeSeason.seasonNumber ||
+                                   zip.season_number === activeSeason.seasonNumber ||
+                                   (zip.name && zip.name.toLowerCase().includes(`season ${activeSeason.seasonNumber}`)) ||
+                                   (zip.title && zip.title.toLowerCase().includes(`season ${activeSeason.seasonNumber}`));
+                          });
+                          
+                          availableQualities = [...new Set(seasonZips.map(zip => zip.quality))]
                             .filter(quality => quality) // Remove any null/undefined
                             .sort((a, b) => {
                               // Sort by quality priority: 1080p, 720p, 480p, others
                               const priority = { '1080p': 1, '720p': 2, '480p': 3 };
                               return (priority[a] || 99) - (priority[b] || 99);
-                            })
-                          : [];
+                            });
+                        } else if (currentSeriesData?.seasonZipLinks && !activeSeason) {
+                          // If no season selected, show all qualities
+                          availableQualities = [...new Set(currentSeriesData.seasonZipLinks.map(zip => zip.quality))]
+                            .filter(quality => quality)
+                            .sort((a, b) => {
+                              const priority = { '1080p': 1, '720p': 2, '480p': 3 };
+                              return (priority[a] || 99) - (priority[b] || 99);
+                            });
+                        }
+                        
+                        console.log('🎯 Available qualities for season:', {
+                          season: activeSeason?.seasonNumber,
+                          qualities: availableQualities
+                        });
                         
                         return availableQualities.map(quality => (
                           <option key={quality} value={quality}>
@@ -700,10 +746,34 @@ const SeriesDetail = ({ series, onClose }) => {
                         // Filter zip links based on selected season and quality
                         let filteredZipLinks = currentSeriesData?.seasonZipLinks || [];
                         
-                        // Filter by quality if selected
+                        // First filter by season if one is selected
+                        if (activeSeason) {
+                          filteredZipLinks = filteredZipLinks.filter(zip => {
+                            // Match by season number - check multiple possible properties
+                            return zip.seasonNumber === activeSeason.seasonNumber || 
+                                   zip.season === activeSeason.seasonNumber ||
+                                   zip.season_number === activeSeason.seasonNumber ||
+                                   (zip.name && zip.name.toLowerCase().includes(`season ${activeSeason.seasonNumber}`)) ||
+                                   (zip.title && zip.title.toLowerCase().includes(`season ${activeSeason.seasonNumber}`));
+                          });
+                        }
+                        
+                        // Then filter by quality if selected
                         if (selectedZipQuality) {
                           filteredZipLinks = filteredZipLinks.filter(zip => zip.quality === selectedZipQuality);
                         }
+                        
+                        console.log('🔍 Season Zip Filtering:', {
+                          activeSeason: activeSeason?.seasonNumber,
+                          selectedQuality: selectedZipQuality,
+                          totalZipLinks: currentSeriesData?.seasonZipLinks?.length || 0,
+                          filteredCount: filteredZipLinks.length,
+                          filteredLinks: filteredZipLinks.map(link => ({
+                            name: link.name || link.title,
+                            season: link.seasonNumber || link.season || link.season_number,
+                            quality: link.quality
+                          }))
+                        });
                         
                         // Only show if we have a season selected and matching zip links
                         return filteredZipLinks.length > 0 && activeSeason ? (
@@ -750,7 +820,9 @@ const SeriesDetail = ({ series, onClose }) => {
                                         disabled={isDownloading}
                                         className="bg-[#ff0000] hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2"
                                       >
-                                        <Archive size={14} />
+<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M14.375 11.25H13.125C12.9592 11.25 12.8003 11.3158 12.6831 11.4331C12.5658 11.5503 12.5 11.7092 12.5 11.875V16.25C12.5 16.4158 12.5658 16.5747 12.6831 16.6919C12.8003 16.8092 12.9592 16.875 13.125 16.875C13.2908 16.875 13.4497 16.8092 13.5669 16.6919C13.6842 16.5747 13.75 16.4158 13.75 16.25V15.625H14.375C14.9552 15.625 15.5116 15.3945 15.9218 14.9843C16.332 14.5741 16.5625 14.0177 16.5625 13.4375C16.5625 12.8573 16.332 12.3009 15.9218 11.8907C15.5116 11.4805 14.9552 11.25 14.375 11.25ZM14.375 14.375H13.75V12.5H14.375C14.6236 12.5 14.8621 12.5988 15.0379 12.7746C15.2137 12.9504 15.3125 13.1889 15.3125 13.4375C15.3125 13.6861 15.2137 13.9246 15.0379 14.1004C14.8621 14.2762 14.6236 14.375 14.375 14.375ZM10.625 11.875V16.25C10.625 16.4158 10.5592 16.5747 10.4419 16.6919C10.3247 16.8092 10.1658 16.875 10 16.875C9.83424 16.875 9.67527 16.8092 9.55806 16.6919C9.44085 16.5747 9.375 16.4158 9.375 16.25V11.875C9.375 11.7092 9.44085 11.5503 9.55806 11.4331C9.67527 11.3158 9.83424 11.25 10 11.25C10.1658 11.25 10.3247 11.3158 10.4419 11.4331C10.5592 11.5503 10.625 11.7092 10.625 11.875ZM7.5 16.25C7.5 16.4158 7.43415 16.5747 7.31694 16.6919C7.19973 16.8092 7.04076 16.875 6.875 16.875H4.375C4.26481 16.876 4.15633 16.8478 4.06053 16.7934C3.96473 16.7389 3.88504 16.6601 3.82951 16.5649C3.77399 16.4698 3.74462 16.3616 3.74438 16.2514C3.74413 16.1412 3.77303 16.0329 3.82812 15.9375L5.79375 12.5H4.375C4.20924 12.5 4.05027 12.4342 3.93306 12.3169C3.81585 12.1997 3.75 12.0408 3.75 11.875C3.75 11.7092 3.81585 11.5503 3.93306 11.4331C4.05027 11.3158 4.20924 11.25 4.375 11.25H6.875C6.98519 11.249 7.09367 11.2772 7.18947 11.3316C7.28527 11.3861 7.36496 11.4649 7.42049 11.5601C7.47601 11.6552 7.50538 11.7634 7.50562 11.8736C7.50587 11.9838 7.47697 12.0921 7.42188 12.1875L5.45234 15.625H6.875C7.04076 15.625 7.19973 15.6908 7.31694 15.8081C7.43415 15.9253 7.5 16.0842 7.5 16.25ZM16.6922 6.43281L12.3172 2.05781C12.2591 1.99979 12.1902 1.95378 12.1143 1.92241C12.0384 1.89105 11.9571 1.87494 11.875 1.875H4.375C4.04348 1.875 3.72554 2.0067 3.49112 2.24112C3.2567 2.47554 3.125 2.79348 3.125 3.125V8.75C3.125 8.91576 3.19085 9.07473 3.30806 9.19194C3.42527 9.30915 3.58424 9.375 3.75 9.375C3.91576 9.375 4.07473 9.30915 4.19194 9.19194C4.30915 9.07473 4.375 8.91576 4.375 8.75V3.125H11.25V6.875C11.25 7.04076 11.3158 7.19973 11.4331 7.31694C11.5503 7.43415 11.7092 7.5 11.875 7.5H15.625V8.75C15.625 8.91576 15.6908 9.07473 15.8081 9.19194C15.9253 9.30915 16.0842 9.375 16.25 9.375C16.4158 9.375 16.5747 9.30915 16.6919 9.19194C16.8092 9.07473 16.875 8.91576 16.875 8.75V6.875C16.8751 6.7929 16.859 6.71159 16.8276 6.63572C16.7962 6.55985 16.7502 6.4909 16.6922 6.43281ZM12.5 6.25V4.00859L14.7414 6.25H12.5Z" fill="white"/>
+</svg>
                                         {isDownloading ? 'Downloading...' : 'Download'}
                                       </button>
                                     </div>

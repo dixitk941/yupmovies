@@ -31,240 +31,6 @@ function maskURL() {
   }
 }
 
-// Desktop Detection and Blocking System
-function useDesktopBlocking() {
-  const [isDesktop, setIsDesktop] = useState(false);
-  const [isProduction, setIsProduction] = useState(false);
-
-  useEffect(() => {
-    // Check if we're in production environment
-    const isProd = (
-      window.location.hostname !== "localhost" &&
-      window.location.hostname !== "127.0.0.1" &&
-      !window.location.hostname.includes("localhost") &&
-      process.env.NODE_ENV === 'production'
-    );
-    setIsProduction(isProd);
-
-    // Desktop detection function
-    const detectDesktop = () => {
-      const userAgent = navigator.userAgent.toLowerCase();
-      const screenWidth = window.screen.width;
-      const screenHeight = window.screen.height;
-      const windowWidth = window.innerWidth;
-      const windowHeight = window.innerHeight;
-      
-      // Multiple layers of desktop detection
-      const isDesktopUA = !(
-        /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent) ||
-        /mobile|tablet|phone/i.test(userAgent)
-      );
-      
-      // Screen resolution check (desktop typically has larger screens)
-      const isDesktopScreen = screenWidth >= 1024 || screenHeight >= 768;
-      
-      // Window size check
-      const isDesktopWindow = windowWidth >= 768;
-      
-      // Touch capability check (desktops typically don't have touch)
-      const hasNoTouch = !('ontouchstart' in window) && !navigator.maxTouchPoints;
-      
-      // Device pixel ratio check (mobile devices often have higher DPR)
-      const hasDesktopDPR = window.devicePixelRatio <= 2;
-      
-      // Orientation check (desktops don't typically change orientation)
-      const hasNoOrientationAPI = typeof window.orientation === 'undefined';
-      
-      // Check for mouse/trackpad (desktop specific)
-      const hasPointer = window.matchMedia('(any-pointer: fine)').matches;
-      
-      // Check for keyboard navigation (more common on desktop)
-      const hasKeyboard = window.matchMedia('(any-hover: hover)').matches;
-      
-      // Additional checks for desktop environments
-      const desktopIndicators = [
-        isDesktopUA,
-        isDesktopScreen,
-        isDesktopWindow,
-        hasNoTouch,
-        hasDesktopDPR,
-        hasNoOrientationAPI,
-        hasPointer,
-        hasKeyboard
-      ];
-      
-      // If majority of indicators suggest desktop, block it
-      const desktopScore = desktopIndicators.filter(Boolean).length;
-      const isLikelyDesktop = desktopScore >= 5; // Strict threshold
-      
-      console.log('Desktop Detection Report:', {
-        userAgent: isDesktopUA,
-        screenSize: isDesktopScreen,
-        windowSize: isDesktopWindow,
-        noTouch: hasNoTouch,
-        desktopDPR: hasDesktopDPR,
-        noOrientation: hasNoOrientationAPI,
-        pointer: hasPointer,
-        keyboard: hasKeyboard,
-        score: desktopScore,
-        isDesktop: isLikelyDesktop,
-        production: isProd
-      });
-      
-      return isLikelyDesktop;
-    };
-
-    // Initial check
-    if (isProd) {
-      const isDesktopDevice = detectDesktop();
-      setIsDesktop(isDesktopDevice);
-      
-      if (isDesktopDevice) {
-        console.log('🚫 DESKTOP ACCESS BLOCKED IN PRODUCTION');
-        // Additional security - disable all mouse events
-        document.body.style.pointerEvents = 'none';
-        document.body.style.userSelect = 'none';
-        document.body.style.cursor = 'not-allowed';
-      }
-    }
-
-    // Monitor window resize to catch desktop users trying to resize
-    const handleResize = () => {
-      if (isProd && window.innerWidth >= 768) {
-        setIsDesktop(true);
-        console.log('🚫 Desktop-like window size detected - BLOCKING');
-      }
-    };
-
-    // Monitor orientation change (mobile specific)
-    const handleOrientationChange = () => {
-      if (isProd && typeof window.orientation === 'undefined') {
-        setIsDesktop(true);
-        console.log('🚫 No orientation API - likely desktop - BLOCKING');
-      }
-    };
-
-    // Monitor for desktop-specific events
-    const handleMouseMove = (e) => {
-      if (isProd && e.movementX !== undefined && e.movementY !== undefined) {
-        // Precise mouse movement suggests desktop
-        if (Math.abs(e.movementX) > 5 || Math.abs(e.movementY) > 5) {
-          setIsDesktop(true);
-          console.log('🚫 Precise mouse movement detected - BLOCKING');
-        }
-      }
-    };
-
-    const handleKeyDown = (e) => {
-      if (isProd) {
-        // Desktop-specific key combinations
-        const desktopKeys = [
-          'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
-          'PrintScreen', 'ScrollLock', 'Pause', 'Insert', 'Home', 'End', 'PageUp', 'PageDown'
-        ];
-        
-        if (desktopKeys.includes(e.key) || 
-            (e.ctrlKey && e.altKey) || // Ctrl+Alt combinations
-            (e.ctrlKey && e.shiftKey && e.key !== 'I') || // Desktop shortcuts
-            e.key === 'ContextMenu') {
-          setIsDesktop(true);
-          console.log('🚫 Desktop keyboard shortcut detected - BLOCKING');
-        }
-      }
-    };
-
-    if (isProd) {
-      window.addEventListener('resize', handleResize);
-      window.addEventListener('orientationchange', handleOrientationChange);
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('keydown', handleKeyDown);
-      
-      // Additional periodic checks
-      const desktopCheckInterval = setInterval(() => {
-        if (detectDesktop()) {
-          setIsDesktop(true);
-        }
-      }, 5000);
-
-      return () => {
-        window.removeEventListener('resize', handleResize);
-        window.removeEventListener('orientationchange', handleOrientationChange);
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('keydown', handleKeyDown);
-        clearInterval(desktopCheckInterval);
-      };
-    }
-  }, []);
-
-  return { isDesktop, isProduction };
-}
-
-// Desktop Blocked Page Component
-function DesktopBlockedPage() {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-red-900 via-red-800 to-black text-white p-4">
-      <div className="max-w-md text-center space-y-6">
-        {/* Mobile Phone Icon */}
-        <div className="mx-auto w-24 h-24 bg-red-600 rounded-2xl flex items-center justify-center shadow-2xl">
-          <svg 
-            width="48" 
-            height="48" 
-            viewBox="0 0 24 24" 
-            fill="white"
-            className="drop-shadow-lg"
-          >
-            <path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM7 4h10v14H7V4zm5 15c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1z"/>
-          </svg>
-        </div>
-        
-        {/* Error Message */}
-        <div className="space-y-4">
-          <h1 className="text-4xl font-bold text-red-400">
-            📱 Mobile Only
-          </h1>
-          
-          <div className="bg-black/30 backdrop-blur-sm rounded-lg p-6 border border-red-500/20">
-            <h2 className="text-xl font-semibold mb-3 text-red-300">
-              Desktop Access Restricted
-            </h2>
-            <p className="text-gray-300 leading-relaxed">
-              This application is exclusively designed for mobile devices. 
-              Desktop access is not permitted in production environment.
-            </p>
-          </div>
-          
-          <div className="bg-yellow-900/30 rounded-lg p-4 border border-yellow-500/20">
-            <p className="text-yellow-200 text-sm">
-              <strong>⚠️ Security Notice:</strong> This restriction helps maintain 
-              optimal security and user experience standards.
-            </p>
-          </div>
-          
-          <div className="space-y-2 text-sm text-gray-400">
-            <p>• Please switch to a mobile device</p>
-            <p>• Use your smartphone or tablet</p>
-            <p>• iOS and Android supported</p>
-          </div>
-        </div>
-        
-        {/* QR Code Placeholder */}
-        <div className="bg-white/10 rounded-lg p-4 border border-white/20">
-          <p className="text-xs text-gray-400 mb-2">Scan with mobile device:</p>
-          <div className="w-24 h-24 bg-white rounded mx-auto flex items-center justify-center">
-            <span className="text-black text-xs">QR Code</span>
-          </div>
-        </div>
-      </div>
-      
-      {/* Footer */}
-      <div className="absolute bottom-4 text-xs text-gray-500 text-center">
-        <p>System ID: {Math.random().toString(36).substring(7)}</p>
-        <p>Access denied at {new Date().toLocaleTimeString()}</p>
-      </div>
-    </div>
-  );
-}
-
 function isApiTool() {
   try {
     const userAgent = navigator.userAgent.toLowerCase();
@@ -802,9 +568,6 @@ function App() {
   
   // Use enhanced DevTools protection
   const isProtectionBlocked = useDevToolsProtection();
-  
-  // Use desktop blocking system
-  const { isDesktop, isProduction } = useDesktopBlocking();
 
   useEffect(() => {
     if (isApiTool()) setBlock(true);
@@ -842,13 +605,7 @@ function App() {
     setIsChecking(false);
   }, []);
 
-  // Priority 1: Block desktop access in production (HIGHEST PRIORITY)
-  if (isProduction && isDesktop) {
-    console.log('🚫 DESKTOP ACCESS BLOCKED - Production environment detected');
-    return <DesktopBlockedPage />;
-  }
-
-  // Priority 2: Block if any other protection mechanism is triggered
+  // Block if any protection mechanism is triggered
   if (block || isDevToolsOpen || isProtectionBlocked) {
     return <NotFoundPage />;
   }
@@ -875,12 +632,6 @@ function App() {
         v7_relativeSplatPath: true,
       }}
     >
-      {/* Desktop Warning Overlay - CSS-based backup */}
-      <div className="desktop-warning">
-        <div>DESKTOP ACCESS DENIED</div>
-        <div>This application is mobile-only</div>
-      </div>
-      
       <TokenAutoLoginWrapper 
         setHasAccess={setHasAccess} 
         setComingFromVerification={setComingFromVerification}
