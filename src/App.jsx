@@ -336,8 +336,17 @@ function useDevToolsProtection() {
 
 // Connection Broken Page - Shows when user comes directly
 function ConnectionBrokenPage() {
-  const goToVerification = () => {
-    window.location.href = "http://127.0.0.1:5501/index.html";
+  // Add automatic redirect after 3 seconds
+  useEffect(() => {
+    const redirectTimeout = setTimeout(() => {
+      window.location.href = "https://hicine.app";
+    }, 3000); // 3 seconds
+
+    return () => clearTimeout(redirectTimeout);
+  }, []);
+
+  const goToHicine = () => {
+    window.location.href = "https://hicine.app";
   };
 
   return (
@@ -368,15 +377,15 @@ function ConnectionBrokenPage() {
         </h1>
         
         <p className="text-gray-300 mb-8 leading-relaxed">
-          Direct access is not allowed. You must verify yourself first before accessing this content.
+          Direct access is not allowed. You will be redirected to hicine.app automatically in 3 seconds...
         </p>
         
-        {/* Verification Button */}
+        {/* Redirect Button */}
         <button
-          onClick={goToVerification}
-          className="bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-700 hover:to-orange-600 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg"
+          onClick={goToHicine}
+          className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors duration-200 mb-4"
         >
-          Start Verification Process
+          Go to Hicine.app Now
         </button>
         
         <div className="mt-8 text-sm text-gray-500">
@@ -603,6 +612,48 @@ function App() {
       }, 1000); // Delay to ensure page is fully loaded
     }
     setIsChecking(false);
+  }, []);
+
+  // Global network error handler
+  useEffect(() => {
+    const handleNetworkError = (event) => {
+      console.error('Network error detected:', event);
+      
+      // Check if it's a major network failure
+      if (!navigator.onLine) {
+        console.error('Connection lost - redirecting to hicine.app');
+        setTimeout(() => {
+          window.location.href = 'https://hicine.app';
+        }, 3000);
+      }
+    };
+
+    const handleUnhandledRejection = (event) => {
+      if (event.reason && event.reason.message && 
+          (event.reason.message.includes('Failed to fetch') || 
+           event.reason.message.includes('Network request failed'))) {
+        console.error('Network request failed - redirecting to hicine.app');
+        setTimeout(() => {
+          window.location.href = 'https://hicine.app';
+        }, 3000);
+      }
+    };
+
+    // Listen for network errors
+    window.addEventListener('error', handleNetworkError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener('offline', () => {
+      console.error('Connection lost - redirecting to hicine.app');
+      setTimeout(() => {
+        window.location.href = 'https://hicine.app';
+      }, 2000);
+    });
+
+    return () => {
+      window.removeEventListener('error', handleNetworkError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener('offline', () => {});
+    };
   }, []);
 
   // Block if any protection mechanism is triggered

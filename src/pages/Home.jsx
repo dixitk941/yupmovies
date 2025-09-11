@@ -643,7 +643,7 @@ const GridRow = memo(({ title, subtitle, items, showNumbers = false, onContentSe
               useOptimizedImage={true}
             />
             {showContentTypes && (
-              <div className={`absolute top-1 text-black right-1 text-[10px] px-1.5 py-0.5 rounded-sm font-medium ${
+              <div className={`absolute top-1 z-10 text-black right-1 text-[10px] px-1.5 py-0.5 rounded-sm font-medium ${
                 content.contentType === 'movies' ? 'bg-white' : 
                 content.contentType === 'series' ? 'bg-white' : 
                 'bg-white'
