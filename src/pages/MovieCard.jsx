@@ -135,16 +135,16 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
   );
 
   return (
-    <div className={`group relative ${showNumber ? 'pl-8' : ''}`}>
+    <div className={`group relative ${showNumber ? 'pl-20' : ''}`}>
       {/* Netflix-style Trending Number - Aligned with image area */}
       {showNumber && (
         <div 
-          className="absolute z-0 flex items-end"
+          className="absolute z-0 flex items-end justify-end"
           style={{
-            left: '-24px',
+            left: '-72px',
             top: '0px',
             bottom: '40px', // Account for title/date section height
-            width: '120px',
+            width: '160px',
             height: 'calc(100% - 40px)', // Match image container height
           }}
         >
