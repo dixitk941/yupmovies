@@ -13,6 +13,19 @@
   100% { transform: rotate(360deg); }
 }
 
+/* Netflix/YouTube style shimmer animation */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* YouTube style loading dots animation */
+@keyframes loading-dots {
+  0%, 20% { opacity: 0.3; transform: scaleY(0.6); }
+  40% { opacity: 1; transform: scaleY(1.2); }
+  60%, 100% { opacity: 0.3; transform: scaleY(0.6); }
+}
+
 .spinner-custom {
   animation: spin-smooth 1s linear infinite;
   transform-origin: center center;

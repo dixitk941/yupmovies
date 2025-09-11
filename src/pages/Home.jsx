@@ -4,7 +4,7 @@ import { platforms } from '../data/mockData';
 import MovieCard from './MovieCard';
 import MovieDetails from './MovieDetails';
 import SeriesDetail from './SeriesDetail';
-import { SearchSkeleton, CardSkeleton } from '../components/Skeleton';
+import { SearchSkeleton, CardSkeleton, GridSkeleton, RowSkeleton, ButtonSkeleton } from '../components/Skeleton';
 
 // Platform Icons
 import netflixIcon from '../assets/netflixsvg.svg';
@@ -331,7 +331,11 @@ const RealTimeSearchBar = memo(({
         {/* Search status indicator */}
         {isSearching && (
           <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <div className="flex space-x-1 items-center">
+              <div className="w-1 h-4 bg-white/60 rounded-full" style={{ animation: 'loading-dots 1.4s infinite', animationDelay: '0ms' }}></div>
+              <div className="w-1 h-4 bg-white/60 rounded-full" style={{ animation: 'loading-dots 1.4s infinite', animationDelay: '0.2s' }}></div>
+              <div className="w-1 h-4 bg-white/60 rounded-full" style={{ animation: 'loading-dots 1.4s infinite', animationDelay: '0.4s' }}></div>
+            </div>
           </div>
         )}
       </div>
@@ -482,14 +486,12 @@ const RealTimeSearchBar = memo(({
 });
 RealTimeSearchBar.displayName = 'RealTimeSearchBar';
 
-// Memoized sub-components for better performance with optimized images
+// Memoized sub-components for better performance with skeleton loading
 const MovieSkeleton = memo(() => (
-  <div 
-    className="animate-pulse bg-gray-800 rounded-lg overflow-hidden flex-shrink-0"
+  <CardSkeleton 
+    className="flex-shrink-0"
     style={{ width: '112px', aspectRatio: '2/3' }}
-  >
-    <div className="w-full h-full bg-gray-700"></div>
-  </div>
+  />
 ));
 MovieSkeleton.displayName = 'MovieSkeleton';
 
@@ -497,15 +499,15 @@ const TabLoadingState = memo(({ contentType, cacheStats }) => (
   <div className="space-y-8 px-4 md:px-8">
     <div className="flex items-center justify-center py-16">
       <div className="w-full max-w-6xl mx-auto px-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <CardSkeleton key={i} className="w-full" />
-          ))}
-        </div>
+        <GridSkeleton count={12} />
         {cacheStats && (
-          <div className="text-xs text-gray-500 mt-2">
-            {cacheStats.totalMovies > 0 && `${cacheStats.totalMovies} items cached`}
-            {cacheStats.isLoading && ' • Loading more...'}
+          <div className="flex items-center justify-center gap-2 text-gray-400 text-sm mt-4">
+            <div className="w-4 h-4 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin"></div>
+            <span>
+              {contentType.charAt(0).toUpperCase() + contentType.slice(1)} 
+              ({cacheStats.cached} cached)
+              {cacheStats.isLoading && ' • Loading more...'}
+            </span>
           </div>
         )}
       </div>
@@ -541,7 +543,10 @@ const ScrollableRow = memo(({ title, subtitle, items, showNumbers = false, onCon
   if (!isVisible && items.length > 0) {
     return (
       <div ref={intersectionRef} className="mb-8 h-48 flex items-center justify-center">
-        <div className="text-gray-500">Loading section...</div>
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin"></div>
+          <span className="text-base text-gray-300 font-medium">Loading section...</span>
+        </div>
       </div>
     );
   }
@@ -616,7 +621,10 @@ const GridRow = memo(({ title, subtitle, items, showNumbers = false, onContentSe
   if (!isVisible && items.length > 0) {
     return (
       <div ref={intersectionRef} className="mb-8 h-48 flex items-center justify-center">
-        <div className="text-gray-500">Loading section...</div>
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin"></div>
+          <span className="text-base text-gray-300 font-medium">Loading section...</span>
+        </div>
       </div>
     );
   }

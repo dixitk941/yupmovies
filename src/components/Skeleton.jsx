@@ -1,5 +1,15 @@
 import React from 'react';
 
+// Base shimmer animation for Netflix/YouTube style loading
+const shimmerAnimation = `
+  relative overflow-hidden
+  before:absolute before:inset-0
+  before:-translate-x-full
+  before:animate-[shimmer_2s_infinite]
+  before:bg-gradient-to-r
+  before:from-transparent before:via-white/10 before:to-transparent
+`;
+
 const Skeleton = ({ 
   width = 'w-full', 
   height = 'h-4', 
@@ -13,61 +23,100 @@ const Skeleton = ({
         ${width} 
         ${height} 
         ${rounded}
-        bg-gray-800 
-        ${animation ? 'animate-pulse' : ''}
+        bg-gray-800/60
+        ${animation ? shimmerAnimation : ''}
         ${className}
       `}
     />
   );
 };
 
-// Specific skeleton components for different use cases
-export const CardSkeleton = ({ className = '' }) => (
-  <div className={`bg-gray-800 rounded-lg overflow-hidden shadow-sm ${className}`} 
-       style={{ aspectRatio: '2/3' }}>
-    <div className="w-full h-full bg-gray-700"></div>
+// Netflix/YouTube style card skeleton
+export const CardSkeleton = ({ className = '', aspectRatio = '2/3' }) => (
+  <div 
+    className={`bg-gray-800/60 rounded-lg overflow-hidden ${shimmerAnimation} ${className}`}
+    style={{ aspectRatio }}
+  >
+    <div className="w-full h-full flex flex-col">
+      {/* Main image area */}
+      <div className="flex-1 bg-gray-700/60"></div>
+      
+      {/* Content area */}
+      <div className="p-3 space-y-2">
+        <div className="h-4 bg-gray-700/60 rounded w-full"></div>
+        <div className="h-3 bg-gray-700/60 rounded w-3/4"></div>
+        <div className="h-3 bg-gray-700/60 rounded w-1/2"></div>
+      </div>
+    </div>
   </div>
 );
 
 export const ImageSkeleton = ({ className = '', aspectRatio = '2/3' }) => (
   <div 
-    className={`bg-gray-800 animate-pulse rounded-lg overflow-hidden ${className}`}
+    className={`bg-gray-800/60 rounded-lg ${shimmerAnimation} ${className}`}
     style={{ aspectRatio }}
-  >
-    <div className="w-full h-full bg-gray-700"></div>
-  </div>
+  />
 );
 
+// YouTube style text skeleton with multiple lines
 export const TextSkeleton = ({ lines = 3, className = '' }) => (
-  <div className={`space-y-2 ${className}`}>
+  <div className={`space-y-3 ${className}`}>
     {Array.from({ length: lines }).map((_, i) => (
-      <Skeleton 
+      <div 
         key={i}
-        width={i === lines - 1 ? 'w-3/4' : 'w-full'} 
-        height="h-3"
-        className="bg-gray-800"
+        className={`
+          h-4 bg-gray-800/60 rounded
+          ${shimmerAnimation}
+          ${i === 0 ? 'w-full' : i === lines - 1 ? 'w-2/3' : 'w-5/6'}
+        `}
       />
     ))}
   </div>
 );
 
-export const ButtonSkeleton = ({ className = '' }) => (
-  <Skeleton 
-    width="w-24" 
-    height="h-10" 
-    rounded="rounded-md" 
-    className={`bg-gray-800 ${className}`}
-  />
+// Netflix style button skeleton
+export const ButtonSkeleton = ({ className = '', width = 'w-24', height = 'h-10' }) => (
+  <div className={`${width} ${height} bg-gray-800/60 rounded-md ${shimmerAnimation} ${className}`} />
 );
 
+// YouTube style search result skeleton
 export const SearchSkeleton = ({ className = '' }) => (
-  <div className={`p-4 space-y-4 ${className}`}>
-    <div className="flex items-center space-x-4">
-      <Skeleton width="w-12" height="h-12" rounded="rounded-full" className="bg-gray-800" />
-      <div className="flex-1 space-y-2">
-        <Skeleton width="w-3/4" height="h-4" className="bg-gray-800" />
-        <Skeleton width="w-1/2" height="h-3" className="bg-gray-800" />
+  <div className={`flex items-start space-x-4 p-4 ${className}`}>
+    {/* Thumbnail */}
+    <div className={`w-40 h-24 bg-gray-800/60 rounded-lg flex-shrink-0 ${shimmerAnimation}`} />
+    
+    {/* Content */}
+    <div className="flex-1 space-y-3">
+      <div className={`h-5 bg-gray-800/60 rounded w-4/5 ${shimmerAnimation}`} />
+      <div className={`h-4 bg-gray-800/60 rounded w-3/5 ${shimmerAnimation}`} />
+      <div className={`h-3 bg-gray-800/60 rounded w-2/5 ${shimmerAnimation}`} />
+    </div>
+  </div>
+);
+
+// YouTube style grid skeleton
+export const GridSkeleton = ({ count = 12, className = '' }) => (
+  <div className={`grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 ${className}`}>
+    {Array.from({ length: count }).map((_, i) => (
+      <CardSkeleton key={i} />
+    ))}
+  </div>
+);
+
+// Netflix style row skeleton
+export const RowSkeleton = ({ title, count = 6, className = '' }) => (
+  <div className={`space-y-4 ${className}`}>
+    {title && (
+      <div className="flex items-center space-x-3">
+        <div className={`h-7 bg-gray-800/60 rounded w-48 ${shimmerAnimation}`} />
       </div>
+    )}
+    <div className="flex space-x-4 overflow-hidden">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex-shrink-0 w-48">
+          <CardSkeleton aspectRatio="16/9" />
+        </div>
+      ))}
     </div>
   </div>
 );
