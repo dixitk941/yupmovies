@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { seriesService } from '../services/seriesService';
 import { formatDateString, debugDate } from '../services/utils';
+import { LoadingDots } from '../components/Skeleton';
 
 const SeriesDetail = ({ series, isOpen, onClose, isMobile }) => {
   // State management
@@ -273,7 +274,7 @@ const SeriesDetail = ({ series, isOpen, onClose, isMobile }) => {
                 <div className="p-4 pb-12">
                   {isLoading ? (
                     <div className="text-center py-10">
-                      <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                      <LoadingDots size="md" color="red" className="justify-center mb-4" />
                       <p className="text-gray-400">Loading episodes...</p>
                     </div>
                   ) : (
@@ -523,7 +524,7 @@ const SeriesDetail = ({ series, isOpen, onClose, isMobile }) => {
                   <div className="p-6 pb-20">
                     {isLoading ? (
                       <div className="text-center py-10">
-                        <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                        <LoadingDots size="md" color="red" className="justify-center mb-4" />
                         <p className="text-gray-400">Loading episodes...</p>
                       </div>
                     ) : (

@@ -121,4 +121,43 @@ export const RowSkeleton = ({ title, count = 6, className = '' }) => (
   </div>
 );
 
+// YouTube style loading dots component
+export const LoadingDots = ({ 
+  size = 'sm', 
+  color = 'white', 
+  className = '' 
+}) => {
+  const sizeClasses = {
+    xs: 'w-0.5 h-3',
+    sm: 'w-1 h-4', 
+    md: 'w-1.5 h-5',
+    lg: 'w-2 h-6'
+  };
+  
+  const colorClasses = {
+    white: 'bg-white/60',
+    gray: 'bg-gray-400/60',
+    yellow: 'bg-yellow-400/60',
+    red: 'bg-red-400/60',
+    purple: 'bg-purple-400/60'
+  };
+
+  return (
+    <div className={`flex space-x-1 items-center ${className}`}>
+      <div 
+        className={`${sizeClasses[size]} ${colorClasses[color]} rounded-full`}
+        style={{ animation: 'loading-dots 1.4s infinite', animationDelay: '0ms' }}
+      ></div>
+      <div 
+        className={`${sizeClasses[size]} ${colorClasses[color]} rounded-full`}
+        style={{ animation: 'loading-dots 1.4s infinite', animationDelay: '0.2s' }}
+      ></div>
+      <div 
+        className={`${sizeClasses[size]} ${colorClasses[color]} rounded-full`}
+        style={{ animation: 'loading-dots 1.4s infinite', animationDelay: '0.4s' }}
+      ></div>
+    </div>
+  );
+};
+
 export default Skeleton;

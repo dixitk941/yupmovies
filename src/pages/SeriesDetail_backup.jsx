@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
 import { formatDateString, debugDate } from '../services/utils.js';
+import { LoadingDots } from '../components/Skeleton';
 
 const SeriesDetail = ({ series, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -848,7 +849,7 @@ const SeriesDetail = ({ series, onClose }) => {
                       </div>
                     ) : isLoadingEpisodes ? (
                       <div className="text-center py-6">
-                        <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                        <LoadingDots size="md" color="purple" className="justify-center mb-2" />
                         <p className="text-gray-400 text-sm">Loading episodes...</p>
                       </div>
                     ) : (

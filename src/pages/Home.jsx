@@ -4,7 +4,7 @@ import { platforms } from '../data/mockData';
 import MovieCard from './MovieCard';
 import MovieDetails from './MovieDetails';
 import SeriesDetail from './SeriesDetail';
-import { SearchSkeleton, CardSkeleton, GridSkeleton, RowSkeleton, ButtonSkeleton } from '../components/Skeleton';
+import { SearchSkeleton, CardSkeleton, GridSkeleton, RowSkeleton, ButtonSkeleton, LoadingDots } from '../components/Skeleton';
 
 // Platform Icons
 import netflixIcon from '../assets/netflixsvg.svg';
@@ -331,11 +331,7 @@ const RealTimeSearchBar = memo(({
         {/* Search status indicator */}
         {isSearching && (
           <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
-            <div className="flex space-x-1 items-center">
-              <div className="w-1 h-4 bg-white/60 rounded-full" style={{ animation: 'loading-dots 1.4s infinite', animationDelay: '0ms' }}></div>
-              <div className="w-1 h-4 bg-white/60 rounded-full" style={{ animation: 'loading-dots 1.4s infinite', animationDelay: '0.2s' }}></div>
-              <div className="w-1 h-4 bg-white/60 rounded-full" style={{ animation: 'loading-dots 1.4s infinite', animationDelay: '0.4s' }}></div>
-            </div>
+            <LoadingDots size="sm" color="white" />
           </div>
         )}
       </div>
@@ -502,7 +498,7 @@ const TabLoadingState = memo(({ contentType, cacheStats }) => (
         <GridSkeleton count={12} />
         {cacheStats && (
           <div className="flex items-center justify-center gap-2 text-gray-400 text-sm mt-4">
-            <div className="w-4 h-4 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin"></div>
+            <LoadingDots size="xs" color="gray" />
             <span>
               {contentType.charAt(0).toUpperCase() + contentType.slice(1)} 
               ({cacheStats.cached} cached)
@@ -544,7 +540,7 @@ const ScrollableRow = memo(({ title, subtitle, items, showNumbers = false, onCon
     return (
       <div ref={intersectionRef} className="mb-8 h-48 flex items-center justify-center">
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin"></div>
+          <LoadingDots size="md" color="gray" />
           <span className="text-base text-gray-300 font-medium">Loading section...</span>
         </div>
       </div>
@@ -622,7 +618,7 @@ const GridRow = memo(({ title, subtitle, items, showNumbers = false, onContentSe
     return (
       <div ref={intersectionRef} className="mb-8 h-48 flex items-center justify-center">
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 border-2 border-gray-400/30 border-t-gray-400 rounded-full animate-spin"></div>
+          <LoadingDots size="md" color="gray" />
           <span className="text-base text-gray-300 font-medium">Loading section...</span>
         </div>
       </div>
@@ -1987,7 +1983,7 @@ function Home() {
             <div className="flex items-center justify-center">
               {filterLoading ? (
                 <span className="text-xs text-yellow-400 flex items-center gap-2">
-                  <div className="w-3 h-3 border border-yellow-400/50 border-t-yellow-400 rounded-full animate-spin"></div>
+                  <LoadingDots size="xs" color="yellow" />
                   Fetching from all content types...
                 </span>
               ) : filteredContent.length > 0 ? (

@@ -3,6 +3,7 @@ import React, { memo } from 'react';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import { usePaginatedMovies } from '../hooks/usePaginatedMovies';
 import MovieCard from './MovieCard';
+import { LoadingDots } from './Skeleton';
 
 const AllContentSection = memo(({ contentType = 'movies', onContentSelect }) => {
   const { 
@@ -129,7 +130,7 @@ const AllContentSection = memo(({ contentType = 'movies', onContentSelect }) => 
           >
             {loading ? (
               <>
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <LoadingDots size="sm" color="white" />
                 <span>Loading Next 100...</span>
               </>
             ) : (
