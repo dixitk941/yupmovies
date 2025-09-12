@@ -7,6 +7,7 @@ import {
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
 import { getAnimeById } from '../services/animeService';
 import { TextSkeleton, CardSkeleton } from '../components/Skeleton';
+import { downloadService } from '../services/downloadService';
 
 const SeriesDetail = ({ series, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -216,7 +217,7 @@ const SeriesDetail = ({ series, onClose }) => {
       let fileSize = '';
       
       if (isPackage) {
-        // Handle season package downloads
+        // Handle season package downloads using optimized downloadService
         downloadUrl = episode.url;
         downloadTitle = episode.name || `Season ${episode.seasonNumber} Package`;
         downloadQuality = episode.quality || 'Package';
@@ -224,37 +225,24 @@ const SeriesDetail = ({ series, onClose }) => {
         console.log('📦 Package download URL:', downloadUrl);
         
         if (downloadUrl) {
-          // Make direct GET request for package download
           try {
             showToast(`Starting download: ${downloadTitle}`, 'info');
             
-            const response = await fetch(downloadUrl, {
-              method: 'GET',
-              headers: {
-                'Accept': '*/*',
+            // Use optimized downloadService for fast downloads
+            const result = await downloadService.startFastDownload(
+              {
+                url: downloadUrl,
+                quality: downloadQuality,
+                size: fileSize
               },
-            });
-
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
+              downloadTitle
+            );
+            
+            if (result.success) {
+              showToast(`Download started: ${downloadTitle}`, 'success');
+            } else {
+              throw new Error('Download service failed');
             }
-
-            const blob = await response.blob();
-            const objectUrl = window.URL.createObjectURL(blob);
-            
-            // Get file extension or use default
-            const fileExtension = downloadUrl.split('.').pop() || 'zip';
-            const filename = `${downloadTitle}.${fileExtension}`;
-            
-            const link = document.createElement('a');
-            link.href = objectUrl;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            window.URL.revokeObjectURL(objectUrl);
-            showToast(`Download completed: ${downloadTitle}`, 'success');
             
           } catch (error) {
             console.error('Package download error:', error);
@@ -265,7 +253,7 @@ const SeriesDetail = ({ series, onClose }) => {
           showToast('Download URL not available', 'error');
         }
       } else {
-        // Handle individual episode downloads
+        // Handle individual episode downloads using optimized downloadService
         if (!quality) {
           showToast('Please select a quality first', 'error');
           return;
@@ -281,37 +269,24 @@ const SeriesDetail = ({ series, onClose }) => {
           downloadQuality = quality;
           fileSize = selectedLink.size || '';
           
-          // Make direct GET request for episode download
           try {
             showToast(`Starting download: Episode ${episode.episodeNumber} - ${quality}`, 'info');
             
-            const response = await fetch(downloadUrl, {
-              method: 'GET',
-              headers: {
-                'Accept': '*/*',
+            // Use optimized downloadService for fast downloads
+            const result = await downloadService.startFastDownload(
+              {
+                url: downloadUrl,
+                quality: downloadQuality,
+                size: fileSize
               },
-            });
-
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
+              downloadTitle
+            );
+            
+            if (result.success) {
+              showToast(`Download started: Episode ${episode.episodeNumber}`, 'success');
+            } else {
+              throw new Error('Download service failed');
             }
-
-            const blob = await response.blob();
-            const objectUrl = window.URL.createObjectURL(blob);
-            
-            // Get file extension or use default
-            const fileExtension = downloadUrl.split('.').pop() || 'mp4';
-            const filename = `${downloadTitle}.${fileExtension}`;
-            
-            const link = document.createElement('a');
-            link.href = objectUrl;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            window.URL.revokeObjectURL(objectUrl);
-            showToast(`Download completed: Episode ${episode.episodeNumber} - ${quality}`, 'success');
             
           } catch (error) {
             console.error('Episode download error:', error);

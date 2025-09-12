@@ -7,6 +7,7 @@ import {
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
 import { formatDateString, debugDate } from '../services/utils.js';
 import { LoadingDots } from '../components/Skeleton';
+import { downloadService } from '../services/downloadService';
 
 const SeriesDetail = ({ series, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -354,18 +355,38 @@ const SeriesDetail = ({ series, onClose }) => {
 
       showToast(`Starting download: ${quality}`, 'info');
       
-      const anchor = document.createElement('a');
-      anchor.href = downloadUrl;
-      anchor.download = `${seriesData?.title || 'Episode'}_${quality}.mkv`;
-      anchor.target = '_blank';
-      anchor.rel = 'noopener noreferrer';
-      anchor.style.display = 'none';
-      
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      
-      setTimeout(() => showToast(`Download started: ${quality}`, 'success'), 1000);
+      try {
+        // Use optimized downloadService for fast downloads
+        const result = await downloadService.startFastDownload(
+          {
+            url: downloadUrl,
+            quality: quality,
+            size: size
+          },
+          `${seriesData?.title || 'Episode'}_${quality}`
+        );
+        
+        if (result.success) {
+          showToast(`Download started: ${quality}`, 'success');
+        } else {
+          throw new Error('Download service failed');
+        }
+      } catch (downloadError) {
+        console.error('Optimized download failed, falling back to direct link:', downloadError);
+        // Fallback to direct link approach
+        const anchor = document.createElement('a');
+        anchor.href = downloadUrl;
+        anchor.download = `${seriesData?.title || 'Episode'}_${quality}.mkv`;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
+        anchor.style.display = 'none';
+        
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        
+        showToast(`Download started: ${quality}`, 'success');
+      }
       
     } catch (error) {
       // console.error('Download failed:', error);
