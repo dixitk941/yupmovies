@@ -5,6 +5,7 @@ import {
   Package, Archive, Tv, Eye, Users, Award, HardDrive, ArrowUpDown
 } from 'lucide-react';
 import { getSeriesById, getSeriesEpisodes, getEpisodeDownloadLinks } from '../services/seriesService';
+import { getBollySeriesById, getBollySeriesEpisodes, getBollyEpisodeDownloadLinks } from '../services/bollywoodService';
 import { getAnimeById } from '../services/animeService';
 import { TextSkeleton, CardSkeleton } from '../components/Skeleton';
 import { downloadService } from '../services/downloadService';
@@ -136,22 +137,33 @@ const SeriesDetail = ({ series, onClose }) => {
         
         if (series.id || series.recordId || series.record_id) {
           const seriesId = series.id || series.recordId || series.record_id;
-          console.log('🔍 Fetching full series data for ID:', seriesId, 'contentType:', series.contentType);
+          console.log('🔍 Fetching full series data for ID:', seriesId, 'contentType:', series.contentType, 'cinemaType:', series.cinemaType);
           
           let fetchedData;
-          if (series.contentType === 'anime') {
+          
+          // Choose the appropriate service based on cinema type and content type
+          if (series.cinemaType === 'bollywood') {
+            console.log('🎪 Fetching from Bollywood table');
+            fetchedData = await getBollySeriesById(seriesId);
+          } else if (series.contentType === 'anime') {
             console.log('🎌 Fetching from anime table');
             fetchedData = await getAnimeById(seriesId);
           } else {
-            console.log('📺 Fetching from series table');
+            console.log('📺 Fetching from Hollywood series table');
             fetchedData = await getSeriesById(seriesId);
           }
           
           if (fetchedData) {
             fullSeriesData = fetchedData;
-            console.log('✅ Fetched full series data from', series.contentType === 'anime' ? 'anime' : 'series', 'table:', fullSeriesData);
+            console.log('✅ Fetched full series data from', 
+              series.cinemaType === 'bollywood' ? 'bollywood' : 
+              series.contentType === 'anime' ? 'anime' : 'series', 
+              'table:', fullSeriesData);
           } else {
-            console.warn('⚠️ No data found for ID:', seriesId, 'in', series.contentType === 'anime' ? 'anime' : 'series', 'table');
+            console.warn('⚠️ No data found for ID:', seriesId, 'in', 
+              series.cinemaType === 'bollywood' ? 'bollywood' : 
+              series.contentType === 'anime' ? 'anime' : 'series', 
+              'table');
           }
         }
         

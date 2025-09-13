@@ -5,6 +5,7 @@ import {
   HardDrive, Image, Eye, Users, Volume2 
 } from 'lucide-react';
 import { getMovieDetailsById, getSeriesDetailsById } from '../services/directMovieService';
+import { getBollyMovieById } from '../services/bollywoodService';
 import { formatDateString, debugDate } from '../services/utils.js';
 import { ButtonSkeleton } from '../components/Skeleton';
 import { downloadService } from '../services/downloadService';
@@ -38,15 +39,23 @@ const MovieDetails = ({ movie, onClose }) => {
       
       try {
         let details;
-        if (movie.isSeries) {
+        
+        // Choose the appropriate service based on cinema type
+        if (movie.cinemaType === 'bollywood') {
+          console.log('🎪 Fetching Bollywood movie details for:', movie.title);
+          details = await getBollyMovieById(movie.id);
+        } else if (movie.isSeries) {
+          console.log('📺 Fetching Hollywood series details for:', movie.title);
           details = await getSeriesDetailsById(movie.id);
         } else {
+          console.log('🎬 Fetching Hollywood movie details for:', movie.title);
           details = await getMovieDetailsById(movie.id);
         }
         
         if (details) {
           setDirectDetails(details);
-          console.log('✅ Direct details loaded:', details.title);
+          console.log('✅ Direct details loaded:', details.title, 'from', 
+            movie.cinemaType === 'bollywood' ? 'Bollywood' : 'Hollywood', 'source');
         } else {
           console.log('⚠️ Using cached data as fallback');
           setDetailsError('Could not fetch latest details');
