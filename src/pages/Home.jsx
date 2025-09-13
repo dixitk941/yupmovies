@@ -716,6 +716,86 @@ const TabLoadingState = memo(({ contentType, cacheStats }) => (
 ));
 TabLoadingState.displayName = 'TabLoadingState';
 
+// **DESKTOP BLOCKING COMPONENT** - Show when desktop access is detected
+const DesktopBlockingPage = memo(() => (
+  <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white px-4">
+    <div className="flex flex-col items-center max-w-lg text-center space-y-8">
+      {/* Mobile Icon */}
+      <div className="relative">
+        <svg 
+          width="120" 
+          height="120" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="#ef4444" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+          className="animate-pulse"
+        >
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+          <line x1="12" y1="18" x2="12.01" y2="18"/>
+        </svg>
+        <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
+          <span className="text-white text-xs font-bold">!</span>
+        </div>
+      </div>
+      
+      {/* Error Message */}
+      <div className="space-y-4">
+        <h1 className="text-4xl font-bold text-red-400 mb-4">
+          📱 Mobile Only
+        </h1>
+        
+        <p className="text-xl text-gray-300 mb-6 leading-relaxed">
+          This application is exclusively designed for mobile devices.
+        </p>
+        
+        <div className="bg-red-900 bg-opacity-30 border border-red-500 rounded-lg p-6 space-y-3">
+          <h2 className="text-lg font-semibold text-red-300">
+            🚫 Desktop Access Restricted
+          </h2>
+          <p className="text-sm text-gray-300">
+            For the best experience and security, please access this site using:
+          </p>
+          <ul className="text-sm text-gray-300 space-y-2 text-left">
+            <li className="flex items-center space-x-2">
+              <span className="text-green-400">✓</span>
+              <span>📱 Mobile Phone (Android/iOS)</span>
+            </li>
+            <li className="flex items-center space-x-2">
+              <span className="text-green-400">✓</span>
+              <span>📱 Tablet (iPad/Android Tablet)</span>
+            </li>
+            <li className="flex items-center space-x-2">
+              <span className="text-red-400">✗</span>
+              <span>💻 Desktop/Laptop Computer</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      
+      {/* Instructions */}
+      <div className="bg-gray-800 bg-opacity-50 rounded-lg p-6 space-y-3">
+        <h3 className="text-lg font-semibold text-blue-300">
+          📲 How to Access
+        </h3>
+        <div className="text-sm text-gray-300 space-y-2">
+          <p>1. Open your mobile browser (Chrome, Safari, Firefox)</p>
+          <p>2. Navigate to this website from your mobile device</p>
+          <p>3. Enjoy the full mobile experience!</p>
+        </div>
+      </div>
+      
+      {/* Footer */}
+      <div className="mt-8 text-xs text-gray-500 text-center">
+        <p>This restriction helps us provide optimal performance and security for mobile users.</p>
+      </div>
+    </div>
+  </div>
+));
+DesktopBlockingPage.displayName = 'DesktopBlockingPage';
+
 // **CLEAN MINIMAL SCROLLABLE ROW**
 const ScrollableRow = memo(({ title, subtitle, items, showNumbers = false, onContentSelect, showContentTypes = false }) => {
   const scrollRef = useRef(null);
@@ -998,6 +1078,10 @@ function Home() {
   const [bollyMoviesLoaded, setBollyMoviesLoaded] = useState(false);
   const [bollySeriesLoaded, setBollySeriesLoaded] = useState(false);
   
+  // **MOBILE DEVICE DETECTION** - Block desktop access
+  const [isMobileDevice, setIsMobileDevice] = useState(true); // Default to true to prevent flash
+  const [deviceCheckComplete, setDeviceCheckComplete] = useState(false);
+  
   // Cache statistics
   const [cacheStats, setCacheStats] = useState({
     movies: 0,
@@ -1121,6 +1205,58 @@ function Home() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [allMovies.length, allSeries.length, allAnime.length, searchQuery]);
+
+  // **MOBILE DEVICE DETECTION** - Check if device is mobile only
+  useEffect(() => {
+    const checkMobileDevice = () => {
+      // Multiple detection methods for accuracy
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isMobileUserAgent = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i.test(userAgent);
+      
+      // Screen size check (mobile/tablet typically <= 1024px width)
+      const isMobileScreen = window.innerWidth <= 1024;
+      
+      // Touch capability check
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      
+      // Check for mobile orientation API
+      const hasOrientationAPI = 'orientation' in window;
+      
+      // Device pixel ratio check (mobile devices often have higher DPR)
+      const hasHighDPR = window.devicePixelRatio > 1;
+      
+      // Combine checks - device is considered mobile if it meets multiple criteria
+      const isMobile = (
+        isMobileUserAgent || 
+        (isMobileScreen && isTouchDevice) ||
+        (isMobileScreen && hasOrientationAPI) ||
+        (isTouchDevice && hasHighDPR && isMobileScreen)
+      );
+      
+      console.log('📱 Device Detection:', {
+        userAgent: isMobileUserAgent,
+        screenSize: isMobileScreen,
+        touchDevice: isTouchDevice,
+        orientationAPI: hasOrientationAPI,
+        highDPR: hasHighDPR,
+        finalDecision: isMobile,
+        screenWidth: window.innerWidth
+      });
+      
+      setIsMobileDevice(isMobile);
+      setDeviceCheckComplete(true);
+    };
+
+    // Check immediately
+    checkMobileDevice();
+    
+    // Also check on window resize in case user resizes browser
+    window.addEventListener('resize', checkMobileDevice);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobileDevice);
+    };
+  }, []);
 
   // **OPTIMIZED BATCH FETCH FUNCTIONS**
   const fetchMovies = useCallback(async () => {
@@ -2519,11 +2655,12 @@ function Home() {
 
   // **OPTIMIZED INITIAL LOAD - Start with movies**
   useEffect(() => {
-    // Only run once on mount
+    // Only run once on mount - ensure we have initial content
     if (!moviesLoaded && !moviesLoading) {
+      console.log('🎬 Initial load: fetching movies on component mount');
       fetchMovies().catch(console.error);
     }
-  }, [fetchMovies]); // Add fetchMovies as dependency since it's now defined above
+  }, []); // Empty dependency array for mount-only effect
 
   // **SEPARATE EFFECT FOR CACHE STATS UPDATE**  
   useEffect(() => {
@@ -2968,7 +3105,13 @@ function Home() {
     });
 
     return sections;
-  }, [searchQuery, searchResults, isSearching, contentType, getCurrentContentAndState, searchError, activeFilter, filteredContent]);
+  }, [
+    searchQuery, searchResults, isSearching, contentType, getCurrentContentAndState, searchError, activeFilter, filteredContent,
+    // Add data dependencies to trigger re-computation when data loads
+    allMovies, allSeries, allAnime, allBollyMovies, allBollySeries,
+    moviesLoaded, seriesLoaded, animeLoaded, bollyMoviesLoaded, bollySeriesLoaded,
+    cinemaType
+  ]);
 
   // **MINIMAL ALL CONTENT SECTION WITH INFINITE SCROLL**
   const AllContentSection = memo(() => {
@@ -3173,6 +3316,11 @@ function Home() {
     searchQuery,
     setSearchQuery
   ]);
+
+  // Mobile device detection check - block desktop access
+  if (!isMobileDevice) {
+    return <DesktopBlockingPage />;
+  }
 
   return (
     <div className="min-h-screen bg-black text-white">
