@@ -60,6 +60,27 @@ function useDevToolsProtection() {
   useEffect(() => {
     if (isLocalhost()) return; // Skip protection in development
 
+    // Detect if running on iOS/mobile to avoid false positives
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Skip aggressive protection on mobile devices
+    if (isIOS || isMobile) {
+      console.log('Mobile device detected - using light protection mode');
+      
+      // Only basic protection for mobile
+      const handleContextMenu = (e) => {
+        e.preventDefault();
+        return false;
+      };
+      
+      document.addEventListener('contextmenu', handleContextMenu);
+      
+      return () => {
+        document.removeEventListener('contextmenu', handleContextMenu);
+      };
+    }
+
     // Set viewport meta tag to prevent zooming
     const viewportMeta = document.querySelector('meta[name="viewport"]');
     if (viewportMeta) {
@@ -98,30 +119,37 @@ function useDevToolsProtection() {
     console.log('%cUnauthorized access to network requests or content may violate terms of service.', 'color: red; font-size: 14px;');
     console.log('%cThis session is being monitored for security purposes.', 'color: orange; font-size: 12px;');
 
-    // Advanced DevTools Detection
+    // Advanced DevTools Detection (Desktop only)
     const detectDevTools = () => {
       const threshold = 160;
       const heightDiff = window.outerHeight - window.innerHeight;
       const widthDiff = window.outerWidth - window.innerWidth;
       
-      // More accurate detection - consider both dimensions and avoid false positives from browser UI
+      // More conservative detection to avoid iOS Safari false positives
       const isDevToolsOpen = (
-        (heightDiff > threshold && heightDiff < 800) || // Avoid full-screen false positives
+        (heightDiff > threshold && heightDiff < 800) || 
         (widthDiff > threshold && widthDiff < 800)
       ) && (
-        heightDiff > 100 || widthDiff > 100 // Minimum threshold to avoid normal browser variations
+        heightDiff > 200 || widthDiff > 200 // Increased threshold for iOS compatibility
       );
       
       if (isDevToolsOpen) {
-        // Double-check with a small delay to avoid false positives
+        // Triple-check with longer delay to avoid iOS false positives
         setTimeout(() => {
           const heightDiff2 = window.outerHeight - window.innerHeight;
           const widthDiff2 = window.outerWidth - window.innerWidth;
           if ((heightDiff2 > threshold && heightDiff2 < 800) || (widthDiff2 > threshold && widthDiff2 < 800)) {
-            setIsBlocked(true);
-            window.location.reload();
+            // Additional check - only trigger if consistent for 2 seconds
+            setTimeout(() => {
+              const heightDiff3 = window.outerHeight - window.innerHeight;
+              const widthDiff3 = window.outerWidth - window.innerWidth;
+              if ((heightDiff3 > threshold && heightDiff3 < 800) || (widthDiff3 > threshold && widthDiff3 < 800)) {
+                setIsBlocked(true);
+                window.location.reload();
+              }
+            }, 1500);
           }
-        }, 500);
+        }, 1000); // Increased delay
       }
     };
 
@@ -168,30 +196,30 @@ function useDevToolsProtection() {
       }
     };
 
-    // Prevent zooming with mouse wheel or trackpad
+    // Prevent zooming with mouse wheel or trackpad (Desktop only)
     const handleWheel = (e) => {
-      // Block zoom attempts
-      if (e.ctrlKey || e.metaKey) {
+      // Only block on desktop - allow normal scrolling on mobile
+      if (!isMobile && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         e.stopPropagation();
         return false;
       }
     };
     
-    // Prevent pinch-to-zoom on touch devices
+    // Prevent pinch-to-zoom on touch devices (Modified for iOS compatibility)
     const handleTouchMove = (e) => {
-      // Detect pinch gestures
-      if (e.touches && e.touches.length > 1) {
+      // Only prevent if it's clearly a pinch gesture (more than 2 fingers)
+      if (e.touches && e.touches.length > 2) {
         e.preventDefault();
         e.stopPropagation();
         return false;
       }
     };
 
-    // Prevent touch gestures with multiple fingers (pinch)
+    // Prevent touch gestures with multiple fingers (Modified for iOS)
     const handleTouchStart = (e) => {
-      // Block multi-touch gestures
-      if (e.touches && e.touches.length > 1) {
+      // Only block if more than 2 fingers to avoid interfering with normal gestures
+      if (e.touches && e.touches.length > 2) {
         e.preventDefault();
         e.stopPropagation();
         return false;
@@ -221,27 +249,24 @@ function useDevToolsProtection() {
     const handleFocus = () => { isWindowFocused = true; };
     const handleBlur = () => { isWindowFocused = false; };
 
-    // Periodic checks
+    // Periodic checks (Desktop only)
     const devToolsCheckInterval = setInterval(() => {
       detectDevTools();
       
       // Check and reset zoom level
       checkAndResetZoom();
       
-      // Additional check for performance timing (DevTools affects performance) - only if window size indicates DevTools might be open
+      // Additional check for performance timing (Desktop only)
       const heightDiff = window.outerHeight - window.innerHeight;
       const widthDiff = window.outerWidth - window.innerWidth;
       
-      if (heightDiff > 160 || widthDiff > 160) {
+      if (heightDiff > 200 || widthDiff > 200) { // Increased threshold
         const start = performance.now();
-        debugger; // This will pause if DevTools is open
+        // Removed debugger statement that was causing issues
         const end = performance.now();
-        if (end - start > 100) {
-          setIsBlocked(true);
-          window.location.reload();
-        }
+        // Performance check disabled to avoid false positives
       }
-    }, 2000); // Increased interval to reduce false positives
+    }, 5000); // Increased interval to reduce false positives
 
     // Network request monitoring and obfuscation
     const originalFetch = window.fetch;
@@ -272,17 +297,36 @@ function useDevToolsProtection() {
       return originalXHRSend.apply(this, args);
     };
 
-    // Add event listeners
+    // Add event listeners (Desktop only)
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('keydown', handleSelectAll);
-    document.addEventListener('wheel', handleWheel, { passive: false });
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchstart', handleTouchStart, { passive: false });
-    document.addEventListener('gesturestart', handleGestureStart, { passive: false });
-    document.addEventListener('gesturechange', handleGestureStart, { passive: false });
-    document.addEventListener('gestureend', handleGestureStart, { passive: false });
-    window.addEventListener('resize', checkAndResetZoom);
+    
+    // Only add desktop-specific events
+    if (!isMobile) {
+      document.addEventListener('wheel', handleWheel, { passive: false });
+      window.addEventListener('resize', checkAndResetZoom);
+    }
+    
+    // Modified touch events for mobile compatibility
+    document.addEventListener('touchmove', handleTouchMove, { passive: true }); // Changed to passive
+    document.addEventListener('touchstart', handleTouchStart, { passive: true }); // Changed to passive
+    
+    // iOS gesture events - more permissive
+    if (isIOS) {
+      const handleGestureChange = (e) => {
+        // Only prevent extreme zoom levels
+        if (e.scale && (e.scale > 3 || e.scale < 0.5)) {
+          e.preventDefault();
+        }
+      };
+      
+      document.addEventListener('gesturechange', handleGestureChange, { passive: false });
+    } else {
+      document.addEventListener('gesturestart', handleGestureStart, { passive: false });
+      document.addEventListener('gesturechange', handleGestureStart, { passive: false });
+      document.addEventListener('gestureend', handleGestureStart, { passive: false });
+    }
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
 
@@ -314,13 +358,24 @@ function useDevToolsProtection() {
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('keydown', handleSelectAll);
-      document.removeEventListener('wheel', handleWheel, { passive: false });
-      document.removeEventListener('touchmove', handleTouchMove, { passive: false });
-      document.removeEventListener('touchstart', handleTouchStart, { passive: false });
-      document.removeEventListener('gesturestart', handleGestureStart, { passive: false });
-      document.removeEventListener('gesturechange', handleGestureStart, { passive: false });
-      document.removeEventListener('gestureend', handleGestureStart, { passive: false });
-      window.removeEventListener('resize', checkAndResetZoom);
+      
+      if (!isMobile) {
+        document.removeEventListener('wheel', handleWheel);
+        window.removeEventListener('resize', checkAndResetZoom);
+      }
+      
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchstart', handleTouchStart);
+      
+      if (isIOS) {
+        // Clean up iOS-specific listeners
+        document.removeEventListener('gesturechange', () => {});
+      } else {
+        document.removeEventListener('gesturestart', handleGestureStart);
+        document.removeEventListener('gesturechange', handleGestureStart);
+        document.removeEventListener('gestureend', handleGestureStart);
+      }
+      
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
       
@@ -614,45 +669,58 @@ function App() {
     setIsChecking(false);
   }, []);
 
-  // Global network error handler
+  // Global network error handler (Modified for iOS compatibility)
   useEffect(() => {
     const handleNetworkError = (event) => {
       console.error('Network error detected:', event);
       
-      // Check if it's a major network failure
-      if (!navigator.onLine) {
+      // Don't redirect on mobile devices due to iOS Safari network behavior
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      // Check if it's a major network failure (Desktop only)
+      if (!navigator.onLine && !isMobile) {
         console.error('Connection lost - redirecting to hicine.app');
         setTimeout(() => {
           window.location.href = 'https://hicine.app';
-        }, 3000);
+        }, 5000); // Increased delay
       }
     };
 
     const handleUnhandledRejection = (event) => {
-      if (event.reason && event.reason.message && 
+      // Don't redirect on mobile devices
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (!isMobile && event.reason && event.reason.message && 
           (event.reason.message.includes('Failed to fetch') || 
            event.reason.message.includes('Network request failed'))) {
-        console.error('Network request failed - redirecting to hicine.app');
+        console.error('Network request failed - logging only on mobile');
+        // Only redirect on desktop
         setTimeout(() => {
           window.location.href = 'https://hicine.app';
-        }, 3000);
+        }, 5000);
       }
     };
 
-    // Listen for network errors
-    window.addEventListener('error', handleNetworkError);
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
-    window.addEventListener('offline', () => {
-      console.error('Connection lost - redirecting to hicine.app');
-      setTimeout(() => {
-        window.location.href = 'https://hicine.app';
-      }, 2000);
-    });
+    // Listen for network errors (Desktop only)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (!isMobile) {
+      window.addEventListener('error', handleNetworkError);
+      window.addEventListener('unhandledrejection', handleUnhandledRejection);
+      window.addEventListener('offline', () => {
+        console.error('Connection lost - redirecting to hicine.app');
+        setTimeout(() => {
+          window.location.href = 'https://hicine.app';
+        }, 3000);
+      });
+    }
 
     return () => {
-      window.removeEventListener('error', handleNetworkError);
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
-      window.removeEventListener('offline', () => {});
+      if (!isMobile) {
+        window.removeEventListener('error', handleNetworkError);
+        window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+        window.removeEventListener('offline', () => {});
+      }
     };
   }, []);
 

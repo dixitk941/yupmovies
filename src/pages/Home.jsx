@@ -1099,6 +1099,29 @@ function Home() {
     return () => window.removeEventListener('scroll', controlNavbar);
   }, []);
 
+  // **EXIT CONFIRMATION** - Ask user to confirm before leaving the app
+  useEffect(() => {
+    const handleBeforeUnload = (event) => {
+      // Only show confirmation if user has interacted with the app
+      if (allMovies.length > 0 || allSeries.length > 0 || allAnime.length > 0 || searchQuery) {
+        const message = 'Are you sure you want to exit? Any unsaved progress will be lost.';
+        
+        // Standard way to show confirmation dialog
+        event.preventDefault();
+        event.returnValue = message; // Chrome requires returnValue to be set
+        return message; // For other browsers
+      }
+    };
+
+    // Add the event listener
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Cleanup function to remove the event listener
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [allMovies.length, allSeries.length, allAnime.length, searchQuery]);
+
   // **OPTIMIZED BATCH FETCH FUNCTIONS**
   const fetchMovies = useCallback(async () => {
     if (moviesLoaded || moviesLoading || fetchingRef.current.movies) {
@@ -1359,12 +1382,15 @@ function Home() {
     if (filterId === 'all') {
       setActiveFilter('all');
       setFilteredContent([]);
+      setFilterLoading(false); // Ensure loading is false for 'all'
       setDisplayedCount(MOVIES_PER_PAGE);
       return;
     }
 
+    // Immediately set loading states
     setFilterLoading(true);
     setActiveFilter(filterId);
+    setFilteredContent([]); // Clear previous results immediately
     
     try {
       let results = [];
@@ -2241,9 +2267,15 @@ function Home() {
                   activeFilter === 'netflix' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('netflix')}
+                disabled={filterLoading && activeFilter === 'netflix'}
               >
-                <div className="w-[40px] h-[40px] rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden">
+                <div className="w-[40px] h-[40px] rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden relative">
                   <img src={netflixIcon} alt="Netflix" className="w-full h-full object-cover" />
+                  {filterLoading && activeFilter === 'netflix' && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <LoadingDots size="xs" color="white" />
+                    </div>
+                  )}
                 </div>
                 <span className="text-white text-[8px]">Netflix</span>
               </button>
@@ -2254,9 +2286,15 @@ function Home() {
                   activeFilter === 'amazon-prime' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('amazon-prime')}
+                disabled={filterLoading && activeFilter === 'amazon-prime'}
               >
-                <div className="w-[40px] h-[40px] bg-[#00A8E1] rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden">
+                <div className="w-[40px] h-[40px] bg-[#00A8E1] rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden relative">
                   <img src={primeVideoIcon} alt="Prime Video" className="w-full h-full object-cover" />
+                  {filterLoading && activeFilter === 'amazon-prime' && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <LoadingDots size="xs" color="white" />
+                    </div>
+                  )}
                 </div>
                 <span className="text-white text-[8px]">Prime</span>
               </button>
@@ -2267,9 +2305,15 @@ function Home() {
                   activeFilter === 'anime' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('anime')}
+                disabled={filterLoading && activeFilter === 'anime'}
               >
-                <div className="w-[40px] h-[40px] bg-orange-500 rounded-t-lg rounded-b-lg flex items-center justify-center p-0 overflow-hidden">
+                <div className="w-[40px] h-[40px] bg-orange-500 rounded-t-lg rounded-b-lg flex items-center justify-center p-0 overflow-hidden relative">
                   <img src={animeIcon} alt="Anime" className="w-full h-full object-cover" />
+                  {filterLoading && activeFilter === 'anime' && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <LoadingDots size="xs" color="white" />
+                    </div>
+                  )}
                 </div>
                 <span className="text-white text-[8px]">Anime</span>
               </button>
@@ -2280,9 +2324,15 @@ function Home() {
                   activeFilter === 'kdrama' ? 'opacity-100 scale-105' : ''
                 }`}
                 onClick={() => handleFilterChange('kdrama')}
+                disabled={filterLoading && activeFilter === 'kdrama'}
               >
-                <div className="w-[40px] h-[40px] bg-gray-700 rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden">
+                <div className="w-[40px] h-[40px] bg-gray-700 rounded-t-lg rounded-b-lg flex items-center justify-center overflow-hidden relative">
                   <img src={kDramaIcon} alt="K-Drama" className="w-full h-full object-cover" />
+                  {filterLoading && activeFilter === 'kdrama' && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                      <LoadingDots size="xs" color="white" />
+                    </div>
+                  )}
                 </div>
                 <span className="text-white text-[8px] whitespace-nowrap">K Drama</span>
               </button>
@@ -2345,8 +2395,13 @@ function Home() {
                       : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                   }`}
                   onClick={() => handleFilterChange('all')}
+                  disabled={filterLoading && activeFilter === 'all'}
                 >
-                  All
+                  {filterLoading && activeFilter === 'all' ? (
+                    <LoadingDots size="xs" color="white" />
+                  ) : (
+                    'All'
+                  )}
                 </button>
 
               {/* 1080p */}
@@ -2357,8 +2412,13 @@ function Home() {
                     : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                 }`}
                 onClick={() => handleFilterChange('1080p')}
+                disabled={filterLoading && activeFilter === '1080p'}
               >
-                1080P
+                {filterLoading && activeFilter === '1080p' ? (
+                  <LoadingDots size="xs" color="white" />
+                ) : (
+                  '1080P'
+                )}
               </button>
 
               {/* 4K */}
@@ -2369,8 +2429,13 @@ function Home() {
                     : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                 }`}
                 onClick={() => handleFilterChange('4k')}
+                disabled={filterLoading && activeFilter === '4k'}
               >
-                4K
+                {filterLoading && activeFilter === '4k' ? (
+                  <LoadingDots size="xs" color="white" />
+                ) : (
+                  '4K'
+                )}
               </button>
 
               {/* English */}
@@ -2381,8 +2446,13 @@ function Home() {
                     : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                 }`}
                 onClick={() => handleFilterChange('english')}
+                disabled={filterLoading && activeFilter === 'english'}
               >
-                English
+                {filterLoading && activeFilter === 'english' ? (
+                  <LoadingDots size="xs" color="white" />
+                ) : (
+                  'English'
+                )}
               </button>
 
               {/* Dual Audio */}
@@ -2393,8 +2463,13 @@ function Home() {
                     : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                 }`}
                 onClick={() => handleFilterChange('dual-audio')}
+                disabled={filterLoading && activeFilter === 'dual-audio'}
               >
-                Dual Audio
+                {filterLoading && activeFilter === 'dual-audio' ? (
+                  <LoadingDots size="xs" color="white" />
+                ) : (
+                  'Dual Audio'
+                )}
               </button>
             </div>
           </div>
@@ -2478,10 +2553,12 @@ function Home() {
         // Check if it has actual series indicators
         const hasSeasons = content.seasons && Object.keys(content.seasons).length > 0;
         const hasEpisodes = content.episodes && Array.isArray(content.episodes) && content.episodes.length > 0;
+        const categories = Array.isArray(content.categories) ? content.categories.join(' ').toLowerCase() : 
+                          (content.categories || '').toLowerCase();
         const hasSeriesKeywords = content.categories && (
-          content.categories.toLowerCase().includes('web series') ||
-          content.categories.toLowerCase().includes('tv series') ||
-          content.categories.toLowerCase().includes('series')
+          categories.includes('web series') ||
+          categories.includes('tv series') ||
+          categories.includes('series')
         );
         
         // Only treat as series if it has clear series indicators
@@ -2554,10 +2631,12 @@ function Home() {
       if (content.sourceTable === 'bolly_series') {
         const hasSeasons = content.seasons && Object.keys(content.seasons).length > 0;
         const hasEpisodes = content.episodes && Array.isArray(content.episodes) && content.episodes.length > 0;
+        const categories = Array.isArray(content.categories) ? content.categories.join(' ').toLowerCase() : 
+                          (content.categories || '').toLowerCase();
         const hasSeriesKeywords = content.categories && (
-          content.categories.toLowerCase().includes('web series') ||
-          content.categories.toLowerCase().includes('tv series') ||
-          content.categories.toLowerCase().includes('series')
+          categories.includes('web series') ||
+          categories.includes('tv series') ||
+          categories.includes('series')
         );
         
         // If it doesn't have series indicators, treat it as a movie
@@ -2665,9 +2744,19 @@ function Home() {
 
   // Get current content and loading state - memoized to prevent recreation
   const getCurrentContentAndState = useCallback(() => {
+    // If a filter is active and we're loading, show loading state
+    if (activeFilter !== 'all' && filterLoading) {
+      return { content: [], loading: true, loaded: false };
+    }
+    
     // If a filter is active and we have filtered content, return filtered content
     if (activeFilter !== 'all' && filteredContent.length > 0) {
-      return { content: filteredContent, loading: filterLoading, loaded: true };
+      return { content: filteredContent, loading: false, loaded: true };
+    }
+    
+    // If a filter is active but no results found, show empty state
+    if (activeFilter !== 'all' && !filterLoading && filteredContent.length === 0) {
+      return { content: [], loading: false, loaded: true };
     }
     
     // First check cinema type, then content type
