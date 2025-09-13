@@ -81,7 +81,8 @@ const MovieDetails = ({ movie, onClose }) => {
     
     try {
       const links = [];
-      const linkPattern = /(https:\/\/[^,]+\?download),([^,]+),(\d+(?:\.\d+)?(?:MB|GB|TB))/gi;
+      // More flexible pattern to handle various URL formats
+      const linkPattern = /(https:\/\/[^,]+),([^,]+),(\d+(?:\.\d+)?(?:MB|GB|TB))/gi;
       
       let match;
       while ((match = linkPattern.exec(linksString)) !== null) {
@@ -155,6 +156,22 @@ const MovieDetails = ({ movie, onClose }) => {
     if (!sourceData) return {};
     
     if (directDetails) {
+      console.log('🔍 Direct details object keys:', Object.keys(directDetails));
+      console.log('🔍 Direct details links field:', directDetails.links);
+      console.log('🔍 Direct details downloadLinks field:', directDetails.downloadLinks);
+      
+      // Parse download links from the links field if it exists
+      let parsedDownloadLinks = [];
+      if (directDetails.links && typeof directDetails.links === 'string') {
+        console.log('🔗 Parsing links from directDetails.links field');
+        parsedDownloadLinks = parseDownloadLinks(directDetails.links);
+      } else if (directDetails.downloadLinks && Array.isArray(directDetails.downloadLinks)) {
+        console.log('🔗 Using pre-parsed downloadLinks array');
+        parsedDownloadLinks = directDetails.downloadLinks;
+      }
+      
+      console.log('🎯 Final parsed download links count:', parsedDownloadLinks.length);
+      
       return {
         ...directDetails,
         title: directDetails.title || 'Unknown Title',
@@ -168,7 +185,7 @@ const MovieDetails = ({ movie, onClose }) => {
         description: directDetails.content?.description || directDetails.excerpt || "No description available.",
         duration: directDetails.content?.duration,
         rating: directDetails.content?.rating,
-        downloadLinks: directDetails.downloadLinks || [],
+        downloadLinks: parsedDownloadLinks,
         screenshots: [],
         cast: directDetails.cast || [],
         director: directDetails.director,

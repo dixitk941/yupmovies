@@ -1114,6 +1114,17 @@ function Home() {
     }
   }, [contentType]);
 
+  // Clear filters when cinema type changes
+  useEffect(() => {
+    if (prevCinemaTypeRef.current !== cinemaType) {
+      console.log('🎬 Cinema type changed, clearing filters');
+      setActiveFilter('all');
+      setFilteredContent([]);
+      setFilterLoading(false);
+      prevCinemaTypeRef.current = cinemaType;
+    }
+  }, [cinemaType]);
+
   // Debug displayedCount changes
   useEffect(() => {
     console.log('🔄 DisplayedCount changed to:', displayedCount);
@@ -1545,78 +1556,103 @@ function Home() {
       
       switch (filterId) {
         case 'netflix':
-          // Try direct database query for Netflix content across all content types (Hollywood + Bollywood)
+          // Query Netflix content based on cinema type
           try {
             const { default: supabaseNetflix } = await import('../services/supabaseClient.js');
-            const [netflixMoviesQuery, netflixSeriesQuery, netflixAnimeQuery, netflixBollyMoviesQuery, netflixBollySeriesQuery] = await Promise.all([
-              supabaseNetflix
-                .from('movies')
-                .select('*')
-                .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabaseNetflix
-                .from('series')
-                .select('*')
-                .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabaseNetflix
-                .from('anime')
-                .select('*')
-                .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabaseNetflix
-                .from('bolly_movies')
-                .select('*')
-                .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabaseNetflix
-                .from('bolly_series')
-                .select('*')
-                .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200)
-            ]);
             
-            const netflixMovies = netflixMoviesQuery.data || [];
-            const netflixSeries = netflixSeriesQuery.data || [];
-            const netflixAnime = netflixAnimeQuery.data || [];
-            const netflixBollyMovies = netflixBollyMoviesQuery.data || [];
-            const netflixBollySeries = netflixBollySeriesQuery.data || [];
+            let queries = [];
             
-            console.log('📊 Direct Netflix search results (Global):', {
-              movies: netflixMovies.length,
-              series: netflixSeries.length, 
-              anime: netflixAnime.length,
-              bollyMovies: netflixBollyMovies.length,
-              bollySeries: netflixBollySeries.length
-            });
-            
-            results = [
-              ...netflixMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
-              ...netflixSeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
-              ...netflixAnime.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' })),
-              ...netflixBollyMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
-              ...netflixBollySeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
-            ];
+            if (cinemaType === 'hollywood') {
+              // Hollywood Netflix content only
+              queries = await Promise.all([
+                supabaseNetflix
+                  .from('movies')
+                  .select('*')
+                  .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseNetflix
+                  .from('series')
+                  .select('*')
+                  .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseNetflix
+                  .from('anime')
+                  .select('*')
+                  .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const [netflixMoviesQuery, netflixSeriesQuery, netflixAnimeQuery] = queries;
+              const netflixMovies = netflixMoviesQuery.data || [];
+              const netflixSeries = netflixSeriesQuery.data || [];
+              const netflixAnime = netflixAnimeQuery.data || [];
+              
+              console.log('📊 Direct Netflix search results (Hollywood):', {
+                movies: netflixMovies.length,
+                series: netflixSeries.length, 
+                anime: netflixAnime.length
+              });
+              
+              results = [
+                ...netflixMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
+                ...netflixSeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
+                ...netflixAnime.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
+            } else {
+              // Bollywood Netflix content only
+              queries = await Promise.all([
+                supabaseNetflix
+                  .from('bolly_movies')
+                  .select('*')
+                  .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseNetflix
+                  .from('bolly_series')
+                  .select('*')
+                  .or('categories.ilike.%Netflix%,categories.ilike.%NETFLIX%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const [netflixBollyMoviesQuery, netflixBollySeriesQuery] = queries;
+              const netflixBollyMovies = netflixBollyMoviesQuery.data || [];
+              const netflixBollySeries = netflixBollySeriesQuery.data || [];
+              
+              console.log('📊 Direct Netflix search results (Bollywood):', {
+                bollyMovies: netflixBollyMovies.length,
+                bollySeries: netflixBollySeries.length
+              });
+              
+              results = [
+                ...netflixBollyMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...netflixBollySeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            }
             
             // Log sample categories for debugging
-            logCategoryInfo('Netflix (Global)', results);
+            logCategoryInfo(`Netflix (${cinemaType})`, results);
             
             if (results.length === 0) throw new Error('No results from network');
             
           } catch (error) {
-            console.log('🔄 Network failed, filtering ALL cached data for Netflix content (Global)...');
-            // Always use all cached content from both Hollywood and Bollywood
-            const allCachedContent = [...allMovies, ...allSeries, ...allAnime, ...allBollyMovies, ...allBollySeries];
+            console.log(`🔄 Network failed, filtering cached data for Netflix content (${cinemaType})...`);
+            // Filter cached content based on cinema type
+            let allCachedContent = [];
+            if (cinemaType === 'hollywood') {
+              allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+            } else {
+              allCachedContent = [...allBollyMovies, ...allBollySeries];
+            }
+            
             const filteredFromCache = allCachedContent.filter(item => {
               const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
                               (item.categories || '').toLowerCase();
@@ -1625,96 +1661,119 @@ function Home() {
             
             results = filteredFromCache.map(item => ({
               ...item,
-              contentType: allMovies.includes(item) ? 'movies' : 
-                          allSeries.includes(item) ? 'series' : 
-                          allAnime.includes(item) ? 'anime' :
-                          allBollyMovies.includes(item) ? 'movies' : 'series',
+              contentType: (allMovies.includes(item) || allBollyMovies.includes(item)) ? 'movies' : 
+                          (allSeries.includes(item) || allBollySeries.includes(item)) ? 'series' : 'anime',
               sourceTable: allMovies.includes(item) ? 'movies' :
                           allSeries.includes(item) ? 'series' :
                           allAnime.includes(item) ? 'anime' :
                           allBollyMovies.includes(item) ? 'bolly_movies' : 'bolly_series',
-              cinemaType: (allMovies.includes(item) || allSeries.includes(item) || allAnime.includes(item)) ? 'hollywood' : 'bollywood'
+              cinemaType: cinemaType
             }));
             
-            console.log('📊 Cached Netflix results across ALL content (Global):', filteredFromCache.length);
-            logCategoryInfo('Cached Netflix (Global)', results);
+            console.log(`📊 Cached Netflix results (${cinemaType}):`, filteredFromCache.length);
+            logCategoryInfo(`Cached Netflix (${cinemaType})`, results);
           }
           break;
         
         case 'amazon-prime':
         case 'prime':
-          // Try direct database query for Amazon Prime Video content across all content types (Hollywood + Bollywood)
+          // Query Amazon Prime Video content based on cinema type
           try {
             const { default: supabasePrime } = await import('../services/supabaseClient.js');
-            const [amazonPrimeMoviesQuery, amazonPrimeSeriesQuery, amazonPrimeAnimeQuery, amazonPrimeBollyMoviesQuery, amazonPrimeBollySeriesQuery] = await Promise.all([
-              supabasePrime
-                .from('movies')
-                .select('*')
-                .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabasePrime
-                .from('series')
-                .select('*')
-                .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabasePrime
-                .from('anime')
-                .select('*')
-                .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabasePrime
-                .from('bolly_movies')
-                .select('*')
-                .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabasePrime
-                .from('bolly_series')
-                .select('*')
-                .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200)
-            ]);
             
-            const amazonPrimeMovies = amazonPrimeMoviesQuery.data || [];
-            const amazonPrimeSeries = amazonPrimeSeriesQuery.data || [];
-            const amazonPrimeAnime = amazonPrimeAnimeQuery.data || [];
-            const amazonPrimeBollyMovies = amazonPrimeBollyMoviesQuery.data || [];
-            const amazonPrimeBollySeries = amazonPrimeBollySeriesQuery.data || [];
+            let queries = [];
             
-            console.log('📊 Direct Amazon Prime Video search results (Global):', {
-              movies: amazonPrimeMovies.length,
-              series: amazonPrimeSeries.length, 
-              anime: amazonPrimeAnime.length,
-              bollyMovies: amazonPrimeBollyMovies.length,
-              bollySeries: amazonPrimeBollySeries.length
-            });
-            
-            results = [
-              ...amazonPrimeMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
-              ...amazonPrimeSeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
-              ...amazonPrimeAnime.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' })),
-              ...amazonPrimeBollyMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
-              ...amazonPrimeBollySeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
-            ];
+            if (cinemaType === 'hollywood') {
+              // Hollywood Amazon Prime content only
+              queries = await Promise.all([
+                supabasePrime
+                  .from('movies')
+                  .select('*')
+                  .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabasePrime
+                  .from('series')
+                  .select('*')
+                  .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabasePrime
+                  .from('anime')
+                  .select('*')
+                  .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const [amazonPrimeMoviesQuery, amazonPrimeSeriesQuery, amazonPrimeAnimeQuery] = queries;
+              const amazonPrimeMovies = amazonPrimeMoviesQuery.data || [];
+              const amazonPrimeSeries = amazonPrimeSeriesQuery.data || [];
+              const amazonPrimeAnime = amazonPrimeAnimeQuery.data || [];
+              
+              console.log('📊 Direct Amazon Prime Video search results (Hollywood):', {
+                movies: amazonPrimeMovies.length,
+                series: amazonPrimeSeries.length, 
+                anime: amazonPrimeAnime.length
+              });
+              
+              results = [
+                ...amazonPrimeMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
+                ...amazonPrimeSeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
+                ...amazonPrimeAnime.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
+            } else {
+              // Bollywood Amazon Prime content only
+              queries = await Promise.all([
+                supabasePrime
+                  .from('bolly_movies')
+                  .select('*')
+                  .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabasePrime
+                  .from('bolly_series')
+                  .select('*')
+                  .or('categories.ilike.%Amazon Prime Video%,categories.ilike.%Prime Video%,categories.ilike.%Prime%,categories.ilike.%Amazon%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const [amazonPrimeBollyMoviesQuery, amazonPrimeBollySeriesQuery] = queries;
+              const amazonPrimeBollyMovies = amazonPrimeBollyMoviesQuery.data || [];
+              const amazonPrimeBollySeries = amazonPrimeBollySeriesQuery.data || [];
+              
+              console.log('📊 Direct Amazon Prime Video search results (Bollywood):', {
+                bollyMovies: amazonPrimeBollyMovies.length,
+                bollySeries: amazonPrimeBollySeries.length
+              });
+              
+              results = [
+                ...amazonPrimeBollyMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...amazonPrimeBollySeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            }
             
             // Log sample categories for debugging
-            logCategoryInfo('Amazon Prime Video', results);
+            logCategoryInfo(`Amazon Prime Video (${cinemaType})`, results);
             
             if (results.length === 0) throw new Error('No results from network');
             
           } catch (error) {
-            console.log('🔄 Network failed, filtering ALL cached data for Amazon Prime Video content (Global)...');
-            // Always use all cached content from both Hollywood and Bollywood
-            const allCachedContent = [...allMovies, ...allSeries, ...allAnime, ...allBollyMovies, ...allBollySeries];
+            console.log(`🔄 Network failed, filtering cached data for Amazon Prime Video content (${cinemaType})...`);
+            // Filter cached content based on cinema type
+            let allCachedContent = [];
+            if (cinemaType === 'hollywood') {
+              allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+            } else {
+              allCachedContent = [...allBollyMovies, ...allBollySeries];
+            }
+            
             const filteredFromCache = allCachedContent.filter(item => {
               const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
                               (item.categories || '').toLowerCase();
@@ -1723,19 +1782,17 @@ function Home() {
             
             results = filteredFromCache.map(item => ({
               ...item,
-              contentType: allMovies.includes(item) ? 'movies' : 
-                          allSeries.includes(item) ? 'series' : 
-                          allAnime.includes(item) ? 'anime' :
-                          allBollyMovies.includes(item) ? 'movies' : 'series',
+              contentType: (allMovies.includes(item) || allBollyMovies.includes(item)) ? 'movies' : 
+                          (allSeries.includes(item) || allBollySeries.includes(item)) ? 'series' : 'anime',
               sourceTable: allMovies.includes(item) ? 'movies' :
                           allSeries.includes(item) ? 'series' :
                           allAnime.includes(item) ? 'anime' :
                           allBollyMovies.includes(item) ? 'bolly_movies' : 'bolly_series',
-              cinemaType: (allMovies.includes(item) || allSeries.includes(item) || allAnime.includes(item)) ? 'hollywood' : 'bollywood'
+              cinemaType: cinemaType
             }));
             
-            console.log('📊 Cached Amazon Prime Video results across ALL content (Global):', filteredFromCache.length);
-            logCategoryInfo('Cached Amazon Prime Video (Global)', results);
+            console.log(`📊 Cached Amazon Prime Video results (${cinemaType}):`, filteredFromCache.length);
+            logCategoryInfo(`Cached Amazon Prime Video (${cinemaType})`, results);
           }
           break;
         
@@ -2049,51 +2106,86 @@ function Home() {
           break;
         
         case 'kdrama':
-          // Global K-Drama search (Hollywood + Bollywood sources)
+          // K-Drama search based on cinema type (K-Dramas are typically Hollywood/international content)
           try {
             const { default: supabaseKdrama } = await import('../services/supabaseClient.js');
-            const [koreanSeriesMoviesQuery, koreanSeriesSeriesQuery, koreanSeriesAnimeQuery, koreanBollyMoviesQuery, koreanBollySeriesQuery] = await Promise.all([
-              supabaseKdrama
-                .from('movies')
-                .select('*')
-                .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabaseKdrama
-                .from('series')
-                .select('*')
-                .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabaseKdrama
-                .from('anime')
-                .select('*')
-                .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabaseKdrama
-                .from('bolly_movies')
-                .select('*')
-                .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabaseKdrama
-                .from('bolly_series')
-                .select('*')
-                .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200)
-            ]);
             
-            const koreanSeriesMovies = koreanSeriesMoviesQuery.data || [];
-            const koreanSeriesSeries = koreanSeriesSeriesQuery.data || [];
-            const koreanSeriesAnime = koreanSeriesAnimeQuery.data || [];
-            const koreanBollyMovies = koreanBollyMoviesQuery.data || [];
+            if (cinemaType === 'hollywood') {
+              // Hollywood K-Drama content
+              const [koreanSeriesMoviesQuery, koreanSeriesSeriesQuery, koreanSeriesAnimeQuery] = await Promise.all([
+                supabaseKdrama
+                  .from('movies')
+                  .select('*')
+                  .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseKdrama
+                  .from('series')
+                  .select('*')
+                  .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseKdrama
+                  .from('anime')
+                  .select('*')
+                  .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const koreanSeriesMovies = koreanSeriesMoviesQuery.data || [];
+              const koreanSeriesSeries = koreanSeriesSeriesQuery.data || [];
+              const koreanSeriesAnime = koreanSeriesAnimeQuery.data || [];
+              
+              console.log('📊 Direct K-Drama search results (Hollywood):', {
+                movies: koreanSeriesMovies.length,
+                series: koreanSeriesSeries.length,
+                anime: koreanSeriesAnime.length
+              });
+              
+              results = [
+                ...koreanSeriesMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
+                ...koreanSeriesSeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
+                ...koreanSeriesAnime.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
+            } else {
+              // Bollywood K-Drama related content (unlikely but check for Korean-inspired content)
+              const [koreanBollyMoviesQuery, koreanBollySeriesQuery] = await Promise.all([
+                supabaseKdrama
+                  .from('bolly_movies')
+                  .select('*')
+                  .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseKdrama
+                  .from('bolly_series')
+                  .select('*')
+                  .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const koreanBollyMovies = koreanBollyMoviesQuery.data || [];
+              const koreanBollySeries = koreanBollySeriesQuery.data || [];
+              
+              console.log('📊 Direct K-Drama search results (Bollywood):', {
+                bollyMovies: koreanBollyMovies.length,
+                bollySeries: koreanBollySeries.length
+              });
+              
+              results = [
+                ...koreanBollyMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...koreanBollySeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            }
+            
+            // Log sample categories for debugging
+            logCategoryInfo(`K-Drama (${cinemaType})`, results);
             const koreanBollySeries = koreanBollySeriesQuery.data || [];
             
             console.log('📊 Direct Korean Series search results (Global):', {
@@ -2146,31 +2238,62 @@ function Home() {
           break;
           
         case 'anime':
-          // Global anime search (Hollywood + Bollywood sources)
+          // Anime search based on cinema type
           try {
             const { default: supabaseAnime } = await import('../services/supabaseClient.js');
-            const [hollywoodAnimeQuery, bollywoodAnimeMoviesQuery, bollywoodAnimeSeriesQuery] = await Promise.all([
-              supabaseAnime
-                .from('anime')
-                .select('*')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabaseAnime
-                .from('bolly_movies')
-                .select('*')
-                .or('categories.ilike.%anime%,categories.ilike.%animated%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabaseAnime
-                .from('bolly_series')
-                .select('*')
-                .or('categories.ilike.%anime%,categories.ilike.%animated%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200)
-            ]);
+            
+            if (cinemaType === 'hollywood') {
+              // Hollywood anime content (from anime table)
+              const [hollywoodAnimeQuery] = await Promise.all([
+                supabaseAnime
+                  .from('anime')
+                  .select('*')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const hollywoodAnime = hollywoodAnimeQuery.data || [];
+              
+              console.log('📊 Direct Anime search results (Hollywood):', {
+                anime: hollywoodAnime.length
+              });
+              
+              results = [
+                ...hollywoodAnime.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
+            } else {
+              // Bollywood anime-related content (animated movies/series)
+              const [bollywoodAnimeMoviesQuery, bollywoodAnimeSeriesQuery] = await Promise.all([
+                supabaseAnime
+                  .from('bolly_movies')
+                  .select('*')
+                  .or('categories.ilike.%anime%,categories.ilike.%animated%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseAnime
+                  .from('bolly_series')
+                  .select('*')
+                  .or('categories.ilike.%anime%,categories.ilike.%animated%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const bollywoodAnimeMovies = bollywoodAnimeMoviesQuery.data || [];
+              const bollywoodAnimeSeries = bollywoodAnimeSeriesQuery.data || [];
+              
+              console.log('📊 Direct Anime search results (Bollywood):', {
+                animeMovies: bollywoodAnimeMovies.length,
+                animeSeries: bollywoodAnimeSeries.length
+              });
+              
+              results = [
+                ...bollywoodAnimeMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...bollywoodAnimeSeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            }
             
             const hollywoodAnime = hollywoodAnimeQuery.data || [];
             const bollywoodAnimeMovies = bollywoodAnimeMoviesQuery.data || [];
@@ -2370,7 +2493,7 @@ function Home() {
     } finally {
       setFilterLoading(false);
     }
-  }, [MOVIES_PER_PAGE, allMovies, allSeries, allAnime, fetchMovies, fetchSeries, fetchAnime, moviesLoaded, seriesLoaded, animeLoaded]);
+  }, [MOVIES_PER_PAGE, allMovies, allSeries, allAnime, fetchMovies, fetchSeries, fetchAnime, moviesLoaded, seriesLoaded, animeLoaded, cinemaType]);
 
   // Handle filter change
   const handleFilterChange = useCallback((filterId) => {
