@@ -2216,21 +2216,21 @@ function Home() {
                   .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
                   .eq('status', 'publish')
                   .order('modified_date', { ascending: false })
-                  .limit(200),
+                  .limit(500),
                 supabaseKdrama
                   .from('series')
                   .select('*')
                   .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
                   .eq('status', 'publish')
                   .order('modified_date', { ascending: false })
-                  .limit(200),
+                  .limit(500),
                 supabaseKdrama
                   .from('anime')
                   .select('*')
                   .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
                   .eq('status', 'publish')
                   .order('modified_date', { ascending: false })
-                  .limit(200)
+                  .limit(500)
               ]);
               
               const koreanSeriesMovies = koreanSeriesMoviesQuery.data || [];
@@ -2257,14 +2257,14 @@ function Home() {
                   .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
                   .eq('status', 'publish')
                   .order('modified_date', { ascending: false })
-                  .limit(200),
+                  .limit(500),
                 supabaseKdrama
                   .from('bolly_series')
                   .select('*')
                   .or('categories.ilike.%Korean Series%,categories.ilike.%K-Drama%,categories.ilike.%Korean%,categories.ilike.%KDrama%')
                   .eq('status', 'publish')
                   .order('modified_date', { ascending: false })
-                  .limit(200)
+                  .limit(500)
               ]);
               
               const koreanBollyMovies = koreanBollyMoviesQuery.data || [];
@@ -2283,54 +2283,40 @@ function Home() {
             
             // Log sample categories for debugging
             logCategoryInfo(`K-Drama (${cinemaType})`, results);
-            const koreanBollySeries = koreanBollySeriesQuery.data || [];
-            
-            console.log('📊 Direct Korean Series search results (Global):', {
-              movies: koreanSeriesMovies.length,
-              series: koreanSeriesSeries.length, 
-              anime: koreanSeriesAnime.length,
-              bollyMovies: koreanBollyMovies.length,
-              bollySeries: koreanBollySeries.length
-            });
-            
-            results = [
-              ...koreanSeriesMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
-              ...koreanSeriesSeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
-              ...koreanSeriesAnime.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' })),
-              ...koreanBollyMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
-              ...koreanBollySeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
-            ];
-            
-            // Log sample categories for debugging
-            logCategoryInfo('Korean Series (Global)', results);
             
             if (results.length === 0) throw new Error('No results from network');
             
           } catch (error) {
-            console.log('🔄 Network failed, filtering ALL cached data for Korean Series content (Global)...');
-            // Always use all cached content from both Hollywood and Bollywood
-            const allCachedContent = [...allMovies, ...allSeries, ...allAnime, ...allBollyMovies, ...allBollySeries];
+            console.log('🔄 Network failed, filtering cached data for K-Drama content...');
+            // Filter cached content based on cinema type
+            const allCachedContent = cinemaType === 'hollywood' 
+              ? [...allMovies, ...allSeries, ...allAnime] 
+              : [...allBollyMovies, ...allBollySeries];
+              
             const filteredFromCache = allCachedContent.filter(item => {
-              const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
-                              (item.categories || '').toLowerCase();
-              return categories.includes('korean series') || categories.includes('k-drama') || categories.includes('kdrama');
+              const categories = Array.isArray(item.categories) 
+                ? item.categories.join(' ').toLowerCase() 
+                : (item.categories || '').toLowerCase();
+              return categories.includes('korean series') || categories.includes('k-drama') || categories.includes('kdrama') || categories.includes('korean');
             });
             
             results = filteredFromCache.map(item => ({
               ...item,
-              contentType: allMovies.includes(item) ? 'movies' : 
-                          allSeries.includes(item) ? 'series' : 
-                          allAnime.includes(item) ? 'anime' :
-                          allBollyMovies.includes(item) ? 'movies' : 'series',
-              sourceTable: allMovies.includes(item) ? 'movies' :
-                          allSeries.includes(item) ? 'series' :
-                          allAnime.includes(item) ? 'anime' :
-                          allBollyMovies.includes(item) ? 'bolly_movies' : 'bolly_series',
-              cinemaType: (allMovies.includes(item) || allSeries.includes(item) || allAnime.includes(item)) ? 'hollywood' : 'bollywood'
+              contentType: (allMovies.includes(item) || allBollyMovies.includes(item)) ? 'movies' 
+                         : (allSeries.includes(item) || allBollySeries.includes(item)) ? 'series' 
+                         : 'anime',
+              sourceTable: allMovies.includes(item) ? 'movies' 
+                         : allSeries.includes(item) ? 'series' 
+                         : allAnime.includes(item) ? 'anime' 
+                         : allBollyMovies.includes(item) ? 'bolly_movies' 
+                         : 'bolly_series',
+              cinemaType
             }));
             
-            console.log('📊 Cached Korean Series results across ALL content (Global):', filteredFromCache.length);
-            logCategoryInfo('Cached Korean Series (Global)', results);
+            console.log('📊 Cached K-Drama results:', {
+              totalResults: filteredFromCache.length,
+              cinemaType
+            });
           }
           break;
           
@@ -2576,14 +2562,14 @@ function Home() {
             const { default: supabaseAnime } = await import('../services/supabaseClient.js');
             
             if (cinemaType === 'hollywood') {
-              // Hollywood anime content (from anime table)
+              // Hollywood anime content (from anime table) - GET ALL ANIME
               const [hollywoodAnimeQuery] = await Promise.all([
                 supabaseAnime
                   .from('anime')
                   .select('*')
                   .eq('status', 'publish')
                   .order('modified_date', { ascending: false })
-                  .limit(200)
+                  // No limit - get ALL anime content
               ]);
               
               const hollywoodAnime = hollywoodAnimeQuery.data || [];
