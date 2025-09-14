@@ -500,6 +500,8 @@ const RealTimeSearchBar = memo(({
     );
   };
 
+  // Component moved outside function for proper React scoping
+
   return (
     <div className="relative w-full" ref={searchRef}>
       <div className="relative group">
@@ -1043,6 +1045,115 @@ const BottomBar = memo(({
 ));
 BottomBar.displayName = 'BottomBar';
 
+// **CUSTOM EXIT CONFIRMATION MODAL COMPONENT**
+const ExitConfirmationModal = ({ showExitConfirmation, setShowExitConfirmation }) => {
+  if (!showExitConfirmation) return null;
+
+  const handleStay = () => {
+    setShowExitConfirmation(false);
+  };
+
+  const handleLeave = () => {
+    setShowExitConfirmation(false);
+    
+    // Temporarily disable beforeunload protection
+    const tempHandler = (e) => {
+      e.stopImmediatePropagation();
+    };
+    
+    window.addEventListener('beforeunload', tempHandler);
+    
+    // Small delay to ensure state is updated
+    setTimeout(() => {
+      // Remove our protection
+      window.removeEventListener('beforeunload', tempHandler);
+      
+      // Navigate away - try multiple methods
+      try {
+        // Method 1: Replace current page
+        window.location.replace('https://google.com');
+      } catch (e) {
+        try {
+          // Method 2: Regular navigation
+          window.location.href = 'https://google.com';
+        } catch (e2) {
+          // Method 3: Close tab if possible (only works if opened by script)
+          window.close();
+        }
+      }
+    }, 100);
+  };
+
+  // Handle escape key
+  useEffect(() => {
+    if (showExitConfirmation) {
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          handleStay();
+        }
+      };
+      
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [showExitConfirmation]);
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center animate-fadeIn">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm mx-4 text-center shadow-2xl transform scale-100 transition-transform duration-200">
+        {/* Icon */}
+        <div className="w-16 h-16 bg-red-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg 
+            width="32" 
+            height="32" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="#ef4444" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+
+        {/* Title */}
+        <h3 className="text-xl font-bold text-white mb-2">
+          Are you sure you want to exit?
+        </h3>
+        
+        {/* Message */}
+        <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+          You'll lose your current browsing progress and any unsaved preferences.
+        </p>
+
+        {/* Buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={handleStay}
+            className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-4 py-3 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+          >
+            Stay Here
+          </button>
+          <button
+            onClick={handleLeave}
+            className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+          >
+            Exit Site
+          </button>
+        </div>
+        
+        {/* Small help text */}
+        <p className="text-gray-500 text-xs mt-3">
+          Press Escape to stay on the site
+        </p>
+      </div>
+    </div>
+  );
+};
+
 function Home() {
   const [contentType, setContentType] = useState('movies');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1093,6 +1204,9 @@ function Home() {
   const [selectedMovie, setSelectedMovie] = useState(null);
   const headerRef = useRef(null);
   const lastScrollY = useRef(0);
+  
+  // **EXIT CONFIRMATION STATE**
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   
   // **PREVENT MULTIPLE SIMULTANEOUS FETCHES**
   const fetchingRef = useRef({
@@ -1195,26 +1309,107 @@ function Home() {
     return () => window.removeEventListener('scroll', controlNavbar);
   }, []);
 
-  // **EXIT CONFIRMATION** - Ask user to confirm before leaving the app
+  // **EXIT CONFIRMATION** - Custom UI prompt that distinguishes between refresh and actual exit
   useEffect(() => {
-    const handleBeforeUnload = (event) => {
-      // Only show confirmation if user has interacted with the app
-      if (allMovies.length > 0 || allSeries.length > 0 || allAnime.length > 0 || searchQuery) {
-        const message = 'Are you sure you want to exit? Any unsaved progress will be lost.';
-        
-        // Standard way to show confirmation dialog
-        event.preventDefault();
-        event.returnValue = message; // Chrome requires returnValue to be set
-        return message; // For other browsers
+    let isRefreshing = false;
+    let isInternalNavigation = false;
+    
+    // Track user interaction
+    let hasUserInteracted = false;
+    
+    // Mark user interaction
+    const markUserInteraction = () => {
+      hasUserInteracted = true;
+    };
+    
+    // Add interaction listeners
+    document.addEventListener('click', markUserInteraction, { once: true });
+    document.addEventListener('scroll', markUserInteraction, { once: true });
+    document.addEventListener('keydown', markUserInteraction, { once: true });
+    
+    // Check if we should show exit confirmation
+    const shouldShowExitConfirmation = () => {
+      return hasUserInteracted && 
+             !isRefreshing && 
+             !isInternalNavigation && 
+             (allMovies.length > 0 || allSeries.length > 0 || allAnime.length > 0 || searchQuery);
+    };
+    
+    // Detect refresh actions
+    const handleKeyDown = (event) => {
+      // F5, Ctrl+R, Ctrl+Shift+R
+      if (event.keyCode === 116 || 
+          (event.ctrlKey && event.keyCode === 82) ||
+          (event.ctrlKey && event.shiftKey && event.keyCode === 82)) {
+        isRefreshing = true;
+        // Reset after a delay
+        setTimeout(() => { isRefreshing = false; }, 1000);
       }
     };
-
-    // Add the event listener
+    
+    // Handle beforeunload event (page unload/refresh)
+    const handleBeforeUnload = (event) => {
+      // Don't show confirmation for refresh actions
+      if (isRefreshing || isInternalNavigation) {
+        return;
+      }
+      
+      // Show browser's native confirmation dialog for actual page unload
+      if (shouldShowExitConfirmation()) {
+        const message = 'Are you sure you want to leave? Your browsing progress will be lost.';
+        event.preventDefault();
+        event.returnValue = message; // Required for Chrome
+        return message; // Required for other browsers
+      }
+    };
+    
+    // Handle hash/route changes (internal navigation)
+    const handleHashChange = () => {
+      isInternalNavigation = true;
+      setTimeout(() => { isInternalNavigation = false; }, 100);
+    };
+    
+    // Handle popstate (back/forward buttons) - Use custom modal for this
+    const handlePopState = (event) => {
+      if (shouldShowExitConfirmation()) {
+        // Prevent actual navigation by pushing state back
+        window.history.pushState({ modalOpen: true }, '');
+        // Show our custom modal for back button
+        setShowExitConfirmation(true);
+      }
+    };
+    
+    // Handle page visibility changes
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Reset flags when page becomes visible again
+        isRefreshing = false;
+        isInternalNavigation = false;
+      }
+    };
+    
+    // Add event listeners
+    document.addEventListener('keydown', handleKeyDown);
     window.addEventListener('beforeunload', handleBeforeUnload);
-
-    // Cleanup function to remove the event listener
+    window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handlePopState);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Push initial state for popstate handling
+    if (window.history.state?.modalOpen !== true) {
+      window.history.pushState({ modalOpen: true }, '');
+    }
+    
+    // Cleanup function
     return () => {
+      document.removeEventListener('click', markUserInteraction);
+      document.removeEventListener('scroll', markUserInteraction);
+      document.removeEventListener('keydown', markUserInteraction);
+      document.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handlePopState);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [allMovies.length, allSeries.length, allAnime.length, searchQuery]);
 
@@ -2614,29 +2809,13 @@ function Home() {
               ];
             }
             
-            const hollywoodAnime = hollywoodAnimeQuery.data || [];
-            const bollywoodAnimeMovies = bollywoodAnimeMoviesQuery.data || [];
-            const bollywoodAnimeSeries = bollywoodAnimeSeriesQuery.data || [];
-            
-            console.log('📊 Direct Anime search results (Global):', {
-              hollywoodAnime: hollywoodAnime.length,
-              bollywoodAnimeMovies: bollywoodAnimeMovies.length,
-              bollywoodAnimeSeries: bollywoodAnimeSeries.length
-            });
-            
-            results = [
-              ...hollywoodAnime.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' })),
-              ...bollywoodAnimeMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
-              ...bollywoodAnimeSeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
-            ];
-            
             // Log sample categories for debugging
-            logCategoryInfo('Anime (Global)', results);
+            logCategoryInfo('Anime', results);
             
             if (results.length === 0) throw new Error('No results from network');
             
           } catch (error) {
-            console.log('� Network failed, filtering ALL cached data for Anime content (Global)...');
+            console.log('🔄 Network failed, filtering ALL cached data for Anime content...');
             // Always use all cached content from both Hollywood and Bollywood
             const allCachedContent = [...allAnime, ...allBollyMovies, ...allBollySeries];
             const filteredFromCache = allCachedContent.filter(item => {
@@ -2654,8 +2833,8 @@ function Home() {
               cinemaType: allAnime.includes(item) ? 'hollywood' : 'bollywood'
             }));
             
-            console.log('📊 Cached Anime results across ALL content (Global):', filteredFromCache.length);
-            logCategoryInfo('Cached Anime (Global)', results);
+            console.log('📊 Cached Anime results across ALL content:', filteredFromCache.length);
+            logCategoryInfo('Cached Anime', results);
           }
           break;
         
@@ -3966,6 +4145,12 @@ function Home() {
       </main>
 
       {selectedMovie && renderDetailComponent()}
+      
+      {/* Custom Exit Confirmation Modal */}
+      <ExitConfirmationModal 
+        showExitConfirmation={showExitConfirmation}
+        setShowExitConfirmation={setShowExitConfirmation}
+      />
       
       {/* Only show BottomBar when no movie/series is selected */}
       {!selectedMovie && (

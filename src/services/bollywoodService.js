@@ -87,6 +87,98 @@ const parseEpisodeLinks = (linkString, episodeNumber) => {
   return links;
 };
 
+// Parse season zip/package links from season_zip column (copied from seriesService.js)
+const parseSeasonZipLinks = (seasonZipData) => {
+  if (!seasonZipData || seasonZipData.trim() === '') return [];
+  
+  const links = [];
+  
+  try {
+    // Split by newlines first to handle multiple seasons
+    const lines = seasonZipData.split(/\r?\n/).filter(line => line.trim());
+    
+    lines.forEach(line => {
+      // Check if the line starts with "Season X :" pattern
+      const seasonMatch = line.match(/^Season\s+(\d+)\s*:\s*(.+)/i);
+      
+      let seasonNumber = null;
+      let processableData = line;
+      
+      if (seasonMatch) {
+        seasonNumber = parseInt(seasonMatch[1]);
+        processableData = seasonMatch[2];
+      }
+      
+      // Split by " : " to separate different package options
+      const zipParts = processableData.split(' : ');
+      
+      zipParts.forEach((part, index) => {
+        const trimmed = part.trim();
+        
+        // Look for URLs in square brackets or direct URLs
+        const urlMatch = trimmed.match(/\[([^\]]+)\]|(https?:\/\/[^\s,]+)/);
+        if (urlMatch) {
+          const url = urlMatch[1] || urlMatch[2];
+          
+          // Extract quality and size from the remaining text
+          const remainingText = trimmed.replace(/\[[^\]]+\]/, '').replace(/https?:\/\/[^\s,]+/, '');
+          
+          // Parse quality and size from format like ",720p,1.63 GB" or ",1080p,5.1 GB"
+          const qualityMatch = remainingText.match(/,([^,]*(?:p|bit|K|Season)[^,]*),([^,\n\r]+)/i) || 
+                              remainingText.match(/,([^,]*),([^,\n\r]+)/);
+          
+          let quality = 'Package';
+          let size = 'Unknown';
+          
+          if (qualityMatch) {
+            quality = qualityMatch[1].trim() || 'Package';
+            size = qualityMatch[2].trim() || 'Unknown';
+          } else {
+            // Fallback: try to extract quality from the text
+            const qualityFallback = remainingText.match(/(480p|720p|1080p|4K|2160p|Season)/i);
+            if (qualityFallback) {
+              quality = qualityFallback[1];
+            }
+            
+            // Fallback: try to extract size
+            const sizeFallback = remainingText.match(/(\d+(?:\.\d+)?\s*(?:MB|GB|KB))/i);
+            if (sizeFallback) {
+              size = sizeFallback[1];
+            }
+          }
+          
+          // Clean up the URL (remove any trailing text)
+          const cleanUrl = url.split('?')[0] + (url.includes('?') ? '?' + url.split('?')[1].split(',')[0] : '');
+          
+          // Create package link entry
+          const linkEntry = {
+            url: cleanUrl,
+            name: seasonNumber ? `Season ${seasonNumber} Package - ${quality}` : `Season Package - ${quality}`,
+            title: seasonNumber ? `Season ${seasonNumber} Package` : `Season Package`,
+            quality: quality,
+            size: size,
+            sizeInMB: parseSizeToMB(size),
+            language: extractLanguageFromName(trimmed),
+            episodeNumber: 'package', // Special identifier for packages
+            isPackage: true, // Season packages are always packages
+            downloadType: 'package', // Clear categorization
+            seasonNumber: seasonNumber, // Add the extracted season number
+            season: seasonNumber, // Add alternative property for compatibility
+            season_number: seasonNumber // Add another alternative property for compatibility
+          };
+          
+          links.push(linkEntry);
+        }
+      });
+    });
+    
+  } catch (error) {
+    console.error('💥 Error parsing season zip links:', error);
+  }
+  
+  return links;
+};
+
 const parseSeriesEpisodes = (seasonData) => {
   if (!seasonData || seasonData.trim() === '') return [];
   
@@ -187,6 +279,12 @@ const transformBollywoodSeriesData = (row) => {
   const qualities = extractQualities(categories);
   const metadata = parseContentMetadata(row.content);
   
+  // Parse season zip packages from season_zip column (if available)
+  let seasonZipLinks = [];
+  if (row.season_zip && row.season_zip.trim() !== '') {
+    seasonZipLinks = parseSeasonZipLinks(row.season_zip);
+  }
+  
   // Calculate total statistics
   const totalSeasons = Object.keys(seasons).length;
   const allEpisodes = Object.values(seasons).flatMap(season => season.episodes);
@@ -200,6 +298,7 @@ const transformBollywoodSeriesData = (row) => {
     totalSeasons,
     totalEpisodes,
     allEpisodes,
+    seasonZipLinks, // Add season package links
     
     // Metadata
     genres,

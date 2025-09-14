@@ -159,6 +159,16 @@ const SeriesDetail = ({ series, onClose }) => {
               series.cinemaType === 'bollywood' ? 'bollywood' : 
               series.contentType === 'anime' ? 'anime' : 'series', 
               'table:', fullSeriesData);
+              
+            // Log download link availability
+            console.log('🔗 Download link data available:', {
+              hasSeasonZipLinks: !!fullSeriesData.seasonZipLinks,
+              seasonZipLinksCount: fullSeriesData.seasonZipLinks?.length || 0,
+              seasonZipLinks: fullSeriesData.seasonZipLinks || [],
+              hasSeasons: !!fullSeriesData.seasons,
+              seasonsCount: Object.keys(fullSeriesData.seasons || {}).length,
+              totalEpisodes: fullSeriesData.totalEpisodes || 0
+            });
           } else {
             console.warn('⚠️ No data found for ID:', seriesId, 'in', 
               series.cinemaType === 'bollywood' ? 'bollywood' : 
@@ -211,6 +221,33 @@ const SeriesDetail = ({ series, onClose }) => {
     
     fetchSeriesData();
   }, [series]);
+
+  // Auto-switch to Season Zips tab when no episodes are available but zip files exist
+  useEffect(() => {
+    if (!isLoadingSeasons && seriesData) {
+      const hasEpisodes = seasonEpisodes.length > 0;
+      const hasZipFiles = seriesData.seasonZipLinks && seriesData.seasonZipLinks.length > 0;
+      
+      console.log('🔄 Auto-tab logic:', {
+        hasEpisodes,
+        hasZipFiles,
+        currentTab: activeTab,
+        seasonEpisodesCount: seasonEpisodes.length,
+        zipLinksCount: seriesData.seasonZipLinks?.length || 0,
+        seasonZipLinksData: seriesData.seasonZipLinks || []
+      });
+      
+      // Auto-switch to Season Zips tab if:
+      // 1. Currently on Episodes tab
+      // 2. No episodes available
+      // 3. Zip files are available
+      if (activeTab === 'Episodes' && !hasEpisodes && hasZipFiles) {
+        console.log('🎯 Auto-switching to Season Zips tab - no episodes but zip files available');
+        setActiveTab('Season Zips');
+        showToast('Switched to Season Zips - episodes not available', 'info');
+      }
+    }
+  }, [isLoadingSeasons, seriesData, seasonEpisodes.length, activeTab]);
 
   // Download handler
   const handleDownload = useCallback(async (episode, quality = null, isPackage = false) => {
@@ -636,6 +673,11 @@ const SeriesDetail = ({ series, onClose }) => {
                     <select
                       value={activeSeason?.seasonNumber || ''}
                       onChange={(e) => {
+                        if (e.target.value === '') {
+                          // Handle "All Seasons" selection for series with only zip links
+                          setActiveSeason(null);
+                          return;
+                        }
                         const selectedSeasonNumber = parseInt(e.target.value);
                         const selectedSeason = availableSeasons.find(s => s.seasonNumber === selectedSeasonNumber);
                         if (selectedSeason) {
@@ -644,12 +686,22 @@ const SeriesDetail = ({ series, onClose }) => {
                       }}
                       className="w-full p-2.5 bg-black border border-gray-700 rounded text-white font-medium text-sm appearance-none"
                     >
-                      <option value="">Select Season</option>
-                      {availableSeasons.map(season => (
-                        <option key={season.id} value={season.seasonNumber}>
-                          Season {season.seasonNumber} ({season.totalEpisodes} Episodes)
-                        </option>
-                      ))}
+                      {availableSeasons.length > 0 ? (
+                        <>
+                          <option value="">Select Season</option>
+                          {availableSeasons.map(season => (
+                            <option key={season.id} value={season.seasonNumber}>
+                              Season {season.seasonNumber} ({season.totalEpisodes} Episodes)
+                            </option>
+                          ))}
+                        </>
+                      ) : currentSeriesData?.seasonZipLinks?.length > 0 ? (
+                        <>
+                          <option value="">All Seasons</option>
+                        </>
+                      ) : (
+                        <option value="">Select Season</option>
+                      )}
                     </select>
                   </div>
 
@@ -719,25 +771,40 @@ const SeriesDetail = ({ series, onClose }) => {
                       </div>
                     ))}
                   </div>
-                ) : activeSeason ? (
+                ) : activeSeason || (currentSeriesData?.seasonZipLinks?.length > 0) ? (
                   <div className="space-y-4">
                     {/* Season Information Card */}
                     <div className="bg-black border border-gray-700 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-white font-medium text-lg">Season {activeSeason.seasonNumber}</h3>
+                        <h3 className="text-white font-medium text-lg">
+                          {activeSeason ? `Season ${activeSeason.seasonNumber}` : 'Season Downloads'}
+                        </h3>
                         <div className="flex gap-2">
-                          <span className="bg-[#ff0000] text-white px-2 py-1 rounded text-xs font-medium">
-                            {activeSeason.totalEpisodes} Episodes
-                          </span>
-                          <span className="bg-gray-800 text-gray-300 px-2 py-1 rounded text-xs">
-                            Multiple Qualities
-                          </span>
+                          {activeSeason ? (
+                            <>
+                              <span className="bg-[#ff0000] text-white px-2 py-1 rounded text-xs font-medium">
+                                {activeSeason.totalEpisodes} Episodes
+                              </span>
+                              <span className="bg-gray-800 text-gray-300 px-2 py-1 rounded text-xs">
+                                Multiple Qualities
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="bg-[#ff0000] text-white px-2 py-1 rounded text-xs font-medium">
+                                {currentSeriesData?.seasonZipLinks?.length || 0} Packages
+                              </span>
+                              <span className="bg-gray-800 text-gray-300 px-2 py-1 rounded text-xs">
+                                Multiple Qualities
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                       
                       {/* Season Description */}
                       <p className="text-gray-400 text-sm mb-4">
-                        {currentSeriesData?.title} Season {activeSeason.seasonNumber} Complete 
+                        {currentSeriesData?.title} {activeSeason ? `Season ${activeSeason.seasonNumber} Complete` : 'Season Packages'}
                         {currentSeriesData?.languages?.length > 0 
                           ? ` (${currentSeriesData.languages.join(' + ')})` 
                           : ' Multi-Audio'
@@ -786,6 +853,7 @@ const SeriesDetail = ({ series, onClose }) => {
                           selectedQuality: selectedZipQuality,
                           totalZipLinks: currentSeriesData?.seasonZipLinks?.length || 0,
                           filteredCount: filteredZipLinks.length,
+                          shouldShowZipLinks: (filteredZipLinks.length > 0 && activeSeason) || (!activeSeason && currentSeriesData?.seasonZipLinks?.length > 0),
                           filteredLinks: filteredZipLinks.map(link => ({
                             name: link.name || link.title,
                             season: link.seasonNumber || link.season || link.season_number,
@@ -793,8 +861,13 @@ const SeriesDetail = ({ series, onClose }) => {
                           }))
                         });
                         
-                        // Only show if we have a season selected and matching zip links
-                        return filteredZipLinks.length > 0 && activeSeason ? (
+                        // Show season zip links if:
+                        // 1. We have an active season AND matching zip links, OR
+                        // 2. We have no seasons but have season zip links (fallback for series with only zip data)
+                        const shouldShowZipLinks = (filteredZipLinks.length > 0 && activeSeason) || 
+                                                 (!activeSeason && currentSeriesData?.seasonZipLinks?.length > 0);
+                        
+                        return shouldShowZipLinks ? (
                           <div className="border-t border-gray-700 pt-4">
                             <h4 className="text-white font-medium text-sm mb-3 flex items-center gap-2">
                               <Package size={16} className="text-[#ff0000]" />
@@ -806,8 +879,8 @@ const SeriesDetail = ({ series, onClose }) => {
                               )}
                             </h4>
                             <div className="space-y-2">
-                              {filteredZipLinks.map((zipLink, zipIndex) => {
-                                const downloadKey = `package-${activeSeason?.seasonNumber || 1}-${zipLink.quality}`;
+                              {(filteredZipLinks.length > 0 ? filteredZipLinks : currentSeriesData?.seasonZipLinks || []).map((zipLink, zipIndex) => {
+                                const downloadKey = `package-${activeSeason?.seasonNumber || 'all'}-${zipLink.quality}`;
                                 const isDownloading = downloadingLinks.has(downloadKey);
                                 
                                 return (
@@ -819,7 +892,10 @@ const SeriesDetail = ({ series, onClose }) => {
                                         </div> */}
                                         <div className="min-w-0 flex-1">
                                           <h5 className="text-white font-medium text-sm">
-                                            Season {activeSeason.seasonNumber} Complete - {zipLink.quality}
+                                            {activeSeason 
+                                              ? `Season ${activeSeason.seasonNumber} Complete - ${zipLink.quality}`
+                                              : zipLink.name || zipLink.title || `Season Package - ${zipLink.quality}`
+                                            }
                                           </h5>
                                           <div className="flex items-center gap-2 mt-1">
                                             <span className={`px-2 py-0.5 rounded text-xs font-medium bg-transparent text-white border border-white/40`}>
@@ -855,7 +931,12 @@ const SeriesDetail = ({ series, onClose }) => {
                               <div className="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3">
                                 <Package size={24} className="text-gray-500" />
                               </div>
-                              {!activeSeason ? (
+                              {!activeSeason && (!currentSeriesData?.seasonZipLinks || currentSeriesData?.seasonZipLinks?.length === 0) ? (
+                                <>
+                                  <h3 className="text-white font-medium mb-1">No Season Downloads Available</h3>
+                                  <p className="text-gray-400 text-sm">This series doesn't have season package downloads available yet.</p>
+                                </>
+                              ) : !activeSeason ? (
                                 <>
                                   <h3 className="text-white font-medium mb-1">Select a Season</h3>
                                   <p className="text-gray-400 text-sm">Please select a season to view available downloads.</p>

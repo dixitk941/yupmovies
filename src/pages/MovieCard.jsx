@@ -195,7 +195,7 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
             <SimpleOptimizedImage
               src={imageSrc}
               alt={cleanTitle}
-              className={`w-full h-full object-cover transition-opacity duration-500 ${
+              className={`w-full h-full rounded-[5px] object-cover transition-opacity duration-500 ${
                 isLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               onLoad={handleImageLoad}
@@ -203,7 +203,8 @@ const MovieCard = memo(({ movie, onClick, index, showNumber, useOptimizedImage =
               style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover'
+                objectFit: 'cover',
+                borderRadius: '5px'
               }}
               width={112}
               height={168}
