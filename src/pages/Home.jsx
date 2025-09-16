@@ -3765,19 +3765,75 @@ function Home() {
 
     // **REORGANIZED SECTIONS PER USER REQUEST**
     
-    // 1. Trending Now (high-rated content)
+    // 1. Trending Now (high-rated content + popular content)
     const trending = currentContent
       .filter(item => {
-        const rating = item.content?.rating || item.rating;
-        return rating && parseFloat(rating) > 7;
+        // Check multiple rating sources and formats
+        const rating = item.content?.rating || item.rating || item.imdbRating || item.tmdbRating;
+        if (rating) {
+          const numRating = parseFloat(rating);
+          return numRating > 6.5; // Lowered threshold for more content
+        }
+        
+        // Fallback: Use content with high view counts or recent additions as trending
+        const isPopular = item.views > 1000 || 
+                         item.likes > 100 || 
+                         item.downloads > 50 ||
+                         (item.categories && Array.isArray(item.categories) && item.categories.some(cat => 
+                           cat && cat.toLowerCase && cat.toLowerCase().includes('popular') || 
+                           cat && cat.toLowerCase && cat.toLowerCase().includes('trending') ||
+                           cat && cat.toLowerCase && cat.toLowerCase().includes('hot')
+                         )) ||
+                         (item.categories && typeof item.categories === 'string' && (
+                           item.categories.toLowerCase().includes('popular') ||
+                           item.categories.toLowerCase().includes('trending') ||
+                           item.categories.toLowerCase().includes('hot')
+                         ));
+        
+        return isPopular;
       })
-      .slice(0, 10); // Changed to 20 as requested
+      .slice(0, 15); // Show more trending content
+    
+    // If we still don't have enough trending content, add recently added popular content
+    if (trending.length < 10) {
+      const recentPopular = currentContent
+        .sort((a, b) => new Date(b.modifiedDate || b.date || 0) - new Date(a.modifiedDate || a.date || 0))
+        .filter(item => !trending.includes(item)) // Don't duplicate
+        .slice(0, 10 - trending.length);
+      
+      trending.push(...recentPopular);
+    }
+    
+    console.log(`🔥 Trending section: Found ${trending.length} trending items for ${cinemaType} ${contentType}`);
+    
+    // Debug: Log categories type issues
+    if (trending.length === 0) {
+      const sampleItems = currentContent.slice(0, 3);
+      console.log('🐛 Debug: Sample content categories types:', sampleItems.map(item => ({
+        title: item.title,
+        categoriesType: typeof item.categories,
+        categoriesValue: item.categories,
+        isArray: Array.isArray(item.categories)
+      })));
+    }
+    
     if (trending.length > 0) {
       sections.push({ 
         title: `Trending ${cinemaType === 'bollywood' ? 'Bollywood' : ''} Now`, 
         items: trending, 
         showNumbers: true 
       });
+    } else {
+      // Ultimate fallback: Create trending from first 15 items if no other criteria met
+      const fallbackTrending = currentContent.slice(0, 15);
+      if (fallbackTrending.length > 0) {
+        console.log(`🔥 Using fallback trending with ${fallbackTrending.length} items`);
+        sections.push({ 
+          title: `Popular ${cinemaType === 'bollywood' ? 'Bollywood' : ''} Content`, 
+          items: fallbackTrending, 
+          showNumbers: true 
+        });
+      }
     }
 
     // 2. Recently Added (based on modification date)
