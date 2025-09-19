@@ -1,5 +1,6 @@
 // Fast Download Service - Optimized for quick downloads
 // Handles direct downloads without loading files into memory
+import { handleSecureDownload } from '../utils/secureDownload';
 
 export class DownloadService {
   constructor() {
@@ -68,33 +69,19 @@ export class DownloadService {
     } catch (error) {
       console.warn('URL validation failed:', error.message);
       
-      // Check if it's a network connectivity issue
-      if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
-        console.error('Network connection lost - redirecting to hicine.app');
-        setTimeout(() => {
-          window.location.href = 'https://hicine.app';
-        }, 2000);
-        return false;
-      }
-      
-      return true; // Assume valid if validation fails (other issues)
+      // Don't redirect for download URL validation failures
+      // Many external download servers block HEAD requests
+      // This is normal and shouldn't trigger app redirects
+      return true; // Assume valid and let the download attempt proceed
     }
   }
 
   /**
-   * Simple fast download without complex token system
+   * Simple fast download using secure redirect method
    */
   async simpleFastDownload(url, filename, downloadId) {
     return new Promise((resolve, reject) => {
       try {
-        // Create download anchor
-        const anchor = document.createElement('a');
-        anchor.style.display = 'none';
-        anchor.href = url;
-        anchor.download = filename;
-        anchor.target = '_blank';
-        anchor.rel = 'noopener noreferrer';
-        
         // Track download
         this.downloadQueue.set(downloadId, {
           url,
@@ -102,21 +89,19 @@ export class DownloadService {
           startTime: Date.now()
         });
 
-        // Add to DOM and trigger
-        document.body.appendChild(anchor);
-        anchor.click();
+        // Use secure download instead of direct anchor
+        const success = handleSecureDownload(url, filename, 'Download', '');
         
-        // Clean up
-        setTimeout(() => {
-          try {
-            document.body.removeChild(anchor);
+        if (success) {
+          // Clean up after short delay
+          setTimeout(() => {
             this.downloadQueue.delete(downloadId);
             resolve();
-          } catch (cleanupError) {
-            console.warn('Cleanup error:', cleanupError);
-            resolve();
-          }
-        }, 500);
+          }, 1000);
+        } else {
+          this.downloadQueue.delete(downloadId);
+          reject(new Error('Secure download failed'));
+        }
 
       } catch (error) {
         this.downloadQueue.delete(downloadId);

@@ -1,4 +1,4 @@
-C:\Users\hitow\OneDrive\Documents\GitHub\yupmovies>scp -r ./dist/* root@45.148.244.104:/var/www/hicine.info/
+scp -r ./dist/* root@45.148.244.104:/var/www/hicine.info/
 root@45.148.244.104's password:
 index-pcJejPbO.css                                                                    100%   44KB  62.6KB/s   00:00
 index-ymPbovla.js                                                                     100%  708KB 566.3KB/s   00:01

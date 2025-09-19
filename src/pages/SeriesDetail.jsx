@@ -9,6 +9,7 @@ import { getBollySeriesById, getBollySeriesEpisodes, getBollyEpisodeDownloadLink
 import { getAnimeById } from '../services/animeService';
 import { TextSkeleton, CardSkeleton } from '../components/Skeleton';
 import { downloadService } from '../services/downloadService';
+import { handleSecureDownload } from '../utils/secureDownload';
 
 const SeriesDetail = ({ series, onClose }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -295,8 +296,11 @@ const SeriesDetail = ({ series, onClose }) => {
             
           } catch (error) {
             console.error('Package download error:', error);
-            showToast("Direct download failed, opening in new tab...", 'info');
-            window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+            showToast("Direct download failed, using secure redirect...", 'info');
+            const success = handleSecureDownload(downloadUrl, downloadTitle, downloadQuality, fileSize);
+            if (!success) {
+              showToast('Download failed - please try again', 'error');
+            }
           }
         } else {
           showToast('Download URL not available', 'error');
@@ -339,8 +343,11 @@ const SeriesDetail = ({ series, onClose }) => {
             
           } catch (error) {
             console.error('Episode download error:', error);
-            showToast("Direct download failed, opening in new tab...", 'info');
-            window.open(downloadUrl, '_blank', 'noopener,noreferrer');
+            showToast("Direct download failed, using secure redirect...", 'info');
+            const success = handleSecureDownload(downloadUrl, downloadTitle, downloadQuality, fileSize);
+            if (!success) {
+              showToast('Download failed - please try again', 'error');
+            }
           }
         } else {
           showToast('Download link not available for selected quality', 'error');

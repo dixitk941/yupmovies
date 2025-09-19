@@ -677,8 +677,15 @@ function App() {
       // Don't redirect on mobile devices due to iOS Safari network behavior
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
-      // Check if it's a major network failure (Desktop only)
-      if (!navigator.onLine && !isMobile) {
+      // Don't redirect for download-related errors
+      const isDownloadError = event.error && 
+        (event.error.message?.includes('download') || 
+         event.error.message?.includes('iframe') ||
+         event.error.stack?.includes('secureDownload') ||
+         event.error.stack?.includes('downloadService'));
+      
+      // Check if it's a major network failure (Desktop only) and not download-related
+      if (!navigator.onLine && !isMobile && !isDownloadError) {
         console.error('Connection lost - redirecting to hicine.app');
         setTimeout(() => {
           window.location.href = 'https://hicine.app';
@@ -690,11 +697,19 @@ function App() {
       // Don't redirect on mobile devices
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
-      if (!isMobile && event.reason && event.reason.message && 
+      // Don't redirect for download-related errors
+      const isDownloadError = event.reason && event.reason.message && 
+        (event.reason.message.includes('download') || 
+         event.reason.message.includes('iframe') ||
+         event.reason.message.includes('blob') ||
+         event.reason.stack?.includes('secureDownload') ||
+         event.reason.stack?.includes('downloadService'));
+      
+      if (!isMobile && !isDownloadError && event.reason && event.reason.message && 
           (event.reason.message.includes('Failed to fetch') || 
            event.reason.message.includes('Network request failed'))) {
         console.error('Network request failed - logging only on mobile');
-        // Only redirect on desktop
+        // Only redirect on desktop for non-download errors
         setTimeout(() => {
           window.location.href = 'https://hicine.app';
         }, 5000);

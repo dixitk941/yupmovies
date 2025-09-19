@@ -29,7 +29,7 @@ export const createSecureDownloadLink = (originalUrl, title, quality) => {
   return proxyUrl;
 };
 
-// Handle secure download - opens a new tab with proxy URL that immediately redirects
+// Handle secure download - uses hidden iframe to prevent URL exposure and keep app active
 export const handleSecureDownload = (originalUrl, title, quality, size) => {
   if (!originalUrl) {
     console.error('No download URL provided');
@@ -37,22 +37,8 @@ export const handleSecureDownload = (originalUrl, title, quality, size) => {
   }
   
   try {
-    // For now, use a simple approach with a temporary redirect page
-    // This creates a minimal delay before redirecting to hide the actual URL
-    const redirectPage = createRedirectPage(originalUrl, title, quality);
-    
-    // Open the redirect page in a new tab
-    const newWindow = window.open('', '_blank', 'noopener,noreferrer');
-    if (newWindow) {
-      newWindow.document.write(redirectPage);
-      newWindow.document.close();
-    } else {
-      // Fallback if popup is blocked
-      console.warn('Popup blocked, using direct download');
-      window.open(originalUrl, '_blank', 'noopener,noreferrer');
-    }
-    
-    return true;
+    // Use hidden iframe method to keep the main app tab active
+    return handleSecureDownloadIframe(originalUrl, title, quality);
   } catch (error) {
     console.error('Secure download failed:', error);
     return false;
@@ -119,7 +105,7 @@ const createRedirectPage = (url, title, quality) => {
   `;
 };
 
-// Alternative approach using iframe (even more hidden)
+// Alternative approach using iframe (keeps app in focus and hides URL completely)
 export const handleSecureDownloadIframe = (originalUrl, title, quality) => {
   if (!originalUrl) {
     console.error('No download URL provided');
@@ -127,17 +113,36 @@ export const handleSecureDownloadIframe = (originalUrl, title, quality) => {
   }
   
   try {
-    // Create a hidden iframe to trigger download
+    // Create a hidden iframe to trigger download without affecting main app
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
-    iframe.src = originalUrl;
+    iframe.style.position = 'absolute';
+    iframe.style.left = '-9999px';
+    iframe.style.top = '-9999px';
+    iframe.style.width = '1px';
+    iframe.style.height = '1px';
     
+    // Set up iframe with download URL
+    iframe.src = originalUrl;
+    iframe.name = `download_${Date.now()}`;
+    
+    // Add iframe to document
     document.body.appendChild(iframe);
     
-    // Remove iframe after download starts
+    // Log the download attempt (without exposing URL)
+    console.log(`🔽 Secure download initiated: ${title || 'File'} ${quality ? `(${quality})` : ''}`);
+    
+    // Remove iframe after download starts (give it time to process)
     setTimeout(() => {
-      document.body.removeChild(iframe);
-    }, 5000);
+      try {
+        if (iframe && iframe.parentNode) {
+          document.body.removeChild(iframe);
+          console.log('🗑️ Download iframe cleaned up');
+        }
+      } catch (cleanupError) {
+        console.warn('Iframe cleanup warning:', cleanupError);
+      }
+    }, 8000); // 8 seconds should be enough for download to start
     
     return true;
   } catch (error) {

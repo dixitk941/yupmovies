@@ -1332,6 +1332,8 @@ function Home() {
       return hasUserInteracted && 
              !isRefreshing && 
              !isInternalNavigation && 
+             !selectedMovie &&           // Don't show if detail view is open
+             !isSearchActive &&          // Don't show if search is active
              (allMovies.length > 0 || allSeries.length > 0 || allAnime.length > 0 || searchQuery);
     };
     
@@ -1349,8 +1351,19 @@ function Home() {
     
     // Handle beforeunload event (page unload/refresh)
     const handleBeforeUnload = (event) => {
+      // Check if this is a page refresh by examining the navigation type
+      const isPageRefresh = 
+        // Keyboard refresh was detected
+        isRefreshing ||
+        // Internal navigation (hash changes, etc.)
+        isInternalNavigation ||
+        // Browser refresh button or programmatic reload
+        performance.navigation?.type === 1 ||
+        // Modern browsers - check if reload
+        performance.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
+      
       // Don't show confirmation for refresh actions
-      if (isRefreshing || isInternalNavigation) {
+      if (isPageRefresh) {
         return;
       }
       
@@ -1371,6 +1384,26 @@ function Home() {
     
     // Handle popstate (back/forward buttons) - Use custom modal for this
     const handlePopState = (event) => {
+      // If a detail view is open, close it instead of showing exit confirmation
+      if (selectedMovie) {
+        // Prevent actual navigation by pushing state back
+        window.history.pushState({ modalOpen: true }, '');
+        // Close the detail view
+        setSelectedMovie(null);
+        return;
+      }
+      
+      // If search is active, deactivate it instead of showing exit confirmation
+      if (isSearchActive) {
+        // Prevent actual navigation by pushing state back
+        window.history.pushState({ modalOpen: true }, '');
+        // Close search
+        setIsSearchActive(false);
+        setSearchQuery('');
+        return;
+      }
+      
+      // Only show exit confirmation if no detail views are open and should show confirmation
       if (shouldShowExitConfirmation()) {
         // Prevent actual navigation by pushing state back
         window.history.pushState({ modalOpen: true }, '');
@@ -1411,7 +1444,7 @@ function Home() {
       window.removeEventListener('popstate', handlePopState);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [allMovies.length, allSeries.length, allAnime.length, searchQuery]);
+  }, [allMovies.length, allSeries.length, allAnime.length, searchQuery, selectedMovie, isSearchActive]);
 
   // **MOBILE DEVICE DETECTION** - Check if device is mobile only
   useEffect(() => {
@@ -2007,53 +2040,88 @@ function Home() {
           break;
         
         case '720p':
-          // Try direct database query first, fallback to cached data if network fails
+          // Filter based on cinema type - different databases for Hollywood vs Bollywood
           try {
             const { default: supabase720 } = await import('../services/supabaseClient.js');
-            const [movies720pQuery, series720pQuery, anime720pQuery] = await Promise.all([
-              supabase720
-                .from('movies')
-                .select('*')
-                .ilike('categories', '%720p%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabase720
-                .from('series')
-                .select('*')
-                .ilike('categories', '%720p%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabase720
-                .from('anime')
-                .select('*')
-                .ilike('categories', '%720p%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200)
-            ]);
             
-            const movies720p = movies720pQuery.data || [];
-            const series720p = series720pQuery.data || [];
-            const anime720p = anime720pQuery.data || [];
-            
-            console.log('📊 Direct 720p search results:', {
-              movies: movies720p.length,
-              series: series720p.length, 
-              anime: anime720p.length
-            });
-            
-            results = [
-              ...movies720p.map(item => ({ ...item, contentType: 'movies' })),
-              ...series720p.map(item => ({ ...item, contentType: 'series' })),
-              ...anime720p.map(item => ({ ...item, contentType: 'anime' }))
-            ];
+            if (cinemaType === 'bollywood') {
+              // Query Bollywood databases
+              const [bollyMovies720pQuery, bollySeries720pQuery] = await Promise.all([
+                supabase720
+                  .from('bolly_movies')
+                  .select('*')
+                  .ilike('categories', '%720p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase720
+                  .from('bolly_series')
+                  .select('*')
+                  .ilike('categories', '%720p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const bollyMovies720p = bollyMovies720pQuery.data || [];
+              const bollySeries720p = bollySeries720pQuery.data || [];
+              
+              console.log('📊 Bollywood 720p search results:', {
+                movies: bollyMovies720p.length,
+                series: bollySeries720p.length
+              });
+              
+              results = [
+                ...bollyMovies720p.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...bollySeries720p.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            } else {
+              // Query Hollywood databases
+              const [movies720pQuery, series720pQuery, anime720pQuery] = await Promise.all([
+                supabase720
+                  .from('movies')
+                  .select('*')
+                  .ilike('categories', '%720p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase720
+                  .from('series')
+                  .select('*')
+                  .ilike('categories', '%720p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase720
+                  .from('anime')
+                  .select('*')
+                  .ilike('categories', '%720p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const movies720p = movies720pQuery.data || [];
+              const series720p = series720pQuery.data || [];
+              const anime720p = anime720pQuery.data || [];
+              
+              console.log('📊 Hollywood 720p search results:', {
+                movies: movies720p.length,
+                series: series720p.length, 
+                anime: anime720p.length
+              });
+              
+              results = [
+                ...movies720p.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
+                ...series720p.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
+                ...anime720p.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
+            }
             
             if (results.length === 0) throw new Error('No results from network');
             
           } catch (error) {
-            console.log('🔄 Network failed, filtering ALL cached data for 720p content...');
+            console.log(`🔄 Network failed, filtering ${cinemaType} cached data for 720p content...`);
             // Always use all cached content regardless of current content type
             const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
             const filteredFromCache = allCachedContent.filter(item => {
@@ -2073,53 +2141,88 @@ function Home() {
           break;
         
         case '1080p':
-          // Try direct database query first, fallback to cached data if network fails
+          // Filter based on cinema type - different databases for Hollywood vs Bollywood
           try {
             const { default: supabase1080 } = await import('../services/supabaseClient.js');
-            const [movies1080pQuery, series1080pQuery, anime1080pQuery] = await Promise.all([
-              supabase1080
-                .from('movies')
-                .select('*')
-                .ilike('categories', '%1080p%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabase1080
-                .from('series')
-                .select('*')
-                .ilike('categories', '%1080p%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabase1080
-                .from('anime')
-                .select('*')
-                .ilike('categories', '%1080p%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200)
-            ]);
             
-            const movies1080p = movies1080pQuery.data || [];
-            const series1080p = series1080pQuery.data || [];
-            const anime1080p = anime1080pQuery.data || [];
-            
-            console.log('📊 Direct 1080p search results:', {
-              movies: movies1080p.length,
-              series: series1080p.length, 
-              anime: anime1080p.length
-            });
-            
-            results = [
-              ...movies1080p.map(item => ({ ...item, contentType: 'movies' })),
-              ...series1080p.map(item => ({ ...item, contentType: 'series' })),
-              ...anime1080p.map(item => ({ ...item, contentType: 'anime' }))
-            ];
+            if (cinemaType === 'bollywood') {
+              // Query Bollywood databases
+              const [bollyMovies1080pQuery, bollySeries1080pQuery] = await Promise.all([
+                supabase1080
+                  .from('bolly_movies')
+                  .select('*')
+                  .ilike('categories', '%1080p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase1080
+                  .from('bolly_series')
+                  .select('*')
+                  .ilike('categories', '%1080p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const bollyMovies1080p = bollyMovies1080pQuery.data || [];
+              const bollySeries1080p = bollySeries1080pQuery.data || [];
+              
+              console.log('📊 Bollywood 1080p search results:', {
+                movies: bollyMovies1080p.length,
+                series: bollySeries1080p.length
+              });
+              
+              results = [
+                ...bollyMovies1080p.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...bollySeries1080p.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            } else {
+              // Query Hollywood databases
+              const [movies1080pQuery, series1080pQuery, anime1080pQuery] = await Promise.all([
+                supabase1080
+                  .from('movies')
+                  .select('*')
+                  .ilike('categories', '%1080p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase1080
+                  .from('series')
+                  .select('*')
+                  .ilike('categories', '%1080p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase1080
+                  .from('anime')
+                  .select('*')
+                  .ilike('categories', '%1080p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const movies1080p = movies1080pQuery.data || [];
+              const series1080p = series1080pQuery.data || [];
+              const anime1080p = anime1080pQuery.data || [];
+              
+              console.log('📊 Hollywood 1080p search results:', {
+                movies: movies1080p.length,
+                series: series1080p.length, 
+                anime: anime1080p.length
+              });
+              
+              results = [
+                ...movies1080p.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
+                ...series1080p.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
+                ...anime1080p.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
+            }
             
             if (results.length === 0) throw new Error('No results from network');
             
           } catch (error) {
-            console.log('🔄 Network failed, filtering ALL cached data for 1080p content...');
+            console.log(`🔄 Network failed, filtering ${cinemaType} cached data for 1080p content...`);
             // Always use all cached content regardless of current content type
             const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
             const filteredFromCache = allCachedContent.filter(item => {
@@ -2139,48 +2242,83 @@ function Home() {
           break;
         
         case '4k':
-          // Try direct database query for 4K content across all types
+          // Filter based on cinema type - different databases for Hollywood vs Bollywood
           try {
             const { default: supabase4k } = await import('../services/supabaseClient.js');
-            const [movies4kQuery, series4kQuery, anime4kQuery] = await Promise.all([
-              supabase4k
-                .from('movies')
-                .select('*')
-                .or('categories.ilike.%4k%,categories.ilike.%2160p%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabase4k
-                .from('series')
-                .select('*')
-                .or('categories.ilike.%4k%,categories.ilike.%2160p%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabase4k
-                .from('anime')
-                .select('*')
-                .or('categories.ilike.%4k%,categories.ilike.%2160p%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200)
-            ]);
             
-            const movies4k = movies4kQuery.data || [];
-            const series4k = series4kQuery.data || [];
-            const anime4k = anime4kQuery.data || [];
-            
-            console.log('📊 Direct 4K search results:', {
-              movies: movies4k.length,
-              series: series4k.length, 
-              anime: anime4k.length
-            });
-            
-            results = [
-              ...movies4k.map(item => ({ ...item, contentType: 'movies' })),
-              ...series4k.map(item => ({ ...item, contentType: 'series' })),
-              ...anime4k.map(item => ({ ...item, contentType: 'anime' }))
-            ];
+            if (cinemaType === 'bollywood') {
+              // Query Bollywood databases
+              const [bollyMovies4kQuery, bollySeries4kQuery] = await Promise.all([
+                supabase4k
+                  .from('bolly_movies')
+                  .select('*')
+                  .or('categories.ilike.%4k%,categories.ilike.%2160p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase4k
+                  .from('bolly_series')
+                  .select('*')
+                  .or('categories.ilike.%4k%,categories.ilike.%2160p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const bollyMovies4k = bollyMovies4kQuery.data || [];
+              const bollySeries4k = bollySeries4kQuery.data || [];
+              
+              console.log('📊 Bollywood 4K search results:', {
+                movies: bollyMovies4k.length,
+                series: bollySeries4k.length
+              });
+              
+              results = [
+                ...bollyMovies4k.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...bollySeries4k.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            } else {
+              // Query Hollywood databases
+              const [movies4kQuery, series4kQuery, anime4kQuery] = await Promise.all([
+                supabase4k
+                  .from('movies')
+                  .select('*')
+                  .or('categories.ilike.%4k%,categories.ilike.%2160p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase4k
+                  .from('series')
+                  .select('*')
+                  .or('categories.ilike.%4k%,categories.ilike.%2160p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase4k
+                  .from('anime')
+                  .select('*')
+                  .or('categories.ilike.%4k%,categories.ilike.%2160p%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const movies4k = movies4kQuery.data || [];
+              const series4k = series4kQuery.data || [];
+              const anime4k = anime4kQuery.data || [];
+              
+              console.log('📊 Hollywood 4K search results:', {
+                movies: movies4k.length,
+                series: series4k.length, 
+                anime: anime4k.length
+              });
+              
+              results = [
+                ...movies4k.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
+                ...series4k.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
+                ...anime4k.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
+            }
             
             if (results.length === 0) throw new Error('No results from network');
             
@@ -2315,84 +2453,127 @@ function Home() {
           break;
         
         case 'dual-audio':
-          // Try direct database query first, fallback to cached data if network fails
-          console.log('🔍 Searching for Dual Audio content across ALL content types...');
+          // Filter based on cinema type - different databases for Hollywood vs Bollywood
+          console.log(`🔍 Searching for Dual Audio content in ${cinemaType} databases...`);
           
           try {
             const { default: supabase } = await import('../services/supabaseClient.js');
             
-            const [dualMoviesQuery, dualSeriesQuery, dualAnimeQuery] = await Promise.all([
-              supabase
-                .from('movies')
-                .select('*')
-                .or('categories.ilike.%Dual Audio Movies%,categories.ilike.%Dual Audio%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabase
-                .from('series')
-                .select('*')
-                .or('categories.ilike.%Dual Audio Series%,categories.ilike.%Dual Audio%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200),
-              supabase
-                .from('anime')
-                .select('*')
-                .ilike('categories', '%dual audio%')
-                .eq('status', 'publish')
-                .order('modified_date', { ascending: false })
-                .limit(200)
-            ]);
-            
-            const dualMovies = dualMoviesQuery.data || [];
-            const dualSeries = dualSeriesQuery.data || [];
-            const dualAnime = dualAnimeQuery.data || [];
-            
-            console.log('📊 Direct Dual Audio search results:', {
-              movies: dualMovies.length,
-              series: dualSeries.length, 
-              anime: dualAnime.length,
-              sampleCategories: dualMovies.slice(0, 2).map(m => m.categories),
-              queries: {
-                moviesError: dualMoviesQuery.error,
-                seriesError: dualSeriesQuery.error,
-                animeError: dualAnimeQuery.error
-              }
-            });
-            
-            results = [
-              ...dualMovies.map(item => ({ ...item, contentType: 'movies' })),
-              ...dualSeries.map(item => ({ ...item, contentType: 'series' })),
-              ...dualAnime.map(item => ({ ...item, contentType: 'anime' }))
-            ];
-            
-            // If network query failed, fallback to filtering cached data
-            if (results.length === 0 && (dualMoviesQuery.error || dualSeriesQuery.error || dualAnimeQuery.error)) {
-              throw new Error('Network request failed, using cached data');
+            if (cinemaType === 'bollywood') {
+              // Query Bollywood databases - dual audio in Bollywood means Hindi + regional languages
+              const [bollyMoviesDualQuery, bollySeriesDualQuery] = await Promise.all([
+                supabase
+                  .from('bolly_movies')
+                  .select('*')
+                  .or('categories.ilike.%Dual Audio%,categories.ilike.%dual audio%,categories.ilike.%Hindi%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase
+                  .from('bolly_series')
+                  .select('*')
+                  .or('categories.ilike.%Dual Audio%,categories.ilike.%dual audio%,categories.ilike.%Hindi%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const bollyMoviesDual = bollyMoviesDualQuery.data || [];
+              const bollySeriesDual = bollySeriesDualQuery.data || [];
+              
+              console.log('📊 Bollywood Dual Audio search results:', {
+                movies: bollyMoviesDual.length,
+                series: bollySeriesDual.length,
+                sampleCategories: bollyMoviesDual.slice(0, 2).map(m => m.categories)
+              });
+              
+              results = [
+                ...bollyMoviesDual.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...bollySeriesDual.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            } else {
+              // Query Hollywood databases - dual audio means English + other languages
+              const [dualMoviesQuery, dualSeriesQuery, dualAnimeQuery] = await Promise.all([
+                supabase
+                  .from('movies')
+                  .select('*')
+                  .or('categories.ilike.%Dual Audio Movies%,categories.ilike.%Dual Audio%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase
+                  .from('series')
+                  .select('*')
+                  .or('categories.ilike.%Dual Audio Series%,categories.ilike.%Dual Audio%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabase
+                  .from('anime')
+                  .select('*')
+                  .ilike('categories', '%dual audio%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const dualMovies = dualMoviesQuery.data || [];
+              const dualSeries = dualSeriesQuery.data || [];
+              const dualAnime = dualAnimeQuery.data || [];
+              
+              console.log('📊 Hollywood Dual Audio search results:', {
+                movies: dualMovies.length,
+                series: dualSeries.length, 
+                anime: dualAnime.length,
+                sampleCategories: dualMovies.slice(0, 2).map(m => m.categories),
+                queries: {
+                  moviesError: dualMoviesQuery.error,
+                  seriesError: dualSeriesQuery.error,
+                  animeError: dualAnimeQuery.error
+                }
+              });
+              
+              results = [
+                ...dualMovies.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
+                ...dualSeries.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
+                ...dualAnime.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
             }
             
-          } catch (error) {
-            console.log('🔄 Network failed, filtering ALL cached data for Dual Audio content...');
+            if (results.length === 0) throw new Error('No results from network');
             
-            // Filter from all cached content across all types
-            const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
+          } catch (error) {
+            console.log(`🔄 Network failed, filtering ${cinemaType} cached data for Dual Audio content...`);
+            
+            // Filter from cached content based on cinema type
+            const allCachedContent = cinemaType === 'bollywood' 
+              ? [...allBollyMovies, ...allBollySeries] 
+              : [...allMovies, ...allSeries, ...allAnime];
+              
             const filteredFromCache = allCachedContent.filter(item => {
               const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
                               (item.categories || '').toLowerCase();
-              return categories.includes('dual audio');
+              return categories.includes('dual audio') || categories.includes('hindi');
             });
             
             console.log('📊 Cached Dual Audio results:', {
               totalCached: allCachedContent.length,
               filtered: filteredFromCache.length,
+              cinemaType,
               sampleCategories: filteredFromCache.slice(0, 2).map(m => m.categories)
             });
             
             results = filteredFromCache.map(item => ({
               ...item,
-              contentType: allMovies.includes(item) ? 'movies' : 
-                          allSeries.includes(item) ? 'series' : 'anime'
+              contentType: (allMovies.includes(item) || allBollyMovies.includes(item)) ? 'movies' 
+                         : (allSeries.includes(item) || allBollySeries.includes(item)) ? 'series' 
+                         : 'anime',
+              sourceTable: allMovies.includes(item) ? 'movies' 
+                         : allSeries.includes(item) ? 'series' 
+                         : allAnime.includes(item) ? 'anime' 
+                         : allBollyMovies.includes(item) ? 'bolly_movies' 
+                         : 'bolly_series',
+              cinemaType
             }));
           }
           break;
@@ -2897,64 +3078,290 @@ function Home() {
           break;
         
         case 'web-dl':
-          // Search for WEB-DL content in categories across all content types
-          const [webdlMovies, webdlSeries, webdlAnime] = await Promise.all([
-            searchMoviesDB('web-dl', { genre: 'web-dl', limit: 200 }),
-            searchSeriesDB('web-dl', { genre: 'web-dl', limit: 200 }),
-            searchAnimeDB('web-dl', { genre: 'web-dl', limit: 200 })
-          ]);
-          results = [
-            ...webdlMovies.map(item => ({ ...item, contentType: 'movies' })),
-            ...webdlSeries.map(item => ({ ...item, contentType: 'series' })),
-            ...webdlAnime.map(item => ({ ...item, contentType: 'anime' }))
-          ];
+          // Filter WEB-DL content based on cinema type - different databases
+          try {
+            const { default: supabaseWebdl } = await import('../services/supabaseClient.js');
+            
+            if (cinemaType === 'bollywood') {
+              // Query Bollywood databases
+              const [bollyMoviesWebdlQuery, bollySeriesWebdlQuery] = await Promise.all([
+                supabaseWebdl
+                  .from('bolly_movies')
+                  .select('*')
+                  .or('categories.ilike.%web-dl%,categories.ilike.%webdl%,categories.ilike.%web dl%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseWebdl
+                  .from('bolly_series')
+                  .select('*')
+                  .or('categories.ilike.%web-dl%,categories.ilike.%webdl%,categories.ilike.%web dl%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const bollyMoviesWebdl = bollyMoviesWebdlQuery.data || [];
+              const bollySeriesWebdl = bollySeriesWebdlQuery.data || [];
+              
+              console.log('📊 Bollywood WEB-DL search results:', {
+                movies: bollyMoviesWebdl.length,
+                series: bollySeriesWebdl.length
+              });
+              
+              results = [
+                ...bollyMoviesWebdl.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...bollySeriesWebdl.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            } else {
+              // Query Hollywood databases
+              const [moviesWebdlQuery, seriesWebdlQuery, animeWebdlQuery] = await Promise.all([
+                supabaseWebdl
+                  .from('movies')
+                  .select('*')
+                  .or('categories.ilike.%web-dl%,categories.ilike.%webdl%,categories.ilike.%web dl%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseWebdl
+                  .from('series')
+                  .select('*')
+                  .or('categories.ilike.%web-dl%,categories.ilike.%webdl%,categories.ilike.%web dl%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseWebdl
+                  .from('anime')
+                  .select('*')
+                  .or('categories.ilike.%web-dl%,categories.ilike.%webdl%,categories.ilike.%web dl%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const moviesWebdl = moviesWebdlQuery.data || [];
+              const seriesWebdl = seriesWebdlQuery.data || [];
+              const animeWebdl = animeWebdlQuery.data || [];
+              
+              console.log('📊 Hollywood WEB-DL search results:', {
+                movies: moviesWebdl.length,
+                series: seriesWebdl.length,
+                anime: animeWebdl.length
+              });
+              
+              results = [
+                ...moviesWebdl.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
+                ...seriesWebdl.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
+                ...animeWebdl.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
+            }
+            
+            if (results.length === 0) throw new Error('No results from network');
+            
+          } catch (error) {
+            console.warn('WEB-DL search failed, using fallback:', error);
+            // Fallback to cache search if available
+            const cachedContent = await getCachedContent();
+            const filteredFromCache = cachedContent.filter(item => 
+              item?.categories?.toLowerCase().includes('web-dl') ||
+              item?.categories?.toLowerCase().includes('webdl') ||
+              item?.categories?.toLowerCase().includes('web dl')
+            );
+            results = filteredFromCache.slice(0, 200);
+            
+            console.log('📊 Cached WEB-DL results across ALL content:', filteredFromCache.length);
+          }
           break;
         
         case 'bluray':
-          // Search for Blu-Ray content in categories across all content types
-          const [blurayMovies, bluraySeries, blurayAnime] = await Promise.all([
-            searchMoviesDB('blu-ray', { genre: 'blu-ray', limit: 200 }),
-            searchSeriesDB('blu-ray', { genre: 'blu-ray', limit: 200 }),
-            searchAnimeDB('blu-ray', { genre: 'blu-ray', limit: 200 })
-          ]);
-          results = [
-            ...blurayMovies.map(item => ({ ...item, contentType: 'movies' })),
-            ...bluraySeries.map(item => ({ ...item, contentType: 'series' })),
-            ...blurayAnime.map(item => ({ ...item, contentType: 'anime' }))
-          ];
+          // Filter Blu-Ray content based on cinema type - different databases
+          try {
+            const { default: supabaseBluray } = await import('../services/supabaseClient.js');
+            
+            if (cinemaType === 'bollywood') {
+              // Query Bollywood databases
+              const [bollyMoviesBlurayQuery, bollySeriesBlurayQuery] = await Promise.all([
+                supabaseBluray
+                  .from('bolly_movies')
+                  .select('*')
+                  .or('categories.ilike.%bluray%,categories.ilike.%blu-ray%,categories.ilike.%blu ray%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseBluray
+                  .from('bolly_series')
+                  .select('*')
+                  .or('categories.ilike.%bluray%,categories.ilike.%blu-ray%,categories.ilike.%blu ray%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const bollyMoviesBluray = bollyMoviesBlurayQuery.data || [];
+              const bollySeriesBluray = bollySeriesBlurayQuery.data || [];
+              
+              console.log('📊 Bollywood Blu-Ray search results:', {
+                movies: bollyMoviesBluray.length,
+                series: bollySeriesBluray.length
+              });
+              
+              results = [
+                ...bollyMoviesBluray.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...bollySeriesBluray.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            } else {
+              // Query Hollywood databases
+              const [moviesBlurayQuery, seriesBlurayQuery, animeBlurayQuery] = await Promise.all([
+                supabaseBluray
+                  .from('movies')
+                  .select('*')
+                  .or('categories.ilike.%bluray%,categories.ilike.%blu-ray%,categories.ilike.%blu ray%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseBluray
+                  .from('series')
+                  .select('*')
+                  .or('categories.ilike.%bluray%,categories.ilike.%blu-ray%,categories.ilike.%blu ray%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseBluray
+                  .from('anime')
+                  .select('*')
+                  .or('categories.ilike.%bluray%,categories.ilike.%blu-ray%,categories.ilike.%blu ray%')
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const moviesBluray = moviesBlurayQuery.data || [];
+              const seriesBluray = seriesBlurayQuery.data || [];
+              const animeBluray = animeBlurayQuery.data || [];
+              
+              console.log('📊 Hollywood Blu-Ray search results:', {
+                movies: moviesBluray.length,
+                series: seriesBluray.length,
+                anime: animeBluray.length
+              });
+              
+              results = [
+                ...moviesBluray.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
+                ...seriesBluray.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
+                ...animeBluray.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
+            }
+            
+            if (results.length === 0) throw new Error('No results from network');
+            
+          } catch (error) {
+            console.warn('Blu-Ray search failed, using fallback:', error);
+            // Fallback to cache search if available
+            const cachedContent = await getCachedContent();
+            const filteredFromCache = cachedContent.filter(item => 
+              item?.categories?.toLowerCase().includes('bluray') ||
+              item?.categories?.toLowerCase().includes('blu-ray') ||
+              item?.categories?.toLowerCase().includes('blu ray')
+            );
+            results = filteredFromCache.slice(0, 200);
+            
+            console.log('📊 Cached Blu-Ray results across ALL content:', filteredFromCache.length);
+          }
           break;
         
         default:
-          // For any other filter, try to search across all content types
-          const [defaultMovies, defaultSeries, defaultAnime] = await Promise.all([
-            searchMoviesDB(filterId, { genre: filterId, limit: 200 }),
-            searchSeriesDB(filterId, { genre: filterId, limit: 200 }),
-            searchAnimeDB(filterId, { genre: filterId, limit: 200 })
-          ]);
-          
-          results = [
-            ...defaultMovies.map(item => ({ ...item, contentType: 'movies' })),
-            ...defaultSeries.map(item => ({ ...item, contentType: 'series' })),
-            ...defaultAnime.map(item => ({ ...item, contentType: 'anime' }))
-          ];
-          
-          // If no results from DB, try searching in cached data
-          if (results.length === 0) {
-            console.log(`🔍 No direct DB results for "${filterId}", searching in ALL cached content...`);
-            const allCachedContent = [...allMovies, ...allSeries, ...allAnime];
-            const filteredFromCache = allCachedContent.filter(item => {
+          // For any other filter, search based on cinema type - different databases
+          try {
+            const { default: supabaseDefault } = await import('../services/supabaseClient.js');
+            
+            if (cinemaType === 'bollywood') {
+              // Query Bollywood databases
+              const [bollyMoviesDefaultQuery, bollySeriesDefaultQuery] = await Promise.all([
+                supabaseDefault
+                  .from('bolly_movies')
+                  .select('*')
+                  .ilike('categories', `%${filterId}%`)
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseDefault
+                  .from('bolly_series')
+                  .select('*')
+                  .ilike('categories', `%${filterId}%`)
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const bollyMoviesDefault = bollyMoviesDefaultQuery.data || [];
+              const bollySeriesDefault = bollySeriesDefaultQuery.data || [];
+              
+              console.log(`📊 Bollywood ${filterId} search results:`, {
+                movies: bollyMoviesDefault.length,
+                series: bollySeriesDefault.length
+              });
+              
+              results = [
+                ...bollyMoviesDefault.map(item => ({ ...item, contentType: 'movies', sourceTable: 'bolly_movies', cinemaType: 'bollywood' })),
+                ...bollySeriesDefault.map(item => ({ ...item, contentType: 'series', sourceTable: 'bolly_series', cinemaType: 'bollywood' }))
+              ];
+            } else {
+              // Query Hollywood databases
+              const [moviesDefaultQuery, seriesDefaultQuery, animeDefaultQuery] = await Promise.all([
+                supabaseDefault
+                  .from('movies')
+                  .select('*')
+                  .ilike('categories', `%${filterId}%`)
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseDefault
+                  .from('series')
+                  .select('*')
+                  .ilike('categories', `%${filterId}%`)
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200),
+                supabaseDefault
+                  .from('anime')
+                  .select('*')
+                  .ilike('categories', `%${filterId}%`)
+                  .eq('status', 'publish')
+                  .order('modified_date', { ascending: false })
+                  .limit(200)
+              ]);
+              
+              const moviesDefault = moviesDefaultQuery.data || [];
+              const seriesDefault = seriesDefaultQuery.data || [];
+              const animeDefault = animeDefaultQuery.data || [];
+              
+              console.log(`📊 Hollywood ${filterId} search results:`, {
+                movies: moviesDefault.length,
+                series: seriesDefault.length,
+                anime: animeDefault.length
+              });
+              
+              results = [
+                ...moviesDefault.map(item => ({ ...item, contentType: 'movies', sourceTable: 'movies', cinemaType: 'hollywood' })),
+                ...seriesDefault.map(item => ({ ...item, contentType: 'series', sourceTable: 'series', cinemaType: 'hollywood' })),
+                ...animeDefault.map(item => ({ ...item, contentType: 'anime', sourceTable: 'anime', cinemaType: 'hollywood' }))
+              ];
+            }
+            
+            if (results.length === 0) throw new Error('No results from network');
+            
+          } catch (error) {
+            console.warn(`${filterId} search failed, using fallback:`, error);
+            // Fallback to cache search if available
+            const cachedContent = await getCachedContent();
+            const filteredFromCache = cachedContent.filter(item => {
               const categories = Array.isArray(item.categories) ? item.categories.join(' ').toLowerCase() : 
                               (item.categories || '').toLowerCase();
               return categories.includes(filterId.toLowerCase());
             });
+            results = filteredFromCache.slice(0, 200);
             
-            results = filteredFromCache.map(item => ({
-              ...item,
-              contentType: allMovies.includes(item) ? 'movies' : 
-                          allSeries.includes(item) ? 'series' : 'anime'
-            }));
-            
-            console.log(`📊 Cached ${filterId} results:`, filteredFromCache.length);
+            console.log(`📊 Cached ${filterId} results across ALL content:`, filteredFromCache.length);
           }
       }
       
@@ -3164,95 +3571,151 @@ function Home() {
         <div className="bg-black mt-[-5px] bg-opacity-70 ">
           <div className="overflow-x-auto scrollbar-hide px-4 py-2">
             <div className="flex items-center space-x-2 min-w-max">
-              {/* All */}
-                <button
-                  className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
-                    activeFilter === 'all' 
-                      ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
-                      : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
-                  }`}
-                  onClick={() => handleFilterChange('all')}
-                  disabled={filterLoading && activeFilter === 'all'}
-                >
-                  {filterLoading && activeFilter === 'all' ? (
-                    <LoadingDots size="xs" color="white" />
-                  ) : (
-                    'All'
-                  )}
-                </button>
-
-              {/* 1080p */}
+              {/* All - Always visible */}
               <button
                 className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
-                  activeFilter === '1080p' 
+                  activeFilter === 'all' 
                     ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
                     : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
                 }`}
-                onClick={() => handleFilterChange('1080p')}
-                disabled={filterLoading && activeFilter === '1080p'}
+                onClick={() => handleFilterChange('all')}
+                disabled={filterLoading && activeFilter === 'all'}
               >
-                {filterLoading && activeFilter === '1080p' ? (
+                {filterLoading && activeFilter === 'all' ? (
                   <LoadingDots size="xs" color="white" />
                 ) : (
-                  '1080P'
+                  'All'
                 )}
               </button>
 
-              {/* 4K */}
-              <button
-                className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
-                  activeFilter === '4k' 
-                    ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
-                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
-                }`}
-                onClick={() => handleFilterChange('4k')}
-                disabled={filterLoading && activeFilter === '4k'}
-              >
-                {filterLoading && activeFilter === '4k' ? (
-                  <LoadingDots size="xs" color="white" />
-                ) : (
-                  '4K'
-                )}
-              </button>
+              {/* HOLLYWOOD FILTERS */}
+              {cinemaType === 'hollywood' && (
+                <>
+                  {/* 1080p */}
+                  <button
+                    className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
+                      activeFilter === '1080p' 
+                        ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                        : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
+                    }`}
+                    onClick={() => handleFilterChange('1080p')}
+                    disabled={filterLoading && activeFilter === '1080p'}
+                  >
+                    {filterLoading && activeFilter === '1080p' ? (
+                      <LoadingDots size="xs" color="white" />
+                    ) : (
+                      '1080P'
+                    )}
+                  </button>
 
-              {/* English */}
-              <button
-                className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
-                  activeFilter === 'english' 
-                    ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
-                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
-                }`}
-                onClick={() => handleFilterChange('english')}
-                disabled={filterLoading && activeFilter === 'english'}
-              >
-                {filterLoading && activeFilter === 'english' ? (
-                  <LoadingDots size="xs" color="white" />
-                ) : (
-                  'English'
-                )}
-              </button>
+                  {/* 4K */}
+                  <button
+                    className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
+                      activeFilter === '4k' 
+                        ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                        : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
+                    }`}
+                    onClick={() => handleFilterChange('4k')}
+                    disabled={filterLoading && activeFilter === '4k'}
+                  >
+                    {filterLoading && activeFilter === '4k' ? (
+                      <LoadingDots size="xs" color="white" />
+                    ) : (
+                      '4K'
+                    )}
+                  </button>
 
-              {/* Dual Audio */}
-              <button
-                className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
-                  activeFilter === 'dual-audio' 
-                    ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
-                    : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
-                }`}
-                onClick={() => handleFilterChange('dual-audio')}
-                disabled={filterLoading && activeFilter === 'dual-audio'}
-              >
-                {filterLoading && activeFilter === 'dual-audio' ? (
-                  <LoadingDots size="xs" color="white" />
-                ) : (
-                  'Dual Audio'
-                )}
-              </button>
+                  {/* English - Only for Hollywood */}
+                  <button
+                    className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
+                      activeFilter === 'english' 
+                        ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                        : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
+                    }`}
+                    onClick={() => handleFilterChange('english')}
+                    disabled={filterLoading && activeFilter === 'english'}
+                  >
+                    {filterLoading && activeFilter === 'english' ? (
+                      <LoadingDots size="xs" color="white" />
+                    ) : (
+                      'English'
+                    )}
+                  </button>
 
-              {/* Bollywood-specific filters */}
+                  {/* Dual Audio - Hollywood */}
+                  <button
+                    className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
+                      activeFilter === 'dual-audio' 
+                        ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                        : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
+                    }`}
+                    onClick={() => handleFilterChange('dual-audio')}
+                    disabled={filterLoading && activeFilter === 'dual-audio'}
+                  >
+                    {filterLoading && activeFilter === 'dual-audio' ? (
+                      <LoadingDots size="xs" color="white" />
+                    ) : (
+                      'Dual Audio'
+                    )}
+                  </button>
+
+                  {/* WEB-DL - Hollywood */}
+                  <button
+                    className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
+                      activeFilter === 'web-dl' 
+                        ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                        : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
+                    }`}
+                    onClick={() => handleFilterChange('web-dl')}
+                    disabled={filterLoading && activeFilter === 'web-dl'}
+                  >
+                    {filterLoading && activeFilter === 'web-dl' ? (
+                      <LoadingDots size="xs" color="white" />
+                    ) : (
+                      'WEB-DL'
+                    )}
+                  </button>
+
+                  {/* Blu-Ray - Hollywood */}
+                  <button
+                    className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
+                      activeFilter === 'bluray' 
+                        ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                        : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
+                    }`}
+                    onClick={() => handleFilterChange('bluray')}
+                    disabled={filterLoading && activeFilter === 'bluray'}
+                  >
+                    {filterLoading && activeFilter === 'bluray' ? (
+                      <LoadingDots size="xs" color="white" />
+                    ) : (
+                      'Blu-Ray'
+                    )}
+                  </button>
+                </>
+              )}
+
+              {/* BOLLYWOOD FILTERS */}
               {cinemaType === 'bollywood' && (
                 <>
-                  {/* 720p */}
+                  {/* 1080p */}
+                  <button
+                    className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
+                      activeFilter === '1080p' 
+                        ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                        : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
+                    }`}
+                    onClick={() => handleFilterChange('1080p')}
+                    disabled={filterLoading && activeFilter === '1080p'}
+                  >
+                    {filterLoading && activeFilter === '1080p' ? (
+                      <LoadingDots size="xs" color="white" />
+                    ) : (
+                      '1080P'
+                    )}
+                  </button>
+
+                  {/* 720p - Bollywood specific */}
                   <button
                     className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
                       activeFilter === '720p' 
@@ -3269,7 +3732,7 @@ function Home() {
                     )}
                   </button>
 
-                  {/* 1080p 60FPS */}
+                  {/* 1080p 60FPS - Bollywood specific */}
                   <button
                     className={`w-24 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
                       activeFilter === '1080p-60fps' 
@@ -3283,6 +3746,23 @@ function Home() {
                       <LoadingDots size="xs" color="white" />
                     ) : (
                       '1080P 60FPS'
+                    )}
+                  </button>
+
+                  {/* Dual Audio - Bollywood (Hindi + Regional) */}
+                  <button
+                    className={`w-20 h-[30px] transition-colors rounded border flex items-center justify-center flex-shrink-0 ${
+                      activeFilter === 'dual-audio' 
+                        ? 'bg-[#242424] text-white border-[#242424] text-sm font-bold' 
+                        : 'text-gray-300 border-white hover:text-white hover:border-gray-500 text-xs font-medium'
+                    }`}
+                    onClick={() => handleFilterChange('dual-audio')}
+                    disabled={filterLoading && activeFilter === 'dual-audio'}
+                  >
+                    {filterLoading && activeFilter === 'dual-audio' ? (
+                      <LoadingDots size="xs" color="white" />
+                    ) : (
+                      'Dual Audio'
                     )}
                   </button>
 
@@ -4163,9 +4643,12 @@ function Home() {
         <div className="flex items-center justify-between px-6 py-4">
           {/* Logo */}
           <div className="flex items-center cursor-pointer" onClick={handleLogoClick}>
-           <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path d="M34.95 10.3358L21.2 2.81241C20.8326 2.60941 20.4197 2.50293 20 2.50293C19.5803 2.50293 19.1674 2.60941 18.8 2.81241L5.05 10.339C4.65733 10.5538 4.32954 10.8702 4.10086 11.2549C3.87219 11.6397 3.75102 12.0789 3.75 12.5265V27.4702C3.75102 27.9178 3.87219 28.357 4.10086 28.7417C4.32954 29.1265 4.65733 29.4429 5.05 29.6577L18.8 37.1843C19.1674 37.3873 19.5803 37.4938 20 37.4938C20.4197 37.4938 20.8326 37.3873 21.2 37.1843L34.95 29.6577C35.3427 29.4429 35.6705 29.1265 35.8991 28.7417C36.1278 28.357 36.249 27.9178 36.25 27.4702V12.528C36.2498 12.0796 36.129 11.6395 35.9003 11.2538C35.6716 10.8681 35.3434 10.5511 34.95 10.3358ZM20 4.99991L32.5531 11.8749L20 18.7499L7.44688 11.8749L20 4.99991ZM6.25 14.0624L18.75 20.903V34.3077L6.25 27.4718V14.0624ZM21.25 34.3077V20.9093L33.75 14.0624V27.4655L21.25 34.3077Z" fill="white"/>
+          <svg width="40" height="40" viewBox="0 0 54 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M52 12C39.5458 11.5 14.6374 10.8 14.6374 12M52 12L49.8022 47H14.6374M52 12L40.4615 2L4.74725 4.5M14.6374 12C14.6374 13.2 14.6374 35.8333 14.6374 47M14.6374 12L4.74725 4.5M14.6374 47L2 37.5L4.74725 4.5" stroke="white" stroke-width="2"/>
+<path d="M50.5303 12.5L50.499 13.0293L48.584 46.0293L48.5566 46.5H15.5V12.5H50.5303Z" fill="white" stroke="white"/>
+<path d="M24.224 21.136C24.224 22.4373 24.192 23.536 24.128 24.432C24.064 25.328 24.0107 26.0107 23.968 26.48H24.256C24.64 25.8613 25.0667 25.3707 25.536 25.008C26.0267 24.6453 26.5707 24.3893 27.168 24.24C27.7653 24.0693 28.416 23.984 29.12 23.984C30.2933 23.984 31.3493 24.208 32.288 24.656C33.2267 25.104 33.9733 25.808 34.528 26.768C35.104 27.7067 35.392 28.944 35.392 30.48V42H29.248V32.336C29.248 31.1627 29.0773 30.2773 28.736 29.68C28.3947 29.0827 27.8613 28.784 27.136 28.784C26.4107 28.784 25.8347 28.9973 25.408 29.424C24.9813 29.8507 24.672 30.4693 24.48 31.28C24.3093 32.0693 24.224 33.0507 24.224 34.224V42H18.112V17.68H24.224V21.136ZM45.6935 24.304V42H39.5815V24.304H45.6935ZM42.6535 17.168C43.5282 17.168 44.2855 17.3493 44.9255 17.712C45.5868 18.0747 45.9175 18.8 45.9175 19.888C45.9175 20.9333 45.5868 21.648 44.9255 22.032C44.2855 22.3947 43.5282 22.576 42.6535 22.576C41.7575 22.576 40.9895 22.3947 40.3495 22.032C39.7308 21.648 39.4215 20.9333 39.4215 19.888C39.4215 18.8 39.7308 18.0747 40.3495 17.712C40.9895 17.3493 41.7575 17.168 42.6535 17.168Z" fill="black"/>
 </svg>
+
 
           </div>
 
